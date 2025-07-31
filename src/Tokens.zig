@@ -5,6 +5,7 @@ const assert = std.debug.assert;
 
 const Char = @import("Char.zig");
 const Span = @import("Span.zig");
+const Token = @import("Token.zig");
 
 text: []const u8,
 statement: Span,
@@ -18,14 +19,35 @@ pub fn new(text: []const u8, stmt: Span) Self {
     };
 }
 
-pub fn next(self: *Self) ?Span {
+pub fn expectIdentOrEmpty(self: *Self) !?Token {
+    const token = self.next() orelse return null;
+    if (token.kind != .Ident) {
+        return error.UnexpectedToken;
+    }
+    return token;
+}
+
+pub fn expectEquals(self: *Self) !void {
+    const token = try self.expectNext();
+    if (token.kind != .Equals) {
+        return error.UnexpectedToken;
+    }
+}
+
+fn expectNext(self: *Self) !Token {
+    return self.next() orelse return error.UnexpectedEol;
+}
+
+// TODO(refactor): Make private
+// TODO(refactor): Rename
+pub fn next(self: *Self) ?Token {
     while (true) {
-        const token = self.nextTokenAny() orelse return null;
-        if (std.mem.eql(u8, token.in(self.text), "--")) {
+        const span = self.nextTokenAny() orelse return null;
+        if (std.mem.eql(u8, span.in(self.text), "--")) {
             self.advanceUntilLinebreak();
             continue;
         }
-        return token;
+        return Token.new(self.text, span);
     }
 }
 

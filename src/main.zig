@@ -4,7 +4,7 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
 const Statements = @import("Statements.zig");
-const Lexer = @import("Lexer.zig");
+const Tokens = @import("Tokens.zig");
 
 pub fn main() !void {
     var gpa = std.heap.DebugAllocator(.{}){};
@@ -16,24 +16,37 @@ pub fn main() !void {
     const text = try readFile(filepath, allocator);
     defer text.deinit();
 
-    var stmts = Statements.new(text.items);
-    var i: usize = 0;
-    while (stmts.next()) |stmt| {
-        var tokens = Lexer.new(text.items, stmt);
-        while (tokens.next()) |token| {
-            while (i < text.items.len) : (i += 1) {
-                if (i >= token.offset) {
-                    i += token.length;
-                    break;
+    {
+        var stmts = Statements.new(text.items);
+        var i: usize = 0;
+        while (stmts.next()) |stmt| {
+            var tokens = Tokens.new(text.items, stmt);
+            var j: usize = 0;
+            while (tokens.next()) |token| : (j += 1) {
+                while (i < text.items.len) : (i += 1) {
+                    if (i >= token.span.offset) {
+                        i += token.span.length;
+                        break;
+                    }
+                    std.debug.print("{c}", .{text.items[i]});
                 }
-                std.debug.print("{c}", .{text.items[i]});
+                std.debug.print("\x1b[3{}m", .{j % 6 + 1});
+                std.debug.print("{s}", .{token.span.in(text.items)});
+                std.debug.print("\x1b[0m", .{});
             }
-            std.debug.print("\x1b[3{}m", .{i % 6 + 1});
-            std.debug.print("{s}", .{token.in(text.items)});
-            std.debug.print("\x1b[0m", .{});
         }
+        std.debug.print("\n", .{});
     }
-    std.debug.print("\n", .{});
+
+    var stmts = Statements.new(text.items);
+    while (stmts.next()) |stmt| {
+        var tokens = Tokens.new(text.items, stmt);
+
+        const name = try tokens.expectIdentOrEmpty() orelse continue;
+        try tokens.expectEquals();
+
+        std.debug.print("name: {s}\n", .{name.span.in(text.items)});
+    }
 }
 
 const Tokenizer = struct {

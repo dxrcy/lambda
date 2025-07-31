@@ -1,8 +1,9 @@
 
+
 T = \x. \y. x
 F = \x. \y. y
 
-a
+-- a
 
 & = \p. \q. p q p
 | = \p. \q. p p q
