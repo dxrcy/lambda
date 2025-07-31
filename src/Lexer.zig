@@ -7,31 +7,21 @@ const Char = @import("Char.zig");
 const Span = @import("Span.zig");
 
 text: []const u8,
+statement: Span,
 index: usize,
 
-pub fn new(text: []const u8) Self {
+pub fn new(text: []const u8, stmt: Span) Self {
     return .{
         .text = text,
+        .statement = stmt,
         .index = 0,
     };
 }
 
-const Token = struct {
-    span: Span,
-    // kind: Kind,
-    //
-    // const Kind = union(enum) {
-    //     Integer,
-    //     String,
-    //     Symbol,
-    //     Identifier,
-    // };
-};
-
-pub fn next(self: *Self) ?Token {
+pub fn next(self: *Self) ?Span {
     while (true) {
         const token = self.nextTokenAny() orelse return null;
-        if (std.mem.eql(u8, token.span.in(self.text), "--")) {
+        if (std.mem.eql(u8, token.in(self.text), "--")) {
             self.advanceUntilLinebreak();
             continue;
         }
@@ -39,13 +29,13 @@ pub fn next(self: *Self) ?Token {
     }
 }
 
-fn nextTokenAny(self: *Self) ?Token {
+fn nextTokenAny(self: *Self) ?Span {
     self.advanceUntilNonwhitespace();
     if (self.isEnd()) {
         return null;
     }
     if (self.tryNextAtomic()) |span| {
-        return .{ .span = span };
+        return span;
     }
     return self.nextNormalToken();
 }
@@ -73,11 +63,11 @@ fn tryNextAtomic(self: *Self) ?Span {
         return null;
     }
     self.index += 1;
-    return Span.new(self.index - 1, 1);
+    return Span.new(self.index - 1, 1).withOffset(self.statement.offset);
 }
 
 // TODO(refactor): Rename
-fn nextNormalToken(self: *Self) Token {
+fn nextNormalToken(self: *Self) Span {
     const start = self.index;
     self.index += 1;
 
@@ -90,8 +80,7 @@ fn nextNormalToken(self: *Self) Token {
         self.index += 1;
     }
 
-    const span = Span.fromBounds(start, self.index);
-    return .{ .span = span };
+    return Span.fromBounds(start, self.index).withOffset(self.statement.offset);
 }
 
 fn nextTokenChar(self: *const Self) Char {
@@ -105,9 +94,9 @@ fn peekChar(self: *const Self) ?Char {
     if (self.isEnd()) {
         return null;
     }
-    return Char.new(self.text[self.index]);
+    return Char.new(self.text[self.statement.offset + self.index]);
 }
 
 fn isEnd(self: *const Self) bool {
-    return self.index >= self.text.len;
+    return self.index >= self.statement.length;
 }

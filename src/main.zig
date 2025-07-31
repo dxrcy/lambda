@@ -17,15 +17,23 @@ pub fn main() !void {
     defer text.deinit();
 
     var stmts = Statements.new(text.items);
+    var i: usize = 0;
     while (stmts.next()) |stmt| {
-        std.debug.print("----------\n", .{});
-        var tokens = Lexer.new(stmt);
+        var tokens = Lexer.new(text.items, stmt);
         while (tokens.next()) |token| {
-            std.debug.print("| {s} ", .{token.span.in(stmt)});
+            while (i < text.items.len) : (i += 1) {
+                if (i >= token.offset) {
+                    i += token.length;
+                    break;
+                }
+                std.debug.print("{c}", .{text.items[i]});
+            }
+            std.debug.print("\x1b[3{}m", .{i % 6 + 1});
+            std.debug.print("{s}", .{token.in(text.items)});
+            std.debug.print("\x1b[0m", .{});
         }
-        std.debug.print("\n", .{});
     }
-    std.debug.print("----------\n", .{});
+    std.debug.print("\n", .{});
 }
 
 const Tokenizer = struct {

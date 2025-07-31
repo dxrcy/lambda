@@ -3,6 +3,8 @@ const Self = @This();
 const std = @import("std");
 const assert = std.debug.assert;
 
+const Span = @import("Span.zig");
+
 text: []const u8,
 index: usize,
 
@@ -13,7 +15,7 @@ pub fn new(text: []const u8) Self {
     };
 }
 
-pub fn next(self: *Self) ?[]const u8 {
+pub fn next(self: *Self) ?Span {
     self.advanceUntilNonwhitespace();
     if (self.isEmpty()) {
         return null;
@@ -34,7 +36,16 @@ pub fn next(self: *Self) ?[]const u8 {
         }
         break; // New statement
     }
-    return trimWhitespaceRight(self.text[start..self.index]);
+
+    var end = self.index - 1;
+    while (end > 0 and isAnyWhitespace(self.text[end - 1])) {
+        end -= 1;
+    }
+    assert(end > 0);
+
+    return Span.fromBounds(start, end);
+
+    // return trimWhitespaceRight(self.text[start..self.index]);
 }
 
 fn advanceUntilNonwhitespace(self: *Self) void {
