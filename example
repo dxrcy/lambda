@@ -19,7 +19,10 @@ P = \n. \f. \x. n
     (\g. \h. h (g f)) (\u. x) (\u. u)
 - = \m. \n. n P m
 
-Is0 = \n. n (\x. F) T
+Is0 = \n. n (\x. F)  -- comment
+	-- another comment
+
+	T
 <= = \m. \n. Is0 (- m n)
 == = \m. \n. & (<= m n) (<= n m)
 
