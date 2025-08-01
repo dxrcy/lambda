@@ -11,6 +11,8 @@ pub const Kind = enum {
     Backslash,
     Dot,
     Equals,
+    ParenLeft,
+    ParenRight,
     Ident,
     Invalid,
 };
@@ -28,6 +30,8 @@ fn classify(slice: []const u8) Kind {
         .{ "\\", .Backslash },
         .{ ".", .Dot },
         .{ "=", .Equals },
+        .{ "(", .ParenLeft },
+        .{ ")", .ParenRight },
     };
     for (KEYWORDS) |symbol| {
         if (std.mem.eql(u8, symbol[0], slice)) {

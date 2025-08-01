@@ -52,12 +52,24 @@ pub fn main() !void {
     }
 
     for (stmt_list.items) |stmt| {
-        var parser = try Parser.init(text.items, stmt, allocator);
+        var parser = try Parser.new(text.items, stmt, allocator);
         defer parser.deinit();
 
         const name = try parser.expectIdentOrEol() orelse continue;
-        std.debug.print("name: {s}\n", .{name.span.in(text.items)});
+        std.debug.print("name: {s}\n", .{name.in(text.items)});
 
         try parser.expectEquals();
+
+        var term_list = ArrayList(Term).init(allocator);
+        defer term_list.deinit();
+
+        if (try parser.expectTerm(&term_list)) |term_index| {
+            const term = &term_list.items[term_index];
+            term.debug(term_list.items, text.items, 0);
+        }
+
+        for (term_list.items) |item| {
+            std.debug.print("[ {s} ]\n", .{item.getSpan().in(text.items)});
+        }
     }
 }
