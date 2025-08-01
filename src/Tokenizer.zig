@@ -2,10 +2,14 @@ const Self = @This();
 
 const std = @import("std");
 const assert = std.debug.assert;
+const ArrayList = std.ArrayList;
 
 const Char = @import("Char.zig");
 const Span = @import("Span.zig");
 const Token = @import("Token.zig");
+
+const model = @import("model.zig");
+const Term = model.Term;
 
 text: []const u8,
 statement: Span,
@@ -17,25 +21,6 @@ pub fn new(text: []const u8, stmt: Span) Self {
         .statement = stmt,
         .index = 0,
     };
-}
-
-pub fn expectIdentOrEmpty(self: *Self) !?Token {
-    const token = self.next() orelse return null;
-    if (token.kind != .Ident) {
-        return error.UnexpectedToken;
-    }
-    return token;
-}
-
-pub fn expectEquals(self: *Self) !void {
-    const token = try self.expectNext();
-    if (token.kind != .Equals) {
-        return error.UnexpectedToken;
-    }
-}
-
-fn expectNext(self: *Self) !Token {
-    return self.next() orelse return error.UnexpectedEol;
 }
 
 // TODO(refactor): Make private
