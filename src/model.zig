@@ -18,6 +18,7 @@ pub const Term = union(enum) {
     variable: Span,
     abstraction: Abstr,
     application: Appl,
+    group: Group,
 
     pub const Abstr = struct {
         span: Span,
@@ -29,12 +30,17 @@ pub const Term = union(enum) {
         left: Index,
         right: Index,
     };
+    pub const Group = struct {
+        span: Span,
+        inner: Index,
+    };
 
     pub fn getSpan(self: *const Self) Span {
         return switch (self.*) {
             .variable => |span| span,
             .abstraction => |abstr| abstr.span,
             .application => |appl| appl.span,
+            .group => |group| group.span,
         };
     }
 
@@ -57,6 +63,10 @@ pub const Term = union(enum) {
                 debugBranch(depth + 1, "L", list, text, appl.left);
                 debugBranch(depth + 1, "R", list, text, appl.right);
             },
+            .group => |group| {
+                debugSpan(depth, prefix, "group", self.getSpan().in(text));
+                debugBranch(depth + 1, "", list, text, group.inner);
+            },
         }
     }
 
@@ -70,12 +80,12 @@ pub const Term = union(enum) {
 
     fn debugSpan(depth: usize, comptime prefix: []const u8, comptime label: []const u8, value: []const u8) void {
         for (0..depth) |_| {
-            std.debug.print("|       ", .{});
+            std.debug.print("|" ++ " " ** 5, .{});
         }
         if (prefix.len > 0) {
-            std.debug.print("{s}", .{prefix});
+            std.debug.print("{s}.", .{prefix});
         }
-        std.debug.print("({s}): `", .{label});
+        std.debug.print("{s}: `", .{label});
         printSpan(value);
         std.debug.print("`\n", .{});
     }

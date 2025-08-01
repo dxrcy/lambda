@@ -97,11 +97,12 @@ pub fn expectDot(self: *Self) !void {
         return error.UnexpectedToken;
     }
 }
-pub fn expectParenRight(self: *Self) !void {
+pub fn expectParenRight(self: *Self) !Span {
     const token = try self.expectNext();
     if (token.kind != .ParenRight) {
         return error.UnexpectedToken;
     }
+    return token.span;
 }
 
 const TermError = error{ UnexpectedToken, UnexpectedEol, OutOfMemory };
@@ -113,39 +114,30 @@ pub fn expectStatementTerm(self: *Self, list: *ArrayList(Term)) TermError!Index 
 }
 
 pub fn expectTerm(self: *Self, list: *ArrayList(Term), is_greedy: bool) TermError!Index {
-    switch (try self.tryTerm(list, is_greedy)) {
-        .success => |index| return index,
-        else => {
-            // TODO
-            return error.UnexpectedEol;
-        },
-    }
+    return try self.tryTerm(list, is_greedy) orelse {
+        return error.UnexpectedEol;
+    };
 }
 
-const Status = union(enum) {
-    success: Index,
-    end_of_group: void,
-    end_of_statement: void,
-    unknown: void,
-
-    pub fn asSuccess(self: Status) ?Index {
-        return switch (self) {
-            .success => |index| index,
-            else => null,
-        };
-    }
-};
-
-pub fn tryTerm(self: *Self, list: *ArrayList(Term), is_greedy: bool) !Status {
+pub fn tryTerm(self: *Self, list: *ArrayList(Term), is_greedy: bool) !?Index {
     const first = self.tryNext() orelse {
-        return .{ .end_of_statement = {} };
+        return null;
     };
 
     switch (first.kind) {
         .ParenLeft => {
-            const index = try self.expectTerm(list, true);
-            try self.expectParenRight();
-            return .{ .success = index };
+            const inner = try self.expectTerm(list, true);
+
+            const paren_right = try self.expectParenRight();
+            const span = first.span.join(paren_right);
+
+            const index = try appendTerm(list, Term{
+                .group = Term.Group{
+                    .span = span,
+                    .inner = inner,
+                },
+            });
+            return index;
         },
 
         .Ident => {
@@ -159,7 +151,7 @@ pub fn tryTerm(self: *Self, list: *ArrayList(Term), is_greedy: bool) !Status {
                         break;
                     }
                 }
-                const right_index = (try self.tryTerm(list, false)).asSuccess() orelse {
+                const right_index = try self.tryTerm(list, false) orelse {
                     break;
                 };
 
@@ -175,7 +167,7 @@ pub fn tryTerm(self: *Self, list: *ArrayList(Term), is_greedy: bool) !Status {
                 });
             }
 
-            return .{ .success = index };
+            return index;
         },
 
         .Backslash => {
@@ -197,27 +189,16 @@ pub fn tryTerm(self: *Self, list: *ArrayList(Term), is_greedy: bool) !Status {
                     .right = right_index,
                 },
             });
-            return .{ .success = index };
+            return index;
         },
 
-        .ParenRight => {
-            unimplemented("unexpected parent right", .{});
-        },
-
-        else => {
-            unimplemented("unknown token `{s}`", .{first.span.in(self.text)});
+        .ParenRight, .Equals, .Dot, .Invalid => {
+            return error.UnexpectedToken;
         },
     }
-
-    // (until all branches implemented)
-    return .{ .unknown = {} };
 }
 
 fn appendTerm(list: *ArrayList(Term), term: Term) !usize {
     try list.append(term);
     return list.items.len - 1;
-}
-
-fn unimplemented(comptime message: []const u8, args: anytype) void {
-    std.debug.print("\twarning: " ++ message ++ "\n", args);
 }
