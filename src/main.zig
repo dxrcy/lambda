@@ -63,7 +63,8 @@ pub fn main() !void {
         var term_list = ArrayList(Term).init(allocator);
         defer term_list.deinit();
 
-        if (try parser.expectTerm(&term_list)) |term_index| {
+        const term_index = try parser.expectTerm(&term_list);
+        if (term_index != Parser.NO_TERM_INDEX) {
             const term = &term_list.items[term_index];
             term.debug(term_list.items, text.items, 0);
         }

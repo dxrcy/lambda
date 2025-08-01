@@ -2,7 +2,7 @@ const std = @import("std");
 
 const Span = @import("Span.zig");
 
-const Index = usize;
+pub const Index = usize;
 
 pub const Decl = struct {
     name: Span,
@@ -51,7 +51,17 @@ pub const Term = union(enum) {
                 std.debug.print("term: `{s}`\n", .{term.getSpan().in(text)});
                 term.debug(list, text, depth + 2);
             },
-            else => {},
+            .application => |abstr| {
+                debugIndent(depth);
+                std.debug.print("application: `{s}`\n", .{self.getSpan().in(text)});
+
+                debugVariable(abstr.variable, text, depth + 1);
+
+                debugIndent(depth + 1);
+                const term = &list[abstr.term];
+                std.debug.print("term: `{s}`\n", .{term.getSpan().in(text)});
+                term.debug(list, text, depth + 2);
+            },
         }
     }
 

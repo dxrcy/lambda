@@ -10,6 +10,7 @@ const Token = @import("Token.zig");
 
 const model = @import("model.zig");
 const Term = model.Term;
+const Index = model.Index;
 
 text: []const u8,
 tokens: ArrayList(Token),
@@ -74,30 +75,58 @@ pub fn expectDot(self: *Self) !void {
     }
 }
 
-pub fn expectTerm(self: *Self, list: *ArrayList(Term)) !?usize {
-    const first = try self.expectNext();
+pub const NO_TERM_INDEX = std.math.maxInt(u32);
+
+const TermError = error{ UnexpectedToken, UnexpectedEol, OutOfMemory };
+
+pub fn expectTerm(self: *Self, list: *ArrayList(Term)) TermError!Index {
+    return try self.tryTerm(list) orelse return error.UnexpectedEol;
+}
+
+pub fn tryTerm(self: *Self, list: *ArrayList(Term)) !?Index {
+    // TODO(fix): FIX PRECEDENCE !!!
+    const first = self.tryNext() orelse return null;
     switch (first.kind) {
         .Ident => {
             std.debug.print("{s}\n", .{first.span.in(self.text)});
 
-            if (self.tryNext()) |second| {
-                unimplemented("tokens following variable `{s}`", .{second.span.in(self.text)});
-            } else {
-                try list.append(Term{ .variable = first.span });
-                return list.items.len - 1;
+            const term_index =
+                try self.tryTerm(list) orelse {
+                    try list.append(Term{
+                        .variable = first.span,
+                    });
+                    return list.items.len - 1;
+                };
+
+            if (term_index == std.math.maxInt(u32)) {
+                unimplemented("unresolved term", .{});
+                return NO_TERM_INDEX;
             }
+
+            const term = &list.items[term_index];
+            const span = first.span.join(term.getSpan());
+
+            try list.append(Term{
+                .application = Term.Appl{
+                    .span = span,
+                    .variable = first.span,
+                    .term = term_index,
+                },
+            });
+            return list.items.len - 1;
         },
 
         .Backslash => {
-            std.debug.print("{s}\n", .{first.span.in(self.text)});
+            // std.debug.print("{s}\n", .{first.span.in(self.text)});
 
             const variable = try self.expectIdent();
             try self.expectDot();
 
-            const term_index = try self.expectTerm(list) orelse {
+            const term_index = try self.expectTerm(list);
+            if (term_index == std.math.maxInt(u32)) {
                 unimplemented("unresolved term", .{});
-                return null;
-            };
+                return NO_TERM_INDEX;
+            }
 
             const term = &list.items[term_index];
             const span = first.span.join(term.getSpan());
@@ -117,7 +146,7 @@ pub fn expectTerm(self: *Self, list: *ArrayList(Term)) !?usize {
         },
     }
     // (until all branches implemented)
-    return null;
+    return NO_TERM_INDEX;
 }
 
 fn unimplemented(comptime message: []const u8, args: anytype) void {
