@@ -39,5 +39,5 @@ Apply4 = Apply2
 
 	Apply2
 
-X = a b c d \e.e
+X = a (b c) d \e.e
 

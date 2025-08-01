@@ -63,11 +63,9 @@ pub fn main() !void {
         var term_list = ArrayList(Term).init(allocator);
         defer term_list.deinit();
 
-        const term_index = try parser.expectTerm(&term_list, true);
-        if (term_index != model.NO_TERM_INDEX) {
-            const term = &term_list.items[term_index];
-            term.debug(term_list.items, text.items);
-        }
+        const term_index = try parser.expectStatementTerm(&term_list);
+        const term = &term_list.items[term_index];
+        term.debug(term_list.items, text.items);
 
         // for (term_list.items) |item| {
         //     std.debug.print("[ {s} ]\n", .{item.getSpan().in(text.items)});

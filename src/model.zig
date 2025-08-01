@@ -2,6 +2,7 @@ const std = @import("std");
 
 const Span = @import("Span.zig");
 
+// TODO(feat): Remove
 pub const NO_TERM_INDEX = std.math.maxInt(u32);
 
 pub const Index = usize;

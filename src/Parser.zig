@@ -34,6 +34,13 @@ pub fn deinit(self: *const Self) void {
     self.tokens.deinit();
 }
 
+fn peek(self: *Self) ?Token {
+    if (self.index >= self.tokens.items.len) {
+        return null;
+    }
+    return self.tokens.items[self.index];
+}
+
 fn tryNext(self: *Self) ?Token {
     if (self.index >= self.tokens.items.len) {
         return null;
@@ -71,6 +78,13 @@ pub fn expectIdentOrEol(self: *Self) !?Span {
     return token.span;
 }
 
+// TODO(refactor): Use `End` instead of `Eol`
+pub fn expectEol(self: *Self) !void {
+    if (self.index < self.tokens.items.len) {
+        return error.UnexpectedToken;
+    }
+}
+
 pub fn expectEquals(self: *Self) !void {
     const token = try self.expectNext();
     if (token.kind != .Equals) {
@@ -83,55 +97,88 @@ pub fn expectDot(self: *Self) !void {
         return error.UnexpectedToken;
     }
 }
+pub fn expectParenRight(self: *Self) !void {
+    const token = try self.expectNext();
+    if (token.kind != .ParenRight) {
+        return error.UnexpectedToken;
+    }
+}
 
 const TermError = error{ UnexpectedToken, UnexpectedEol, OutOfMemory };
 
-pub fn expectTerm(self: *Self, list: *ArrayList(Term), is_greedy: bool) TermError!Index {
-    return try self.tryTerm(list, is_greedy) orelse return error.UnexpectedEol;
+pub fn expectStatementTerm(self: *Self, list: *ArrayList(Term)) TermError!Index {
+    const index = try self.expectTerm(list, true);
+    try self.expectEol();
+    return index;
 }
 
-pub fn tryTerm(self: *Self, list: *ArrayList(Term), is_greedy: bool) !?Index {
-    // TODO(fix): FIX PRECEDENCE !!!
-    const first = self.tryNext() orelse return null;
+pub fn expectTerm(self: *Self, list: *ArrayList(Term), is_greedy: bool) TermError!Index {
+    switch (try self.tryTerm(list, is_greedy)) {
+        .success => |index| return index,
+        else => {
+            // TODO
+            return error.UnexpectedEol;
+        },
+    }
+}
+
+const Status = union(enum) {
+    success: Index,
+    end_of_group: void,
+    end_of_statement: void,
+    unknown: void,
+
+    pub fn asSuccess(self: Status) ?Index {
+        return switch (self) {
+            .success => |index| index,
+            else => null,
+        };
+    }
+};
+
+pub fn tryTerm(self: *Self, list: *ArrayList(Term), is_greedy: bool) !Status {
+    const first = self.tryNext() orelse {
+        return .{ .end_of_statement = {} };
+    };
+
     switch (first.kind) {
         .ParenLeft => {
-            //
+            const index = try self.expectTerm(list, true);
+            try self.expectParenRight();
+            return .{ .success = index };
         },
 
         .Ident => {
-            // std.debug.print("{s}\n", .{first.span.in(self.text)});
-
-            var left_index = try appendTerm(list, Term{
+            var index = try appendTerm(list, Term{
                 .variable = first.span,
             });
 
             while (is_greedy) {
-                const right_index = try self.tryTerm(list, false) orelse {
+                if (self.peek()) |token| {
+                    if (token.kind == .ParenRight) {
+                        break;
+                    }
+                }
+                const right_index = (try self.tryTerm(list, false)).asSuccess() orelse {
                     break;
                 };
-                if (right_index == std.math.maxInt(u32)) {
-                    unimplemented("unresolved term", .{});
-                    return NO_TERM_INDEX;
-                }
 
                 const right = &list.items[right_index];
                 const span = first.span.join(right.getSpan());
 
-                left_index = try appendTerm(list, Term{
+                index = try appendTerm(list, Term{
                     .application = Term.Appl{
                         .span = span,
-                        .left = left_index,
+                        .left = index,
                         .right = right_index,
                     },
                 });
             }
 
-            return left_index;
+            return .{ .success = index };
         },
 
         .Backslash => {
-            // std.debug.print("{s}\n", .{first.span.in(self.text)});
-
             const left_span = try self.expectIdent();
             const left_index = try appendTerm(list, Term{
                 .variable = left_span,
@@ -139,29 +186,31 @@ pub fn tryTerm(self: *Self, list: *ArrayList(Term), is_greedy: bool) !?Index {
 
             try self.expectDot();
             const right_index = try self.expectTerm(list, true);
-            if (right_index == std.math.maxInt(u32)) {
-                unimplemented("unresolved term", .{});
-                return NO_TERM_INDEX;
-            }
 
             const right = &list.items[right_index];
             const span = first.span.join(right.getSpan());
 
-            return try appendTerm(list, Term{
+            const index = try appendTerm(list, Term{
                 .abstraction = Term.Abstr{
                     .span = span,
                     .left = left_index,
                     .right = right_index,
                 },
             });
+            return .{ .success = index };
+        },
+
+        .ParenRight => {
+            unimplemented("unexpected parent right", .{});
         },
 
         else => {
             unimplemented("unknown token `{s}`", .{first.span.in(self.text)});
         },
     }
+
     // (until all branches implemented)
-    return NO_TERM_INDEX;
+    return .{ .unknown = {} };
 }
 
 fn appendTerm(list: *ArrayList(Term), term: Term) !usize {
