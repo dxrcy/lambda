@@ -2,9 +2,6 @@ const std = @import("std");
 
 const Span = @import("Span.zig");
 
-// TODO(feat): Remove
-pub const NO_TERM_INDEX = std.math.maxInt(u32);
-
 pub const Index = usize;
 
 pub const Decl = struct {
@@ -22,7 +19,7 @@ pub const Term = union(enum) {
 
     pub const Abstr = struct {
         span: Span,
-        left: Index,
+        variable: Span,
         right: Index,
     };
     pub const Appl = struct {
@@ -55,26 +52,18 @@ pub const Term = union(enum) {
             },
             .abstraction => |abstr| {
                 debugSpan(depth, prefix, "abstraction", self.getSpan().in(text));
-                debugBranch(depth + 1, "L", list, text, abstr.left);
-                debugBranch(depth + 1, "R", list, text, abstr.right);
+                debugSpan(depth + 1, "L", "variable", abstr.variable.in(text));
+                list[abstr.right].debugInner(depth + 1, "R", list, text);
             },
             .application => |appl| {
                 debugSpan(depth, prefix, "application", self.getSpan().in(text));
-                debugBranch(depth + 1, "L", list, text, appl.left);
-                debugBranch(depth + 1, "R", list, text, appl.right);
+                list[appl.left].debugInner(depth + 1, "L", list, text);
+                list[appl.right].debugInner(depth + 1, "R", list, text);
             },
             .group => |group| {
                 debugSpan(depth, prefix, "group", self.getSpan().in(text));
-                debugBranch(depth + 1, "", list, text, group.inner);
+                list[group.inner].debugInner(depth + 1, "", list, text);
             },
-        }
-    }
-
-    fn debugBranch(depth: usize, comptime prefix: []const u8, list: []const Term, text: []const u8, index: Index) void {
-        if (index != NO_TERM_INDEX) {
-            list[index].debugInner(depth, prefix, list, text);
-        } else {
-            debugSpan(depth, prefix, "<ERROR>", "-");
         }
     }
 

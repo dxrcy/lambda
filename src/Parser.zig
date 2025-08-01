@@ -125,21 +125,6 @@ pub fn tryTerm(self: *Self, list: *ArrayList(Term), is_greedy: bool) !?Index {
     };
 
     switch (first.kind) {
-        .ParenLeft => {
-            const inner = try self.expectTerm(list, true);
-
-            const paren_right = try self.expectParenRight();
-            const span = first.span.join(paren_right);
-
-            const index = try appendTerm(list, Term{
-                .group = Term.Group{
-                    .span = span,
-                    .inner = inner,
-                },
-            });
-            return index;
-        },
-
         .Ident => {
             var index = try appendTerm(list, Term{
                 .variable = first.span,
@@ -151,10 +136,10 @@ pub fn tryTerm(self: *Self, list: *ArrayList(Term), is_greedy: bool) !?Index {
                         break;
                     }
                 }
+
                 const right_index = try self.tryTerm(list, false) orelse {
                     break;
                 };
-
                 const right = &list.items[right_index];
                 const span = first.span.join(right.getSpan());
 
@@ -166,30 +151,38 @@ pub fn tryTerm(self: *Self, list: *ArrayList(Term), is_greedy: bool) !?Index {
                     },
                 });
             }
-
             return index;
         },
 
         .Backslash => {
-            const left_span = try self.expectIdent();
-            const left_index = try appendTerm(list, Term{
-                .variable = left_span,
-            });
-
+            const variable = try self.expectIdent();
             try self.expectDot();
-            const right_index = try self.expectTerm(list, true);
 
+            const right_index = try self.expectTerm(list, true);
             const right = &list.items[right_index];
             const span = first.span.join(right.getSpan());
 
-            const index = try appendTerm(list, Term{
+            return try appendTerm(list, Term{
                 .abstraction = Term.Abstr{
                     .span = span,
-                    .left = left_index,
+                    .variable = variable,
                     .right = right_index,
                 },
             });
-            return index;
+        },
+
+        .ParenLeft => {
+            const inner = try self.expectTerm(list, true);
+
+            const paren_right = try self.expectParenRight();
+            const span = first.span.join(paren_right);
+
+            return try appendTerm(list, Term{
+                .group = Term.Group{
+                    .span = span,
+                    .inner = inner,
+                },
+            });
         },
 
         .ParenRight, .Equals, .Dot, .Invalid => {
