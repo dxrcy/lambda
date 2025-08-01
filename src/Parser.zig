@@ -11,6 +11,7 @@ const Token = @import("Token.zig");
 const model = @import("model.zig");
 const Term = model.Term;
 const Index = model.Index;
+const NO_TERM_INDEX = model.NO_TERM_INDEX;
 
 text: []const u8,
 tokens: ArrayList(Token),
@@ -54,6 +55,14 @@ pub fn expectIdent(self: *Self) !Span {
     return token.span;
 }
 
+pub fn tryIdent(self: *Self) !?Span {
+    const token = self.tryNext() orelse return null;
+    if (token.kind != .Ident) {
+        return null;
+    }
+    return token.span;
+}
+
 pub fn expectIdentOrEol(self: *Self) !?Span {
     const token = self.tryNext() orelse return null;
     if (token.kind != .Ident) {
@@ -75,70 +84,76 @@ pub fn expectDot(self: *Self) !void {
     }
 }
 
-pub const NO_TERM_INDEX = std.math.maxInt(u32);
-
 const TermError = error{ UnexpectedToken, UnexpectedEol, OutOfMemory };
 
-pub fn expectTerm(self: *Self, list: *ArrayList(Term)) TermError!Index {
-    return try self.tryTerm(list) orelse return error.UnexpectedEol;
+pub fn expectTerm(self: *Self, list: *ArrayList(Term), is_greedy: bool) TermError!Index {
+    return try self.tryTerm(list, is_greedy) orelse return error.UnexpectedEol;
 }
 
-pub fn tryTerm(self: *Self, list: *ArrayList(Term)) !?Index {
+pub fn tryTerm(self: *Self, list: *ArrayList(Term), is_greedy: bool) !?Index {
     // TODO(fix): FIX PRECEDENCE !!!
     const first = self.tryNext() orelse return null;
     switch (first.kind) {
+        .ParenLeft => {
+            //
+        },
+
         .Ident => {
-            std.debug.print("{s}\n", .{first.span.in(self.text)});
+            // std.debug.print("{s}\n", .{first.span.in(self.text)});
 
-            const term_index =
-                try self.tryTerm(list) orelse {
-                    try list.append(Term{
-                        .variable = first.span,
-                    });
-                    return list.items.len - 1;
+            var left_index = try appendTerm(list, Term{
+                .variable = first.span,
+            });
+
+            while (is_greedy) {
+                const right_index = try self.tryTerm(list, false) orelse {
+                    break;
                 };
+                if (right_index == std.math.maxInt(u32)) {
+                    unimplemented("unresolved term", .{});
+                    return NO_TERM_INDEX;
+                }
 
-            if (term_index == std.math.maxInt(u32)) {
-                unimplemented("unresolved term", .{});
-                return NO_TERM_INDEX;
+                const right = &list.items[right_index];
+                const span = first.span.join(right.getSpan());
+
+                left_index = try appendTerm(list, Term{
+                    .application = Term.Appl{
+                        .span = span,
+                        .left = left_index,
+                        .right = right_index,
+                    },
+                });
             }
 
-            const term = &list.items[term_index];
-            const span = first.span.join(term.getSpan());
-
-            try list.append(Term{
-                .application = Term.Appl{
-                    .span = span,
-                    .variable = first.span,
-                    .term = term_index,
-                },
-            });
-            return list.items.len - 1;
+            return left_index;
         },
 
         .Backslash => {
             // std.debug.print("{s}\n", .{first.span.in(self.text)});
 
-            const variable = try self.expectIdent();
-            try self.expectDot();
+            const left_span = try self.expectIdent();
+            const left_index = try appendTerm(list, Term{
+                .variable = left_span,
+            });
 
-            const term_index = try self.expectTerm(list);
-            if (term_index == std.math.maxInt(u32)) {
+            try self.expectDot();
+            const right_index = try self.expectTerm(list, true);
+            if (right_index == std.math.maxInt(u32)) {
                 unimplemented("unresolved term", .{});
                 return NO_TERM_INDEX;
             }
 
-            const term = &list.items[term_index];
-            const span = first.span.join(term.getSpan());
+            const right = &list.items[right_index];
+            const span = first.span.join(right.getSpan());
 
-            try list.append(Term{
+            return try appendTerm(list, Term{
                 .abstraction = Term.Abstr{
                     .span = span,
-                    .variable = variable,
-                    .term = term_index,
+                    .left = left_index,
+                    .right = right_index,
                 },
             });
-            return list.items.len - 1;
         },
 
         else => {
@@ -147,6 +162,11 @@ pub fn tryTerm(self: *Self, list: *ArrayList(Term)) !?Index {
     }
     // (until all branches implemented)
     return NO_TERM_INDEX;
+}
+
+fn appendTerm(list: *ArrayList(Term), term: Term) !usize {
+    try list.append(term);
+    return list.items.len - 1;
 }
 
 fn unimplemented(comptime message: []const u8, args: anytype) void {

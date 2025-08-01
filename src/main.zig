@@ -56,21 +56,21 @@ pub fn main() !void {
         defer parser.deinit();
 
         const name = try parser.expectIdentOrEol() orelse continue;
-        std.debug.print("name: {s}\n", .{name.in(text.items)});
+        std.debug.print("\nname: {s}\n", .{name.in(text.items)});
 
         try parser.expectEquals();
 
         var term_list = ArrayList(Term).init(allocator);
         defer term_list.deinit();
 
-        const term_index = try parser.expectTerm(&term_list);
-        if (term_index != Parser.NO_TERM_INDEX) {
+        const term_index = try parser.expectTerm(&term_list, true);
+        if (term_index != model.NO_TERM_INDEX) {
             const term = &term_list.items[term_index];
-            term.debug(term_list.items, text.items, 0);
+            term.debug(term_list.items, text.items);
         }
 
-        for (term_list.items) |item| {
-            std.debug.print("[ {s} ]\n", .{item.getSpan().in(text.items)});
-        }
+        // for (term_list.items) |item| {
+        //     std.debug.print("[ {s} ]\n", .{item.getSpan().in(text.items)});
+        // }
     }
 }

@@ -2,6 +2,8 @@ const std = @import("std");
 
 const Span = @import("Span.zig");
 
+pub const NO_TERM_INDEX = std.math.maxInt(u32);
+
 pub const Index = usize;
 
 pub const Decl = struct {
@@ -18,13 +20,13 @@ pub const Term = union(enum) {
 
     pub const Abstr = struct {
         span: Span,
-        variable: Span,
-        term: Index,
+        left: Index,
+        right: Index,
     };
     pub const Appl = struct {
         span: Span,
-        variable: Span,
-        term: Index,
+        left: Index,
+        right: Index,
     };
 
     pub fn getSpan(self: *const Self) Span {
@@ -35,44 +37,60 @@ pub const Term = union(enum) {
         };
     }
 
-    pub fn debug(self: *const Self, list: []Term, text: []const u8, depth: usize) void {
+    pub fn debug(self: *const Self, list: []const Term, text: []const u8) void {
+        self.debugInner(0, "", list, text);
+    }
+
+    pub fn debugInner(self: *const Self, depth: usize, comptime prefix: []const u8, list: []const Term, text: []const u8) void {
         switch (self.*) {
-            .variable => |variable| {
-                debugVariable(variable, text, depth);
+            .variable => |span| {
+                debugSpan(depth, prefix, "variable", span.in(text));
             },
             .abstraction => |abstr| {
-                debugIndent(depth);
-                std.debug.print("abstraction: `{s}`\n", .{self.getSpan().in(text)});
-
-                debugVariable(abstr.variable, text, depth + 1);
-
-                debugIndent(depth + 1);
-                const term = &list[abstr.term];
-                std.debug.print("term: `{s}`\n", .{term.getSpan().in(text)});
-                term.debug(list, text, depth + 2);
+                debugSpan(depth, prefix, "abstraction", self.getSpan().in(text));
+                debugBranch(depth + 1, "L", list, text, abstr.left);
+                debugBranch(depth + 1, "R", list, text, abstr.right);
             },
-            .application => |abstr| {
-                debugIndent(depth);
-                std.debug.print("application: `{s}`\n", .{self.getSpan().in(text)});
-
-                debugVariable(abstr.variable, text, depth + 1);
-
-                debugIndent(depth + 1);
-                const term = &list[abstr.term];
-                std.debug.print("term: `{s}`\n", .{term.getSpan().in(text)});
-                term.debug(list, text, depth + 2);
+            .application => |appl| {
+                debugSpan(depth, prefix, "application", self.getSpan().in(text));
+                debugBranch(depth + 1, "L", list, text, appl.left);
+                debugBranch(depth + 1, "R", list, text, appl.right);
             },
         }
     }
 
-    fn debugVariable(span: Span, text: []const u8, depth: usize) void {
-        debugIndent(depth);
-        std.debug.print("variable: `{s}`\n", .{span.in(text)});
+    fn debugBranch(depth: usize, comptime prefix: []const u8, list: []const Term, text: []const u8, index: Index) void {
+        if (index != NO_TERM_INDEX) {
+            list[index].debugInner(depth, prefix, list, text);
+        } else {
+            debugSpan(depth, prefix, "<ERROR>", "-");
+        }
     }
 
-    fn debugIndent(depth: usize) void {
+    fn debugSpan(depth: usize, comptime prefix: []const u8, comptime label: []const u8, value: []const u8) void {
         for (0..depth) |_| {
-            std.debug.print("|   ", .{});
+            std.debug.print("|       ", .{});
+        }
+        if (prefix.len > 0) {
+            std.debug.print("{s}", .{prefix});
+        }
+        std.debug.print("({s}): `", .{label});
+        printSpan(value);
+        std.debug.print("`\n", .{});
+    }
+
+    fn printSpan(value: []const u8) void {
+        var was_whitespace = true;
+        for (value) |char| {
+            if (std.ascii.isWhitespace(char)) {
+                if (!was_whitespace) {
+                    std.debug.print(" ", .{});
+                    was_whitespace = true;
+                }
+            } else {
+                was_whitespace = false;
+                std.debug.print("{c}", .{char});
+            }
         }
     }
 };

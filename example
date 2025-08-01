@@ -12,6 +12,7 @@ F = \x. \y. y
 
 0 = \f. \x. x
 S = \n. \f. \x. f (n f x)
+1 = S 0
 
 + = \m. \n. m S n
 * = \m. \n. m (+ n) 0
@@ -37,3 +38,6 @@ Apply4 = Apply2
 	Apply2
 
 	Apply2
+
+X = a b c d \e.e
+
