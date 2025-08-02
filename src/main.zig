@@ -42,5 +42,42 @@ pub fn main() !void {
         std.debug.print("\nname: {s}\n", .{decl.name.in(text.items)});
         const term = term_store.get(decl.term);
         term.debug(term_store.entries.items, text.items);
+
+        var local_vars = ArrayList([]const u8).init(allocator);
+        defer local_vars.deinit();
+
+        try findGlobalVariables(term, text.items, &term_store, &local_vars);
     }
+}
+
+fn findGlobalVariables(term: *const Term, text: []const u8, store: *TermStore, locals: *ArrayList([]const u8)) !void {
+    switch (term.*) {
+        .variable => |span| {
+            const value = span.in(text);
+            if (!containsString(locals.items, value)) {
+                std.debug.print("[{s}]\n", .{value});
+            }
+        },
+        .abstraction => |abstr| {
+            const value = abstr.variable.in(text);
+            try locals.append(value);
+            try findGlobalVariables(store.get(abstr.right), text, store, locals);
+        },
+        .application => |appl| {
+            try findGlobalVariables(store.get(appl.left), text, store, locals);
+            try findGlobalVariables(store.get(appl.right), text, store, locals);
+        },
+        .group => |group| {
+            try findGlobalVariables(store.get(group.inner), text, store, locals);
+        },
+    }
+}
+
+fn containsString(list: []const []const u8, target: []const u8) bool {
+    for (list) |item| {
+        if (std.mem.eql(u8, item, target)) {
+            return true;
+        }
+    }
+    return false;
 }
