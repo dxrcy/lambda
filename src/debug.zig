@@ -19,38 +19,38 @@ pub fn debugTermInner(
     terms: []const Term,
     text: []const u8,
 ) void {
-    switch (term.*) {
-        .unresolved => |span| {
+    switch (term.value) {
+        .unresolved => {
             debugLabel(depth, prefix, "UNRESOLVED");
-            debugSpan(span.in(text));
+            debugSpan(term.span.in(text));
         },
-        .local => |local| {
+        .local => |index| {
             debugLabel(depth, prefix, "local");
-            std.debug.print("{{{}}} ", .{local.index});
-            debugSpan(local.span.in(text));
+            std.debug.print("{{{}}} ", .{index});
+            debugSpan(term.span.in(text));
         },
-        .global => |global| {
+        .global => |index| {
             debugLabel(depth, prefix, "global");
-            std.debug.print("[{}] ", .{global.index});
-            debugSpan(global.span.in(text));
+            std.debug.print("[{}] ", .{index});
+            debugSpan(term.span.in(text));
         },
-        .group => |group| {
+        .group => |inner| {
             debugLabel(depth, prefix, "group");
-            debugSpan(term.getSpan().in(text));
-            debugTermInner(&terms[group.inner], depth + 1, "", terms, text);
+            debugSpan(term.span.in(text));
+            debugTermInner(&terms[inner], depth + 1, "", terms, text);
         },
         .abstraction => |abstr| {
             debugLabel(depth, prefix, "abstraction");
-            debugSpan(term.getSpan().in(text));
+            debugSpan(term.span.in(text));
             debugLabel(depth + 1, "L", "parameter");
             debugSpan(abstr.parameter.in(text));
-            debugTermInner(&terms[abstr.right], depth + 1, "R", terms, text);
+            debugTermInner(&terms[abstr.body], depth + 1, "R", terms, text);
         },
         .application => |appl| {
             debugLabel(depth, prefix, "application");
-            debugSpan(term.getSpan().in(text));
-            debugTermInner(&terms[appl.left], depth + 1, "L", terms, text);
-            debugTermInner(&terms[appl.right], depth + 1, "R", terms, text);
+            debugSpan(term.span.in(text));
+            debugTermInner(&terms[appl.function], depth + 1, "L", terms, text);
+            debugTermInner(&terms[appl.argument], depth + 1, "R", terms, text);
         },
     }
 }

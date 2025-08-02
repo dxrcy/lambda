@@ -21,22 +21,22 @@ pub fn patchSymbols(
     declarations: []const Decl,
 ) (SymbolError || Allocator.Error)!void {
     const term = terms.getMut(index);
-    switch (term.*) {
-        .unresolved => |span| {
-            term.* = try resolveSymbol(span, text, locals, declarations);
+    switch (term.value) {
+        .unresolved => {
+            term.* = try resolveSymbol(term.span, text, locals, declarations);
+        },
+        .group => |inner| {
+            try patchSymbols(inner, text, terms, locals, declarations);
         },
         .abstraction => |abstr| {
             const value = abstr.parameter.in(text);
-            try locals.add(index, value);
-            defer locals.pop();
-            try patchSymbols(abstr.right, text, terms, locals, declarations);
+            try locals.push(index, value);
+            try patchSymbols(abstr.body, text, terms, locals, declarations);
+            locals.pop();
         },
         .application => |appl| {
-            try patchSymbols(appl.left, text, terms, locals, declarations);
-            try patchSymbols(appl.right, text, terms, locals, declarations);
-        },
-        .group => |group| {
-            try patchSymbols(group.inner, text, terms, locals, declarations);
+            try patchSymbols(appl.function, text, terms, locals, declarations);
+            try patchSymbols(appl.argument, text, terms, locals, declarations);
         },
         // No symbols in this branch should be resolved yet
         .local => unreachable,
@@ -53,12 +53,14 @@ fn resolveSymbol(
     const value = span.in(text);
     if (resolveLocal(locals, value)) |index| {
         return Term{
-            .local = .{ .span = span, .index = index },
+            .span = span,
+            .value = .{ .local = index },
         };
     }
     if (resolveGlobal(declarations, value, text)) |index| {
         return Term{
-            .global = .{ .span = span, .index = index },
+            .span = span,
+            .value = .{ .global = index },
         };
     }
     return error.UndefinedSymbol;
@@ -86,6 +88,7 @@ fn resolveGlobal(
     return null;
 }
 
+/// Temporary reusable stack for local variables in a statement.
 pub const LocalStore = struct {
     const Self = @This();
 
@@ -110,7 +113,7 @@ pub const LocalStore = struct {
         return self.entries.items.len == 0;
     }
 
-    pub fn add(
+    pub fn push(
         self: *Self,
         index: TermIndex,
         value: []const u8,

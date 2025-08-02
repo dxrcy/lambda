@@ -42,7 +42,7 @@ fn expectTermGreedy(self: *Self, terms: *TermStore) NewTermError!TermIndex {
     const left = try self.tryTermSingle(terms) orelse {
         return error.UnexpectedEnd;
     };
-    const left_span = terms.get(left).getSpan();
+    const left_span = terms.get(left).span;
 
     // Keep taking following terms until [end of group or statement]
     var parent = left;
@@ -51,10 +51,12 @@ fn expectTermGreedy(self: *Self, terms: *TermStore) NewTermError!TermIndex {
             break;
         };
         parent = try terms.append(Term{
-            .application = .{
-                .span = left_span.join(terms.get(right).getSpan()),
-                .left = parent,
-                .right = right,
+            .span = left_span.join(terms.get(right).span),
+            .value = .{
+                .application = .{
+                    .function = parent,
+                    .argument = right,
+                },
             },
         });
     }
@@ -67,7 +69,10 @@ fn tryTermSingle(self: *Self, terms: *TermStore) NewTermError!?TermIndex {
     switch (left.kind) {
         .Ident => {
             return try terms.append(Term{
-                .unresolved = left.span,
+                .span = left.span,
+                .value = .{
+                    .unresolved = {},
+                },
             });
         },
 
@@ -78,10 +83,12 @@ fn tryTermSingle(self: *Self, terms: *TermStore) NewTermError!?TermIndex {
             const right = try self.expectTermGreedy(terms);
 
             return try terms.append(Term{
-                .abstraction = .{
-                    .span = left.span.join(terms.get(right).getSpan()),
-                    .parameter = parameter,
-                    .right = right,
+                .span = left.span.join(terms.get(right).span),
+                .value = .{
+                    .abstraction = .{
+                        .parameter = parameter,
+                        .body = right,
+                    },
                 },
             });
         },
@@ -91,9 +98,9 @@ fn tryTermSingle(self: *Self, terms: *TermStore) NewTermError!?TermIndex {
             const right_paren = try self.expectTokenKind(.ParenRight);
 
             return try terms.append(Term{
-                .group = .{
-                    .span = left.span.join(right_paren),
-                    .inner = inner,
+                .span = left.span.join(right_paren),
+                .value = .{
+                    .group = inner,
                 },
             });
         },

@@ -42,7 +42,6 @@ pub fn main() !void {
         try decls.append(decl);
     }
 
-    // Temporary reusable stack for local variables in a statement
     var locals = LocalStore.init(allocator);
     defer locals.deinit();
 

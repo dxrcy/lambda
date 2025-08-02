@@ -13,50 +13,29 @@ pub const Decl = struct {
     term: TermIndex,
 };
 
-pub const Term = union(enum) {
+pub const Term = struct {
     const Self = @This();
 
-    unresolved: Span,
-    local: Local,
-    global: Global,
+    span: Span,
+    value: Kind,
 
-    abstraction: Abstr,
-    application: Appl,
-    group: Group,
+    const Kind = union(enum) {
+        unresolved: void,
+        local: TermIndex,
+        global: DeclIndex,
+        group: TermIndex,
+        abstraction: Abstr,
+        application: Appl,
 
-    pub const Global = struct {
-        span: Span,
-        index: DeclIndex,
-    };
-    pub const Local = struct {
-        span: Span,
-        index: TermIndex,
-    };
-    pub const Group = struct {
-        span: Span,
-        inner: TermIndex,
-    };
-    pub const Abstr = struct {
-        span: Span,
-        parameter: Span,
-        right: TermIndex,
-    };
-    pub const Appl = struct {
-        span: Span,
-        left: TermIndex,
-        right: TermIndex,
-    };
-
-    pub fn getSpan(self: *const Self) Span {
-        return switch (self.*) {
-            .unresolved => |span| span,
-            .local => |local| local.span,
-            .global => |global| global.span,
-            .group => |group| group.span,
-            .abstraction => |abstr| abstr.span,
-            .application => |appl| appl.span,
+        const Abstr = struct {
+            parameter: Span,
+            body: TermIndex,
         };
-    }
+        const Appl = struct {
+            function: TermIndex,
+            argument: TermIndex,
+        };
+    };
 };
 
 pub const TermStore = struct {
