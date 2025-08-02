@@ -29,7 +29,7 @@ pub fn tryDeclaration(self: *Self, store: *TermStore) NewTermError!?Decl {
         return null;
     };
     _ = try self.expectTokenKind(.Equals);
-    const index = try self.expectTerm(store, true);
+    const index = try self.expectTermGreedy(store);
     try self.expectEnd();
 
     return Decl{
@@ -38,67 +38,61 @@ pub fn tryDeclaration(self: *Self, store: *TermStore) NewTermError!?Decl {
     };
 }
 
-fn expectTerm(self: *Self, store: *TermStore, comptime is_greedy: bool) NewTermError!TermIndex {
-    return try self.tryTerm(store, is_greedy) orelse {
+fn expectTermGreedy(self: *Self, store: *TermStore) NewTermError!TermIndex {
+    const left = try self.tryTermSingle(store) orelse {
         return error.UnexpectedEnd;
     };
+    const left_span = store.get(left).getSpan();
+
+    // Keep taking following terms until [end of group or statement]
+    var parent = left;
+    while (!self.peekIsTokenKind(.ParenRight)) {
+        const right = try self.tryTermSingle(store) orelse {
+            break;
+        };
+        parent = try store.append(Term{
+            .application = .{
+                .span = left_span.join(store.get(right).getSpan()),
+                .left = parent,
+                .right = right,
+            },
+        });
+    }
+    return parent;
 }
 
-fn tryTerm(self: *Self, store: *TermStore, comptime is_greedy: bool) NewTermError!?TermIndex {
-    const first = self.tryNext() orelse {
-        return null;
-    };
+fn tryTermSingle(self: *Self, store: *TermStore) NewTermError!?TermIndex {
+    const left = self.tryNext() orelse return null;
 
-    switch (first.kind) {
+    switch (left.kind) {
         .Ident => {
-            var index = try store.append(Term{
-                .variable = first.span,
+            return try store.append(Term{
+                .variable = left.span,
             });
-
-            if (!is_greedy) {
-                return index;
-            }
-
-            while (!self.peekIsTokenKind(.ParenRight)) {
-                const right_index = try self.tryTerm(store, false) orelse {
-                    break;
-                };
-                const right_span = store.get(right_index).getSpan();
-
-                index = try store.append(Term{
-                    .application = .{
-                        .span = first.span.join(right_span),
-                        .left = index,
-                        .right = right_index,
-                    },
-                });
-            }
-            return index;
         },
 
         .Backslash => {
             const variable = try self.expectTokenKind(.Ident);
             _ = try self.expectTokenKind(.Dot);
 
-            const right_index = try self.expectTerm(store, true);
-            const right_span = store.get(right_index).getSpan();
+            const right = try self.expectTermGreedy(store);
 
             return try store.append(Term{
                 .abstraction = .{
-                    .span = first.span.join(right_span),
+                    .span = left.span.join(store.get(right).getSpan()),
                     .variable = variable,
-                    .right = right_index,
+                    .right = right,
                 },
             });
         },
 
         .ParenLeft => {
-            const inner = try self.expectTerm(store, true);
-            const right_span = try self.expectTokenKind(.ParenRight);
+            const inner = try self.expectTermGreedy(store);
+            const right_paren = try self.expectTokenKind(.ParenRight);
 
             return try store.append(Term{
                 .group = .{
-                    .span = first.span.join(right_span),
+                    .span = left.span.join(right_paren),
                     .inner = inner,
                 },
             });
@@ -148,5 +142,7 @@ fn tryNext(self: *Self) ?Token {
     return self.tokens.next();
 }
 fn expectNext(self: *Self) error{UnexpectedEnd}!Token {
-    return self.tryNext() orelse return error.UnexpectedEnd;
+    return self.tryNext() orelse {
+        return error.UnexpectedEnd;
+    };
 }

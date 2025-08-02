@@ -33,11 +33,12 @@ Pair = \x. \y. \f. f x y
 Fst = \p. p T
 Snd = \p. p F
 
+Apply2Wrong = \f. \x. f f x 
 Apply2 = \f. \x. f (f x) -- Comment
 Apply4 = Apply2
 	Apply2
 
 	Apply2
 
-X = a (b c) d \e.e
+X = a(b c) d ((\e.e) (\x.x))
 

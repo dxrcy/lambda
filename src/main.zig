@@ -35,19 +35,22 @@ pub fn main() !void {
         const decl = try parser.tryDeclaration(&term_store) orelse {
             continue;
         };
-        try decls.append(decl);
-    }
-
-    for (decls.items) |decl| {
         std.debug.print("\nname: {s}\n", .{decl.name.in(text.items)});
         const term = term_store.get(decl.term);
         term.debug(term_store.entries.items, text.items);
-
-        var local_vars = ArrayList([]const u8).init(allocator);
-        defer local_vars.deinit();
-
-        try findGlobalVariables(term, text.items, &term_store, &local_vars);
+        try decls.append(decl);
     }
+
+    // for (decls.items) |decl| {
+    //     std.debug.print("\nname: {s}\n", .{decl.name.in(text.items)});
+    //     const term = term_store.get(decl.term);
+    //     term.debug(term_store.entries.items, text.items);
+    //
+    //     var local_vars = ArrayList([]const u8).init(allocator);
+    //     defer local_vars.deinit();
+    //
+    //     try findGlobalVariables(term, text.items, &term_store, &local_vars);
+    // }
 }
 
 fn findGlobalVariables(term: *const Term, text: []const u8, store: *TermStore, locals: *ArrayList([]const u8)) !void {
