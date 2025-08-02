@@ -60,12 +60,12 @@ pub fn main() !void {
 
         try parser.expectEquals();
 
-        var term_list = ArrayList(Term).init(allocator);
-        defer term_list.deinit();
+        var term_store = model.TermStore.init(allocator);
+        defer term_store.deinit();
 
-        const term_index = try parser.expectStatementTerm(&term_list);
-        const term = &term_list.items[term_index];
-        term.debug(term_list.items, text.items);
+        const term_index = try parser.expectStatementTerm(&term_store);
+        const term = term_store.get(term_index);
+        term.debug(term_store.entries.items, text.items);
 
         // for (term_list.items) |item| {
         //     std.debug.print("[ {s} ]\n", .{item.getSpan().in(text.items)});

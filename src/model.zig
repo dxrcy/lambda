@@ -1,4 +1,7 @@
 const std = @import("std");
+const ArrayList = std.ArrayList;
+const Allocator = std.mem.Allocator;
+const assert = std.debug.assert;
 
 const Span = @import("Span.zig");
 
@@ -92,5 +95,31 @@ pub const Term = union(enum) {
                 std.debug.print("{c}", .{char});
             }
         }
+    }
+};
+
+pub const TermStore = struct {
+    const Self = @This();
+
+    entries: ArrayList(Term),
+
+    pub fn init(allocator: Allocator) Self {
+        return .{
+            .entries = ArrayList(Term).init(allocator),
+        };
+    }
+
+    pub fn deinit(self: *const Self) void {
+        self.entries.deinit();
+    }
+
+    pub fn append(self: *Self, term: Term) !usize {
+        try self.entries.append(term);
+        return self.entries.items.len - 1;
+    }
+
+    pub fn get(self: *const Self, index: Index) *const Term {
+        assert(index <= self.entries.items.len);
+        return &self.entries.items[index];
     }
 };

@@ -10,8 +10,8 @@ const Token = @import("Token.zig");
 
 const model = @import("model.zig");
 const Term = model.Term;
+const TermStore = model.TermStore;
 const Index = model.Index;
-const NO_TERM_INDEX = model.NO_TERM_INDEX;
 
 text: []const u8,
 tokens: ArrayList(Token),
@@ -107,26 +107,26 @@ pub fn expectParenRight(self: *Self) !Span {
 
 const TermError = error{ UnexpectedToken, UnexpectedEol, OutOfMemory };
 
-pub fn expectStatementTerm(self: *Self, list: *ArrayList(Term)) TermError!Index {
-    const index = try self.expectTerm(list, true);
+pub fn expectStatementTerm(self: *Self, store: *TermStore) TermError!Index {
+    const index = try self.expectTerm(store, true);
     try self.expectEol();
     return index;
 }
 
-pub fn expectTerm(self: *Self, list: *ArrayList(Term), is_greedy: bool) TermError!Index {
-    return try self.tryTerm(list, is_greedy) orelse {
+pub fn expectTerm(self: *Self, store: *TermStore, is_greedy: bool) TermError!Index {
+    return try self.tryTerm(store, is_greedy) orelse {
         return error.UnexpectedEol;
     };
 }
 
-pub fn tryTerm(self: *Self, list: *ArrayList(Term), is_greedy: bool) !?Index {
+pub fn tryTerm(self: *Self, store: *TermStore, is_greedy: bool) !?Index {
     const first = self.tryNext() orelse {
         return null;
     };
 
     switch (first.kind) {
         .Ident => {
-            var index = try appendTerm(list, Term{
+            var index = try store.append(Term{
                 .variable = first.span,
             });
 
@@ -137,13 +137,13 @@ pub fn tryTerm(self: *Self, list: *ArrayList(Term), is_greedy: bool) !?Index {
                     }
                 }
 
-                const right_index = try self.tryTerm(list, false) orelse {
+                const right_index = try self.tryTerm(store, false) orelse {
                     break;
                 };
-                const right = &list.items[right_index];
+                const right = store.get(right_index);
                 const span = first.span.join(right.getSpan());
 
-                index = try appendTerm(list, Term{
+                index = try store.append(Term{
                     .application = Term.Appl{
                         .span = span,
                         .left = index,
@@ -158,11 +158,11 @@ pub fn tryTerm(self: *Self, list: *ArrayList(Term), is_greedy: bool) !?Index {
             const variable = try self.expectIdent();
             try self.expectDot();
 
-            const right_index = try self.expectTerm(list, true);
-            const right = &list.items[right_index];
+            const right_index = try self.expectTerm(store, true);
+            const right = store.get(right_index);
             const span = first.span.join(right.getSpan());
 
-            return try appendTerm(list, Term{
+            return try store.append(Term{
                 .abstraction = Term.Abstr{
                     .span = span,
                     .variable = variable,
@@ -172,12 +172,12 @@ pub fn tryTerm(self: *Self, list: *ArrayList(Term), is_greedy: bool) !?Index {
         },
 
         .ParenLeft => {
-            const inner = try self.expectTerm(list, true);
+            const inner = try self.expectTerm(store, true);
 
             const paren_right = try self.expectParenRight();
             const span = first.span.join(paren_right);
 
-            return try appendTerm(list, Term{
+            return try store.append(Term{
                 .group = Term.Group{
                     .span = span,
                     .inner = inner,
@@ -189,9 +189,4 @@ pub fn tryTerm(self: *Self, list: *ArrayList(Term), is_greedy: bool) !?Index {
             return error.UnexpectedToken;
         },
     }
-}
-
-fn appendTerm(list: *ArrayList(Term), term: Term) !usize {
-    try list.append(term);
-    return list.items.len - 1;
 }
