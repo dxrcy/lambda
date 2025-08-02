@@ -16,6 +16,8 @@ const TermStore = model.TermStore;
 const symbols = @import("symbols.zig");
 const LocalStore = symbols.LocalStore;
 
+const debug = @import("debug.zig");
+
 pub fn main() !void {
     var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -46,14 +48,20 @@ pub fn main() !void {
 
     for (decls.items) |*decl| {
         locals.clearRetainingCapacity();
-        try symbols.patchSymbols(decl.term, text.items, &terms, &locals, decls.items);
+        try symbols.patchSymbols(
+            decl.term,
+            text.items,
+            &terms,
+            &locals,
+            decls.items,
+        );
         std.debug.assert(locals.items.len == 0);
     }
 
     for (decls.items, 0..) |*decl, i| {
         std.debug.print("\n[{}] {s}\n", .{ i, decl.name.in(text.items) });
         const term = terms.getMut(decl.term);
-        term.debug(terms.entries.items, text.items);
+        debug.debugTerm(term, terms.entries.items, text.items);
         std.debug.print("\n", .{});
     }
 }
