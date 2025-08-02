@@ -29,8 +29,7 @@ pub fn withOffset(self: Self, offset: usize) Self {
 
 /// Spans must be in-order and non-overlapping.
 pub fn join(self: Self, other: Self) Self {
-    // TODO(fix): This maybe should be `<=`
-    assert(self.offset + self.length < other.offset);
+    assert(self.offset + self.length <= other.offset);
     return .{
         .offset = self.offset,
         .length = other.offset - self.offset + other.length,
