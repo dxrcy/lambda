@@ -67,7 +67,7 @@ fn tryTermSingle(self: *Self, store: *TermStore) NewTermError!?TermIndex {
     switch (left.kind) {
         .Ident => {
             return try store.append(Term{
-                .variable = left.span,
+                .unresolved = left.span,
             });
         },
 

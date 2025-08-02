@@ -16,14 +16,30 @@ pub const Decl = struct {
 pub const Term = union(enum) {
     const Self = @This();
 
-    variable: Span,
+    unresolved: Span,
+    // TODO(refactor): Add `parameter` which `local` (`Term.Local`) refers to
+    global: Global,
+    local: Local,
+
     abstraction: Abstr,
     application: Appl,
     group: Group,
-    global: Global,
 
+    pub const Global = struct {
+        span: Span,
+        index: DeclIndex,
+    };
+    pub const Local = struct {
+        span: Span,
+        index: TermIndex,
+    };
+    pub const Group = struct {
+        span: Span,
+        inner: TermIndex,
+    };
     pub const Abstr = struct {
         span: Span,
+        // TODO(refactor): Rename `parameter`
         variable: Span,
         right: TermIndex,
     };
@@ -32,22 +48,15 @@ pub const Term = union(enum) {
         left: TermIndex,
         right: TermIndex,
     };
-    pub const Group = struct {
-        span: Span,
-        inner: TermIndex,
-    };
-    pub const Global = struct {
-        span: Span,
-        index: DeclIndex,
-    };
 
     pub fn getSpan(self: *const Self) Span {
         return switch (self.*) {
-            .variable => |span| span,
+            .unresolved => |span| span,
+            .local => |local| local.span,
+            .global => |global| global.span,
+            .group => |group| group.span,
             .abstraction => |abstr| abstr.span,
             .application => |appl| appl.span,
-            .group => |group| group.span,
-            .global => |global| global.span,
         };
     }
 
@@ -57,19 +66,29 @@ pub const Term = union(enum) {
 
     pub fn debugInner(self: *const Self, depth: usize, comptime prefix: []const u8, list: []const Term, text: []const u8) void {
         switch (self.*) {
-            .variable => |span| {
-                debugLabel(depth, prefix, "variable");
+            .unresolved => |span| {
+                debugLabel(depth, prefix, "unresolved");
                 debugSpan(span.in(text));
+            },
+            .local => |local| {
+                debugLabel(depth, prefix, "local");
+                std.debug.print("{{{}}} ", .{local.index});
+                debugSpan(local.span.in(text));
             },
             .global => |global| {
                 debugLabel(depth, prefix, "global");
                 std.debug.print("[{}] ", .{global.index});
                 debugSpan(global.span.in(text));
             },
+            .group => |group| {
+                debugLabel(depth, prefix, "group");
+                debugSpan(self.getSpan().in(text));
+                list[group.inner].debugInner(depth + 1, "", list, text);
+            },
             .abstraction => |abstr| {
                 debugLabel(depth, prefix, "abstraction");
                 debugSpan(self.getSpan().in(text));
-                debugLabel(depth + 1, "L", "variable");
+                debugLabel(depth + 1, "L", "parameter");
                 debugSpan(abstr.variable.in(text));
                 list[abstr.right].debugInner(depth + 1, "R", list, text);
             },
@@ -78,11 +97,6 @@ pub const Term = union(enum) {
                 debugSpan(self.getSpan().in(text));
                 list[appl.left].debugInner(depth + 1, "L", list, text);
                 list[appl.right].debugInner(depth + 1, "R", list, text);
-            },
-            .group => |group| {
-                debugLabel(depth, prefix, "group");
-                debugSpan(self.getSpan().in(text));
-                list[group.inner].debugInner(depth + 1, "", list, text);
             },
         }
     }
@@ -98,6 +112,7 @@ pub const Term = union(enum) {
     }
 
     fn debugSpan(value: []const u8) void {
+        std.debug.print("`", .{});
         var was_whitespace = true;
         for (value) |char| {
             if (std.ascii.isWhitespace(char)) {
@@ -110,6 +125,7 @@ pub const Term = union(enum) {
                 std.debug.print("{c}", .{char});
             }
         }
+        std.debug.print("`", .{});
         std.debug.print("\n", .{});
     }
 };
