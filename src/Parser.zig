@@ -9,6 +9,7 @@ const Tokenizer = @import("Tokenizer.zig");
 const Token = @import("Token.zig");
 
 const model = @import("model.zig");
+const Decl = model.Decl;
 const Term = model.Term;
 const TermStore = model.TermStore;
 const Index = model.Index;
@@ -106,6 +107,19 @@ pub fn expectParenRight(self: *Self) !Span {
 }
 
 const TermError = error{ UnexpectedToken, UnexpectedEol, OutOfMemory };
+
+pub fn tryDeclaration(self: *Self, store: *TermStore) TermError!?Decl {
+    const name = try self.expectIdentOrEol() orelse {
+        return null;
+    };
+    try self.expectEquals();
+    const term_index = try self.expectStatementTerm(store);
+
+    return Decl{
+        .name = name,
+        .term = term_index,
+    };
+}
 
 pub fn expectStatementTerm(self: *Self, store: *TermStore) TermError!Index {
     const index = try self.expectTerm(store, true);

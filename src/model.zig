@@ -9,7 +9,7 @@ pub const Index = usize;
 
 pub const Decl = struct {
     name: Span,
-    term: Term,
+    term: Index,
 };
 
 pub const Term = union(enum) {

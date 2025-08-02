@@ -10,6 +10,7 @@ const Tokenizer = @import("Tokenizer.zig");
 const utils = @import("utils.zig");
 
 const model = @import("model.zig");
+const Decl = model.Decl;
 const Term = model.Term;
 
 pub fn main() !void {
@@ -51,24 +52,24 @@ pub fn main() !void {
         std.debug.print("\n", .{});
     }
 
+    var decls = ArrayList(Decl).init(allocator);
+    defer decls.deinit();
+
+    var term_store = model.TermStore.init(allocator);
+    defer term_store.deinit();
+
     for (stmt_list.items) |stmt| {
         var parser = try Parser.new(text.items, stmt, allocator);
         defer parser.deinit();
+        const decl = try parser.tryDeclaration(&term_store) orelse {
+            continue;
+        };
+        try decls.append(decl);
+    }
 
-        const name = try parser.expectIdentOrEol() orelse continue;
-        std.debug.print("\nname: {s}\n", .{name.in(text.items)});
-
-        try parser.expectEquals();
-
-        var term_store = model.TermStore.init(allocator);
-        defer term_store.deinit();
-
-        const term_index = try parser.expectStatementTerm(&term_store);
-        const term = term_store.get(term_index);
+    for (decls.items) |decl| {
+        std.debug.print("\nname: {s}\n", .{decl.name.in(text.items)});
+        const term = term_store.get(decl.term);
         term.debug(term_store.entries.items, text.items);
-
-        // for (term_list.items) |item| {
-        //     std.debug.print("[ {s} ]\n", .{item.getSpan().in(text.items)});
-        // }
     }
 }
