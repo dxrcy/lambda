@@ -13,11 +13,6 @@ const Term = model.Term;
 
 const SymbolError = error{UndefinedSymbol};
 
-pub const LocalStore = ArrayList(struct {
-    index: TermIndex,
-    value: []const u8,
-});
-
 pub fn patchSymbols(
     index: TermIndex,
     text: []const u8,
@@ -32,12 +27,9 @@ pub fn patchSymbols(
         },
         .abstraction => |abstr| {
             const value = abstr.parameter.in(text);
-            try locals.append(.{
-                .index = index,
-                .value = value,
-            });
+            try locals.add(index, value);
+            defer locals.pop();
             try patchSymbols(abstr.right, text, terms, locals, declarations);
-            _ = locals.pop();
         },
         .application => |appl| {
             try patchSymbols(appl.left, text, terms, locals, declarations);
@@ -73,7 +65,7 @@ fn resolveSymbol(
 }
 
 fn resolveLocal(locals: *const LocalStore, value: []const u8) ?TermIndex {
-    for (locals.items) |item| {
+    for (locals.entries.items) |item| {
         if (std.mem.eql(u8, item.value, value)) {
             return item.index;
         }
@@ -93,3 +85,43 @@ fn resolveGlobal(
     }
     return null;
 }
+
+pub const LocalStore = struct {
+    const Self = @This();
+
+    entries: ArrayList(Entry),
+
+    const Entry = struct {
+        index: TermIndex,
+        value: []const u8,
+    };
+
+    pub fn init(allocator: Allocator) Self {
+        return .{
+            .entries = ArrayList(Entry).init(allocator),
+        };
+    }
+
+    pub fn deinit(self: *const Self) void {
+        self.entries.deinit();
+    }
+
+    pub fn isEmpty(self: *const Self) bool {
+        return self.entries.items.len == 0;
+    }
+
+    pub fn add(
+        self: *Self,
+        index: TermIndex,
+        value: []const u8,
+    ) Allocator.Error!void {
+        try self.entries.append(.{
+            .index = index,
+            .value = value,
+        });
+    }
+
+    pub fn pop(self: *Self) void {
+        _ = self.entries.pop();
+    }
+};

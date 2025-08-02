@@ -47,7 +47,7 @@ pub fn main() !void {
     defer locals.deinit();
 
     for (decls.items) |*decl| {
-        locals.clearRetainingCapacity();
+        std.debug.assert(locals.isEmpty());
         try symbols.patchSymbols(
             decl.term,
             text.items,
@@ -55,8 +55,8 @@ pub fn main() !void {
             &locals,
             decls.items,
         );
-        std.debug.assert(locals.items.len == 0);
     }
+    std.debug.assert(locals.isEmpty());
 
     for (decls.items, 0..) |*decl, i| {
         std.debug.print("\n[{}] {s}\n", .{ i, decl.name.in(text.items) });
