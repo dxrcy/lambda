@@ -11,6 +11,7 @@ const utils = @import("utils.zig");
 
 const model = @import("model.zig");
 const Decl = model.Decl;
+const TermStore = model.TermStore;
 const Term = model.Term;
 
 pub fn main() !void {
@@ -19,46 +20,17 @@ pub fn main() !void {
     const allocator = gpa.allocator();
 
     const filepath = "example";
-
     const text = try utils.readFile(filepath, allocator);
     defer text.deinit();
-
-    var stmt_list = ArrayList(Span).init(allocator);
-    defer stmt_list.deinit();
-
-    var stmts = Statements.new(text.items);
-    while (stmts.next()) |stmt| {
-        try stmt_list.append(stmt);
-    }
-
-    { // debug
-        var i: usize = 0;
-        for (stmt_list.items) |stmt| {
-            var tokens = Tokenizer.new(text.items, stmt);
-            var j: usize = 0;
-            while (tokens.next()) |token| : (j += 1) {
-                while (i < text.items.len) : (i += 1) {
-                    if (i >= token.span.offset) {
-                        i += token.span.length;
-                        break;
-                    }
-                    std.debug.print("{c}", .{text.items[i]});
-                }
-                std.debug.print("\x1b[3{}m", .{j % 6 + 1});
-                std.debug.print("{s}", .{token.span.in(text.items)});
-                std.debug.print("\x1b[0m", .{});
-            }
-        }
-        std.debug.print("\n", .{});
-    }
 
     var decls = ArrayList(Decl).init(allocator);
     defer decls.deinit();
 
-    var term_store = model.TermStore.init(allocator);
+    var term_store = TermStore.init(allocator);
     defer term_store.deinit();
 
-    for (stmt_list.items) |stmt| {
+    var stmts = Statements.new(text.items);
+    while (stmts.next()) |stmt| {
         var parser = try Parser.new(text.items, stmt);
         const decl = try parser.tryDeclaration(&term_store) orelse {
             continue;

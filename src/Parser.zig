@@ -1,26 +1,20 @@
 const Self = @This();
 
-const std = @import("std");
-
 const Span = @import("Span.zig");
-const Tokenizer = @import("Tokenizer.zig");
-const Token = @import("Token.zig");
 const TokenBuf = @import("TokenBuf.zig");
+const Token = @import("Token.zig");
 
 const model = @import("model.zig");
 const Decl = model.Decl;
-const Term = model.Term;
+const TermIndex = model.TermIndex;
 const TermStore = model.TermStore;
-const Index = model.Index;
+const Term = model.Term;
 
-text: []const u8,
 tokens: TokenBuf,
 
 pub fn new(text: []const u8, stmt: Span) !Self {
-    const tokens = try TokenBuf.new(text, stmt);
     return .{
-        .text = text,
-        .tokens = tokens,
+        .tokens = try TokenBuf.new(text, stmt),
     };
 }
 
@@ -102,19 +96,19 @@ pub fn tryDeclaration(self: *Self, store: *TermStore) TermError!?Decl {
     };
 }
 
-pub fn expectStatementTerm(self: *Self, store: *TermStore) TermError!Index {
+pub fn expectStatementTerm(self: *Self, store: *TermStore) TermError!TermIndex {
     const index = try self.expectTerm(store, true);
     try self.expectEol();
     return index;
 }
 
-pub fn expectTerm(self: *Self, store: *TermStore, is_greedy: bool) TermError!Index {
+pub fn expectTerm(self: *Self, store: *TermStore, is_greedy: bool) TermError!TermIndex {
     return try self.tryTerm(store, is_greedy) orelse {
         return error.UnexpectedEol;
     };
 }
 
-pub fn tryTerm(self: *Self, store: *TermStore, is_greedy: bool) !?Index {
+pub fn tryTerm(self: *Self, store: *TermStore, is_greedy: bool) !?TermIndex {
     const first = self.tryNext() orelse {
         return null;
     };

@@ -1,15 +1,15 @@
 const std = @import("std");
-const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayList;
 const assert = std.debug.assert;
 
 const Span = @import("Span.zig");
 
-pub const Index = usize;
+pub const TermIndex = usize;
 
 pub const Decl = struct {
     name: Span,
-    term: Index,
+    term: TermIndex,
 };
 
 pub const Term = union(enum) {
@@ -23,16 +23,16 @@ pub const Term = union(enum) {
     pub const Abstr = struct {
         span: Span,
         variable: Span,
-        right: Index,
+        right: TermIndex,
     };
     pub const Appl = struct {
         span: Span,
-        left: Index,
-        right: Index,
+        left: TermIndex,
+        right: TermIndex,
     };
     pub const Group = struct {
         span: Span,
-        inner: Index,
+        inner: TermIndex,
     };
 
     pub fn getSpan(self: *const Self) Span {
@@ -118,7 +118,7 @@ pub const TermStore = struct {
         return self.entries.items.len - 1;
     }
 
-    pub fn get(self: *const Self, index: Index) *const Term {
+    pub fn get(self: *const Self, index: TermIndex) *const Term {
         assert(index <= self.entries.items.len);
         return &self.entries.items[index];
     }
