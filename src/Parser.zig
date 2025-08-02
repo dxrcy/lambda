@@ -1,8 +1,6 @@
 const Self = @This();
 
 const std = @import("std");
-const Allocator = std.mem.Allocator;
-const ArrayList = std.ArrayList;
 
 const Span = @import("Span.zig");
 const Tokenizer = @import("Tokenizer.zig");
@@ -18,16 +16,12 @@ const Index = model.Index;
 text: []const u8,
 tokens: TokenBuf,
 
-pub fn new(text: []const u8, stmt: Span, allocator: Allocator) !Self {
-    const tokens = try TokenBuf.new(text, stmt, allocator);
+pub fn new(text: []const u8, stmt: Span) !Self {
+    const tokens = try TokenBuf.new(text, stmt);
     return .{
         .text = text,
         .tokens = tokens,
     };
-}
-
-pub fn deinit(self: *const Self) void {
-    self.tokens.deinit();
 }
 
 fn peek(self: *Self) ?Token {

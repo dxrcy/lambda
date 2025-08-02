@@ -59,8 +59,7 @@ pub fn main() !void {
     defer term_store.deinit();
 
     for (stmt_list.items) |stmt| {
-        var parser = try Parser.new(text.items, stmt, allocator);
-        defer parser.deinit();
+        var parser = try Parser.new(text.items, stmt);
         const decl = try parser.tryDeclaration(&term_store) orelse {
             continue;
         };
