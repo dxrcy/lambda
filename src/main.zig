@@ -35,45 +35,75 @@ pub fn main() !void {
         const decl = try parser.tryDeclaration(&term_store) orelse {
             continue;
         };
-        std.debug.print("\nname: {s}\n", .{decl.name.in(text.items)});
-        const term = term_store.get(decl.term);
-        term.debug(term_store.entries.items, text.items);
         try decls.append(decl);
     }
 
-    // for (decls.items) |decl| {
-    //     std.debug.print("\nname: {s}\n", .{decl.name.in(text.items)});
-    //     const term = term_store.get(decl.term);
-    //     term.debug(term_store.entries.items, text.items);
-    //
-    //     var local_vars = ArrayList([]const u8).init(allocator);
-    //     defer local_vars.deinit();
-    //
-    //     try findGlobalVariables(term, text.items, &term_store, &local_vars);
-    // }
+    var local_vars = ArrayList([]const u8).init(allocator);
+    defer local_vars.deinit();
+
+    for (decls.items) |*decl| {
+        local_vars.clearRetainingCapacity();
+        const term = term_store.getMut(decl.term);
+        try patchGlobalVariable(term, text.items, decls.items, &term_store, &local_vars);
+        std.debug.assert(local_vars.items.len == 0);
+    }
+
+    for (decls.items, 0..) |*decl, i| {
+        std.debug.print("\n[{}] {s}\n", .{ i, decl.name.in(text.items) });
+        const term = term_store.getMut(decl.term);
+        term.debug(term_store.entries.items, text.items);
+        std.debug.print("\n", .{});
+    }
 }
 
-fn findGlobalVariables(term: *const Term, text: []const u8, store: *TermStore, locals: *ArrayList([]const u8)) !void {
+const GlobalError = error{UndefinedVariable} || Allocator.Error;
+
+fn patchGlobalVariable(term: *Term, text: []const u8, declarations: []const Decl, store: *TermStore, locals: *ArrayList([]const u8)) GlobalError!void {
+    if (try findGlobalVariables(term, text, declarations, store, locals)) {
+        const span = term.getSpan();
+        const value = span.in(text);
+        const index = findDeclaration(declarations, value, text) orelse {
+            return error.UndefinedVariable;
+        };
+        term.* = Term{
+            .global = .{
+                .span = span,
+                .index = index,
+            },
+        };
+    }
+}
+
+fn findDeclaration(declarations: []const Decl, value: []const u8, text: []const u8) ?model.DeclIndex {
+    for (declarations, 0..) |*decl, i| {
+        if (std.mem.eql(u8, decl.name.in(text), value)) {
+            return i;
+        }
+    }
+    return null;
+}
+
+fn findGlobalVariables(term: *Term, text: []const u8, declarations: []const Decl, store: *TermStore, locals: *ArrayList([]const u8)) GlobalError!bool {
     switch (term.*) {
         .variable => |span| {
-            const value = span.in(text);
-            if (!containsString(locals.items, value)) {
-                std.debug.print("[{s}]\n", .{value});
-            }
+            return !containsString(locals.items, span.in(text));
         },
         .abstraction => |abstr| {
             const value = abstr.variable.in(text);
             try locals.append(value);
-            try findGlobalVariables(store.get(abstr.right), text, store, locals);
+            try patchGlobalVariable(store.getMut(abstr.right), text, declarations, store, locals);
+            _ = locals.pop();
         },
         .application => |appl| {
-            try findGlobalVariables(store.get(appl.left), text, store, locals);
-            try findGlobalVariables(store.get(appl.right), text, store, locals);
+            try patchGlobalVariable(store.getMut(appl.left), text, declarations, store, locals);
+            try patchGlobalVariable(store.getMut(appl.right), text, declarations, store, locals);
         },
         .group => |group| {
-            try findGlobalVariables(store.get(group.inner), text, store, locals);
+            try patchGlobalVariable(store.getMut(group.inner), text, declarations, store, locals);
         },
+        .global => unreachable,
     }
+    return false;
 }
 
 fn containsString(list: []const []const u8, target: []const u8) bool {

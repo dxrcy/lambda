@@ -6,6 +6,7 @@ const assert = std.debug.assert;
 const Span = @import("Span.zig");
 
 pub const TermIndex = usize;
+pub const DeclIndex = usize;
 
 pub const Decl = struct {
     name: Span,
@@ -19,6 +20,7 @@ pub const Term = union(enum) {
     abstraction: Abstr,
     application: Appl,
     group: Group,
+    global: Global,
 
     pub const Abstr = struct {
         span: Span,
@@ -34,6 +36,10 @@ pub const Term = union(enum) {
         span: Span,
         inner: TermIndex,
     };
+    pub const Global = struct {
+        span: Span,
+        index: DeclIndex,
+    };
 
     pub fn getSpan(self: *const Self) Span {
         return switch (self.*) {
@@ -41,6 +47,7 @@ pub const Term = union(enum) {
             .abstraction => |abstr| abstr.span,
             .application => |appl| appl.span,
             .group => |group| group.span,
+            .global => |global| global.span,
         };
     }
 
@@ -51,38 +58,46 @@ pub const Term = union(enum) {
     pub fn debugInner(self: *const Self, depth: usize, comptime prefix: []const u8, list: []const Term, text: []const u8) void {
         switch (self.*) {
             .variable => |span| {
-                debugSpan(depth, prefix, "variable", span.in(text));
+                debugLabel(depth, prefix, "variable");
+                debugSpan(span.in(text));
+            },
+            .global => |global| {
+                debugLabel(depth, prefix, "global");
+                std.debug.print("[{}] ", .{global.index});
+                debugSpan(global.span.in(text));
             },
             .abstraction => |abstr| {
-                debugSpan(depth, prefix, "abstraction", self.getSpan().in(text));
-                debugSpan(depth + 1, "L", "variable", abstr.variable.in(text));
+                debugLabel(depth, prefix, "abstraction");
+                debugSpan(self.getSpan().in(text));
+                debugLabel(depth + 1, "L", "variable");
+                debugSpan(abstr.variable.in(text));
                 list[abstr.right].debugInner(depth + 1, "R", list, text);
             },
             .application => |appl| {
-                debugSpan(depth, prefix, "application", self.getSpan().in(text));
+                debugLabel(depth, prefix, "application");
+                debugSpan(self.getSpan().in(text));
                 list[appl.left].debugInner(depth + 1, "L", list, text);
                 list[appl.right].debugInner(depth + 1, "R", list, text);
             },
             .group => |group| {
-                debugSpan(depth, prefix, "group", self.getSpan().in(text));
+                debugLabel(depth, prefix, "group");
+                debugSpan(self.getSpan().in(text));
                 list[group.inner].debugInner(depth + 1, "", list, text);
             },
         }
     }
 
-    fn debugSpan(depth: usize, comptime prefix: []const u8, comptime label: []const u8, value: []const u8) void {
+    fn debugLabel(depth: usize, comptime prefix: []const u8, comptime label: []const u8) void {
         for (0..depth) |_| {
             std.debug.print("|" ++ " " ** 5, .{});
         }
         if (prefix.len > 0) {
             std.debug.print("{s}.", .{prefix});
         }
-        std.debug.print("{s}: `", .{label});
-        printSpan(value);
-        std.debug.print("`\n", .{});
+        std.debug.print("{s}: ", .{label});
     }
 
-    fn printSpan(value: []const u8) void {
+    fn debugSpan(value: []const u8) void {
         var was_whitespace = true;
         for (value) |char| {
             if (std.ascii.isWhitespace(char)) {
@@ -95,6 +110,7 @@ pub const Term = union(enum) {
                 std.debug.print("{c}", .{char});
             }
         }
+        std.debug.print("\n", .{});
     }
 };
 
@@ -119,6 +135,11 @@ pub const TermStore = struct {
     }
 
     pub fn get(self: *const Self, index: TermIndex) *const Term {
+        assert(index <= self.entries.items.len);
+        return &self.entries.items[index];
+    }
+
+    pub fn getMut(self: *Self, index: TermIndex) *Term {
         assert(index <= self.entries.items.len);
         return &self.entries.items[index];
     }
