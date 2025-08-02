@@ -8,7 +8,7 @@ text: []const u8,
 tokens: Tokenizer,
 peeked: ?Token,
 
-pub fn new(text: []const u8, stmt: Span) !Self {
+pub fn new(text: []const u8, stmt: Span) Self {
     return .{
         .text = text,
         .tokens = Tokenizer.new(text, stmt),

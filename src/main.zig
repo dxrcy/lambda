@@ -31,7 +31,7 @@ pub fn main() !void {
 
     var stmts = Statements.new(text.items);
     while (stmts.next()) |stmt| {
-        var parser = try Parser.new(text.items, stmt);
+        var parser = Parser.new(text.items, stmt);
         const decl = try parser.tryDeclaration(&term_store) orelse {
             continue;
         };

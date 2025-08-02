@@ -113,7 +113,7 @@ pub const TermStore = struct {
         self.entries.deinit();
     }
 
-    pub fn append(self: *Self, term: Term) !usize {
+    pub fn append(self: *Self, term: Term) Allocator.Error!usize {
         try self.entries.append(term);
         return self.entries.items.len - 1;
     }

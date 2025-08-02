@@ -1,5 +1,7 @@
 const Self = @This();
 
+const std = @import("std");
+
 const Span = @import("Span.zig");
 const TokenBuf = @import("TokenBuf.zig");
 const Token = @import("Token.zig");
@@ -10,17 +12,19 @@ const TermIndex = model.TermIndex;
 const TermStore = model.TermStore;
 const Term = model.Term;
 
-const TermError = error{ UnexpectedToken, UnexpectedEol, OutOfMemory };
+const NewTermError = AnyTokenError || std.mem.Allocator.Error;
+const AnyTokenError = error{
+    UnexpectedToken,
+    UnexpectedEnd,
+};
 
 tokens: TokenBuf,
 
-pub fn new(text: []const u8, stmt: Span) !Self {
-    return .{
-        .tokens = try TokenBuf.new(text, stmt),
-    };
+pub fn new(text: []const u8, stmt: Span) Self {
+    return .{ .tokens = TokenBuf.new(text, stmt) };
 }
 
-pub fn tryDeclaration(self: *Self, store: *TermStore) TermError!?Decl {
+pub fn tryDeclaration(self: *Self, store: *TermStore) NewTermError!?Decl {
     const name = try self.expectIdentOrEnd() orelse {
         return null;
     };
@@ -34,13 +38,13 @@ pub fn tryDeclaration(self: *Self, store: *TermStore) TermError!?Decl {
     };
 }
 
-fn expectTerm(self: *Self, store: *TermStore, comptime is_greedy: bool) TermError!TermIndex {
+fn expectTerm(self: *Self, store: *TermStore, comptime is_greedy: bool) NewTermError!TermIndex {
     return try self.tryTerm(store, is_greedy) orelse {
-        return error.UnexpectedEol;
+        return error.UnexpectedEnd;
     };
 }
 
-fn tryTerm(self: *Self, store: *TermStore, comptime is_greedy: bool) !?TermIndex {
+fn tryTerm(self: *Self, store: *TermStore, comptime is_greedy: bool) NewTermError!?TermIndex {
     const first = self.tryNext() orelse {
         return null;
     };
@@ -106,13 +110,13 @@ fn tryTerm(self: *Self, store: *TermStore, comptime is_greedy: bool) !?TermIndex
     }
 }
 
-fn expectEnd(self: *Self) !void {
+fn expectEnd(self: *Self) error{UnexpectedToken}!void {
     if (!self.tokens.isEnd()) {
         return error.UnexpectedToken;
     }
 }
 
-fn expectIdentOrEnd(self: *Self) !?Span {
+fn expectIdentOrEnd(self: *Self) error{UnexpectedToken}!?Span {
     const token = self.tryNext() orelse return null;
     if (token.kind != .Ident) {
         return error.UnexpectedToken;
@@ -120,7 +124,7 @@ fn expectIdentOrEnd(self: *Self) !?Span {
     return token.span;
 }
 
-fn expectTokenKind(self: *Self, kind: Token.Kind) !Span {
+fn expectTokenKind(self: *Self, kind: Token.Kind) AnyTokenError!Span {
     const token = try self.expectNext();
     if (token.kind != kind) {
         return error.UnexpectedToken;
@@ -143,6 +147,6 @@ fn peek(self: *Self) ?Token {
 fn tryNext(self: *Self) ?Token {
     return self.tokens.next();
 }
-fn expectNext(self: *Self) !Token {
-    return self.tryNext() orelse return error.UnexpectedEol;
+fn expectNext(self: *Self) error{UnexpectedEnd}!Token {
+    return self.tryNext() orelse return error.UnexpectedEnd;
 }
