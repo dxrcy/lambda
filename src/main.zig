@@ -33,34 +33,33 @@ pub fn main() !void {
     var terms = TermStore.init(allocator);
     defer terms.deinit();
 
-    var stmts = Statements.new(text.items);
-    while (stmts.next()) |stmt| {
-        var parser = Parser.new(text.items, stmt);
-        const decl = try parser.tryDeclaration(&terms) orelse {
-            continue;
-        };
-        try decls.append(decl);
+    {
+        var stmts = Statements.new(text.items);
+        while (stmts.next()) |stmt| {
+            var parser = Parser.new(text.items, stmt);
+            const decl = try parser.tryDeclaration(&terms) orelse {
+                continue;
+            };
+            try decls.append(decl);
+        }
     }
 
-    var locals = LocalStore.init(allocator);
-    defer locals.deinit();
+    {
+        var locals = LocalStore.init(allocator);
+        defer locals.deinit();
 
-    for (decls.items) |*decl| {
+        for (decls.items) |*decl| {
+            std.debug.assert(locals.isEmpty());
+            try symbols.patchSymbols(
+                decl.term,
+                text.items,
+                &terms,
+                &locals,
+                decls.items,
+            );
+        }
         std.debug.assert(locals.isEmpty());
-        try symbols.patchSymbols(
-            decl.term,
-            text.items,
-            &terms,
-            &locals,
-            decls.items,
-        );
     }
-    std.debug.assert(locals.isEmpty());
 
-    for (decls.items, 0..) |*decl, i| {
-        std.debug.print("\n[{}] {s}\n", .{ i, decl.name.in(text.items) });
-        const term = terms.getMut(decl.term);
-        debug.debugTerm(term, terms.entries.items, text.items);
-        std.debug.print("\n", .{});
-    }
+    debug.printDeclarations(decls.items, &terms, text.items);
 }

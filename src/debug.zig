@@ -1,18 +1,20 @@
 const std = @import("std");
 
 const model = @import("model.zig");
+const Decl = model.Decl;
 const TermStore = model.TermStore;
 const Term = model.Term;
 
-pub fn debugTerm(
-    term: *const Term,
-    terms: []const Term,
-    text: []const u8,
-) void {
-    debugTermInner(term, 0, "", terms, text);
+pub fn printDeclarations(declarations: []const Decl, terms: *const TermStore, text: []const u8) void {
+    for (declarations, 0..) |*decl, i| {
+        const term = terms.get(decl.term);
+        std.debug.print("\n[{}] {s}\n", .{ i, decl.name.in(text) });
+        printTerm(term, 0, "", terms.entries.items, text);
+        std.debug.print("\n", .{});
+    }
 }
 
-pub fn debugTermInner(
+fn printTerm(
     term: *const Term,
     depth: usize,
     comptime prefix: []const u8,
@@ -21,41 +23,41 @@ pub fn debugTermInner(
 ) void {
     switch (term.value) {
         .unresolved => {
-            debugLabel(depth, prefix, "UNRESOLVED");
-            debugSpan(term.span.in(text));
+            printLabel(depth, prefix, "UNRESOLVED");
+            printSpan(term.span.in(text));
         },
         .local => |index| {
-            debugLabel(depth, prefix, "local");
+            printLabel(depth, prefix, "local");
             std.debug.print("{{{}}} ", .{index});
-            debugSpan(term.span.in(text));
+            printSpan(term.span.in(text));
         },
         .global => |index| {
-            debugLabel(depth, prefix, "global");
+            printLabel(depth, prefix, "global");
             std.debug.print("[{}] ", .{index});
-            debugSpan(term.span.in(text));
+            printSpan(term.span.in(text));
         },
         .group => |inner| {
-            debugLabel(depth, prefix, "group");
-            debugSpan(term.span.in(text));
-            debugTermInner(&terms[inner], depth + 1, "", terms, text);
+            printLabel(depth, prefix, "group");
+            printSpan(term.span.in(text));
+            printTerm(&terms[inner], depth + 1, "", terms, text);
         },
         .abstraction => |abstr| {
-            debugLabel(depth, prefix, "abstraction");
-            debugSpan(term.span.in(text));
-            debugLabel(depth + 1, "L", "parameter");
-            debugSpan(abstr.parameter.in(text));
-            debugTermInner(&terms[abstr.body], depth + 1, "R", terms, text);
+            printLabel(depth, prefix, "abstraction");
+            printSpan(term.span.in(text));
+            printLabel(depth + 1, "parameter", "");
+            printSpan(abstr.parameter.in(text));
+            printTerm(&terms[abstr.body], depth + 1, "body", terms, text);
         },
         .application => |appl| {
-            debugLabel(depth, prefix, "application");
-            debugSpan(term.span.in(text));
-            debugTermInner(&terms[appl.function], depth + 1, "L", terms, text);
-            debugTermInner(&terms[appl.argument], depth + 1, "R", terms, text);
+            printLabel(depth, prefix, "application");
+            printSpan(term.span.in(text));
+            printTerm(&terms[appl.function], depth + 1, "function", terms, text);
+            printTerm(&terms[appl.argument], depth + 1, "argument", terms, text);
         },
     }
 }
 
-fn debugLabel(
+fn printLabel(
     depth: usize,
     comptime prefix: []const u8,
     comptime label: []const u8,
@@ -69,7 +71,7 @@ fn debugLabel(
     std.debug.print("{s}: ", .{label});
 }
 
-fn debugSpan(value: []const u8) void {
+fn printSpan(value: []const u8) void {
     std.debug.print("`", .{});
     var was_whitespace = true;
     for (value) |char| {
