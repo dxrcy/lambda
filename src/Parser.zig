@@ -7,6 +7,7 @@ const ArrayList = std.ArrayList;
 const Span = @import("Span.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const Token = @import("Token.zig");
+const TokenBuf = @import("TokenBuf.zig");
 
 const model = @import("model.zig");
 const Decl = model.Decl;
@@ -15,19 +16,13 @@ const TermStore = model.TermStore;
 const Index = model.Index;
 
 text: []const u8,
-tokens: ArrayList(Token),
-index: usize,
+tokens: TokenBuf,
 
 pub fn new(text: []const u8, stmt: Span, allocator: Allocator) !Self {
-    var tokens = ArrayList(Token).init(allocator);
-    var tokenizer = Tokenizer.new(text, stmt);
-    while (tokenizer.next()) |token| {
-        try tokens.append(token);
-    }
+    const tokens = try TokenBuf.new(text, stmt, allocator);
     return .{
         .text = text,
         .tokens = tokens,
-        .index = 0,
     };
 }
 
@@ -36,19 +31,11 @@ pub fn deinit(self: *const Self) void {
 }
 
 fn peek(self: *Self) ?Token {
-    if (self.index >= self.tokens.items.len) {
-        return null;
-    }
-    return self.tokens.items[self.index];
+    return self.tokens.peek();
 }
 
 fn tryNext(self: *Self) ?Token {
-    if (self.index >= self.tokens.items.len) {
-        return null;
-    }
-    const token = self.tokens.items[self.index];
-    self.index += 1;
-    return token;
+    return self.tokens.next();
 }
 
 fn expectNext(self: *Self) !Token {
@@ -81,7 +68,7 @@ pub fn expectIdentOrEol(self: *Self) !?Span {
 
 // TODO(refactor): Use `End` instead of `Eol`
 pub fn expectEol(self: *Self) !void {
-    if (self.index < self.tokens.items.len) {
+    if (!self.tokens.isEnd()) {
         return error.UnexpectedToken;
     }
 }
