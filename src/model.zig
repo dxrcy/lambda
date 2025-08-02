@@ -17,9 +17,8 @@ pub const Term = union(enum) {
     const Self = @This();
 
     unresolved: Span,
-    // TODO(refactor): Add `parameter` which `local` (`Term.Local`) refers to
-    global: Global,
     local: Local,
+    global: Global,
 
     abstraction: Abstr,
     application: Appl,
@@ -39,8 +38,7 @@ pub const Term = union(enum) {
     };
     pub const Abstr = struct {
         span: Span,
-        // TODO(refactor): Rename `parameter`
-        variable: Span,
+        parameter: Span,
         right: TermIndex,
     };
     pub const Appl = struct {
@@ -60,14 +58,14 @@ pub const Term = union(enum) {
         };
     }
 
-    pub fn debug(self: *const Self, list: []const Term, text: []const u8) void {
-        self.debugInner(0, "", list, text);
+    pub fn debug(self: *const Self, terms: []const Term, text: []const u8) void {
+        self.debugInner(0, "", terms, text);
     }
 
-    pub fn debugInner(self: *const Self, depth: usize, comptime prefix: []const u8, list: []const Term, text: []const u8) void {
+    pub fn debugInner(self: *const Self, depth: usize, comptime prefix: []const u8, terms: []const Term, text: []const u8) void {
         switch (self.*) {
             .unresolved => |span| {
-                debugLabel(depth, prefix, "unresolved");
+                debugLabel(depth, prefix, "UNRESOLVED");
                 debugSpan(span.in(text));
             },
             .local => |local| {
@@ -83,20 +81,20 @@ pub const Term = union(enum) {
             .group => |group| {
                 debugLabel(depth, prefix, "group");
                 debugSpan(self.getSpan().in(text));
-                list[group.inner].debugInner(depth + 1, "", list, text);
+                terms[group.inner].debugInner(depth + 1, "", terms, text);
             },
             .abstraction => |abstr| {
                 debugLabel(depth, prefix, "abstraction");
                 debugSpan(self.getSpan().in(text));
                 debugLabel(depth + 1, "L", "parameter");
-                debugSpan(abstr.variable.in(text));
-                list[abstr.right].debugInner(depth + 1, "R", list, text);
+                debugSpan(abstr.parameter.in(text));
+                terms[abstr.right].debugInner(depth + 1, "R", terms, text);
             },
             .application => |appl| {
                 debugLabel(depth, prefix, "application");
                 debugSpan(self.getSpan().in(text));
-                list[appl.left].debugInner(depth + 1, "L", list, text);
-                list[appl.right].debugInner(depth + 1, "R", list, text);
+                terms[appl.left].debugInner(depth + 1, "L", terms, text);
+                terms[appl.right].debugInner(depth + 1, "R", terms, text);
             },
         }
     }

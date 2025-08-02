@@ -24,12 +24,12 @@ pub fn new(text: []const u8, stmt: Span) Self {
     return .{ .tokens = TokenBuf.new(text, stmt) };
 }
 
-pub fn tryDeclaration(self: *Self, store: *TermStore) NewTermError!?Decl {
+pub fn tryDeclaration(self: *Self, terms: *TermStore) NewTermError!?Decl {
     const name = try self.expectIdentOrEnd() orelse {
         return null;
     };
     _ = try self.expectTokenKind(.Equals);
-    const index = try self.expectTermGreedy(store);
+    const index = try self.expectTermGreedy(terms);
     try self.expectEnd();
 
     return Decl{
@@ -38,21 +38,21 @@ pub fn tryDeclaration(self: *Self, store: *TermStore) NewTermError!?Decl {
     };
 }
 
-fn expectTermGreedy(self: *Self, store: *TermStore) NewTermError!TermIndex {
-    const left = try self.tryTermSingle(store) orelse {
+fn expectTermGreedy(self: *Self, terms: *TermStore) NewTermError!TermIndex {
+    const left = try self.tryTermSingle(terms) orelse {
         return error.UnexpectedEnd;
     };
-    const left_span = store.get(left).getSpan();
+    const left_span = terms.get(left).getSpan();
 
     // Keep taking following terms until [end of group or statement]
     var parent = left;
     while (!self.peekIsTokenKind(.ParenRight)) {
-        const right = try self.tryTermSingle(store) orelse {
+        const right = try self.tryTermSingle(terms) orelse {
             break;
         };
-        parent = try store.append(Term{
+        parent = try terms.append(Term{
             .application = .{
-                .span = left_span.join(store.get(right).getSpan()),
+                .span = left_span.join(terms.get(right).getSpan()),
                 .left = parent,
                 .right = right,
             },
@@ -61,36 +61,36 @@ fn expectTermGreedy(self: *Self, store: *TermStore) NewTermError!TermIndex {
     return parent;
 }
 
-fn tryTermSingle(self: *Self, store: *TermStore) NewTermError!?TermIndex {
+fn tryTermSingle(self: *Self, terms: *TermStore) NewTermError!?TermIndex {
     const left = self.tryNext() orelse return null;
 
     switch (left.kind) {
         .Ident => {
-            return try store.append(Term{
+            return try terms.append(Term{
                 .unresolved = left.span,
             });
         },
 
         .Backslash => {
-            const variable = try self.expectTokenKind(.Ident);
+            const parameter = try self.expectTokenKind(.Ident);
             _ = try self.expectTokenKind(.Dot);
 
-            const right = try self.expectTermGreedy(store);
+            const right = try self.expectTermGreedy(terms);
 
-            return try store.append(Term{
+            return try terms.append(Term{
                 .abstraction = .{
-                    .span = left.span.join(store.get(right).getSpan()),
-                    .variable = variable,
+                    .span = left.span.join(terms.get(right).getSpan()),
+                    .parameter = parameter,
                     .right = right,
                 },
             });
         },
 
         .ParenLeft => {
-            const inner = try self.expectTermGreedy(store);
+            const inner = try self.expectTermGreedy(terms);
             const right_paren = try self.expectTokenKind(.ParenRight);
 
-            return try store.append(Term{
+            return try terms.append(Term{
                 .group = .{
                     .span = left.span.join(right_paren),
                     .inner = inner,
