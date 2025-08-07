@@ -54,8 +54,28 @@ fn reportSpan(comptime label: []const u8, span: Span, context: *const Context) v
         context.startingLineOf(span),
         label,
     });
-    // TODO(feat): Print entire line and highlight span
-    std.debug.print(indent ** 2 ++ "\"{s}\"\n", .{
-        span.in(context.text),
-    });
+
+    // TODO(feat): Properly handle multi line tokens/statements
+    if (context.isMultiline(span)) {
+        const border_length = 20;
+        std.debug.print("\n" ++ "~" ** border_length ++ "\n", .{});
+        std.debug.print(indent ** 2 ++ "{s}\n", .{
+            span.in(context.text),
+        });
+        std.debug.print("~" ** border_length ++ "\n\n", .{});
+    } else {
+        const line_span = context.getEntireLine(span);
+        std.debug.print(indent ** 2 ++ "\"{s}\"\n", .{
+            line_span.in(context.text),
+        });
+
+        std.debug.print(indent ** 2, .{});
+        for (line_span.offset..span.offset + 1) |_| {
+            std.debug.print(" ", .{});
+        }
+        for (0..span.length) |_| {
+            std.debug.print("^", .{});
+        }
+        std.debug.print("\n", .{});
+    }
 }

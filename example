@@ -1,14 +1,14 @@
 
 -- a = 123
 
-T = \x. \x2. x2
-F = \x. \T2. T2 \
+   T = \x. \x2. = BB   
+F = \x. \T2. T2
 
 -- T = \x. \y. x
 
 -- a
 
-& = \p. \q. p q p
+& = \p. \q. AAAAA bbbbb
 | = \p. \q. p p q
 ~ = \p. p F T
 
