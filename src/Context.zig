@@ -33,7 +33,7 @@ pub fn isMultiline(self: *const Self, span: Span) bool {
     return false;
 }
 
-pub fn getEntireLine(self: *const Self, span: Span) Span {
+pub fn getLeftCharacters(self: *const Self, span: Span) Span {
     assert(span.offset + span.length < self.text.len);
 
     var start = span.offset;
@@ -48,17 +48,24 @@ pub fn getEntireLine(self: *const Self, span: Span) Span {
         }
     }
 
-    var end = span.offset + span.length;
+    return Span.fromBounds(start, span.offset);
+}
+
+pub fn getRightCharacters(self: *const Self, span: Span) Span {
+    assert(span.offset + span.length < self.text.len);
+
+    const span_end = span.offset + span.length;
+    var end = span_end;
     while (end < self.text.len) : (end += 1) {
         if (self.text[end] == '\n') {
             break;
         }
     }
-    while (end > span.offset + span.length) : (end -= 1) {
+    while (end > span_end) : (end -= 1) {
         if (!std.ascii.isWhitespace(self.text[end])) {
             break;
         }
     }
 
-    return Span.fromBounds(start, end);
+    return Span.fromBounds(span_end, end);
 }
