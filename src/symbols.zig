@@ -13,6 +13,22 @@ const TermIndex = model.TermIndex;
 const TermStore = model.TermStore;
 const Term = model.Term;
 
+pub fn checkDeclarationCollisions(
+    declarations: []const Decl,
+    context: *const Context,
+) void {
+    for (declarations, 0..) |decl_a, i| {
+        for (declarations[0..i], 0..) |decl_b, j| {
+            if (i == j) {
+                continue;
+            }
+            if (std.mem.eql(u8, decl_a.name.in(context.text), decl_b.name.in(context.text))) {
+                Reporter.report("global already declared", .{}, decl_a.name, context);
+            }
+        }
+    }
+}
+
 pub fn patchSymbols(
     index: TermIndex,
     context: *const Context,

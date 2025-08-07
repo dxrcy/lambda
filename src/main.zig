@@ -53,6 +53,11 @@ pub fn main() !void {
     if (!Reporter.isEmpty()) return;
 
     {
+        symbols.checkDeclarationCollisions(
+            decls.items,
+            &context,
+        );
+
         var locals = LocalStore.init(allocator);
         defer locals.deinit();
 
