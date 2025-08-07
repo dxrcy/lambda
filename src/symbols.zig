@@ -34,6 +34,12 @@ pub fn patchSymbols(
         },
         .abstraction => |abstr| {
             const value = abstr.parameter.in(context.text);
+            if (resolveLocal(locals, value) != null) {
+                Reporter.report("parameter already declared as a variable", .{}, abstr.parameter, context);
+            }
+            if (resolveGlobal(declarations, value, context.text) != null) {
+                Reporter.report("parameter already declared as a global", .{}, abstr.parameter, context);
+            }
             try locals.push(index, value);
             try patchSymbols(abstr.body, context, terms, locals, declarations);
             locals.pop();

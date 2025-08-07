@@ -1,8 +1,10 @@
 
 -- a = 123
 
-T = \x. \y.
-F = \x. \y. y
+T = \x. \x2. x2
+F = \x. \T2. T2
+
+T = \x. \y. x
 
 -- a
 
@@ -42,5 +44,5 @@ Apply4 = Apply2
 
 -- X = \a.\b. a(\c. b c) (\e.e) e
 
-b = T
+b2 = T
 
