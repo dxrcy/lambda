@@ -5,6 +5,7 @@ const ArrayList = std.ArrayList;
 const Reporter = @import("Reporter.zig");
 const Span = @import("Span.zig");
 
+const Context = @import("Context.zig");
 const model = @import("model.zig");
 const Decl = model.Decl;
 const DeclIndex = model.DeclIndex;
@@ -14,7 +15,7 @@ const Term = model.Term;
 
 pub fn patchSymbols(
     index: TermIndex,
-    text: []const u8,
+    context: *const Context,
     terms: *TermStore,
     locals: *LocalStore,
     declarations: []const Decl,
@@ -22,24 +23,24 @@ pub fn patchSymbols(
     const term = terms.getMut(index);
     switch (term.value) {
         .unresolved => {
-            if (resolveSymbol(term.span, text, locals, declarations)) |resolved| {
+            if (resolveSymbol(term.span, context.text, locals, declarations)) |resolved| {
                 term.* = resolved;
             } else {
-                Reporter.report("unresolved symbol", .{}, term.span, text);
+                Reporter.report("unresolved symbol", .{}, term.span, context);
             }
         },
         .group => |inner| {
-            try patchSymbols(inner, text, terms, locals, declarations);
+            try patchSymbols(inner, context, terms, locals, declarations);
         },
         .abstraction => |abstr| {
-            const value = abstr.parameter.in(text);
+            const value = abstr.parameter.in(context.text);
             try locals.push(index, value);
-            try patchSymbols(abstr.body, text, terms, locals, declarations);
+            try patchSymbols(abstr.body, context, terms, locals, declarations);
             locals.pop();
         },
         .application => |appl| {
-            try patchSymbols(appl.function, text, terms, locals, declarations);
-            try patchSymbols(appl.argument, text, terms, locals, declarations);
+            try patchSymbols(appl.function, context, terms, locals, declarations);
+            try patchSymbols(appl.argument, context, terms, locals, declarations);
         },
         // No symbols in this branch should be resolved yet
         .local => unreachable,

@@ -3,6 +3,7 @@ const fs = std.fs;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
+const Context = @import("Context.zig");
 const Parser = @import("Parser.zig");
 const Reporter = @import("Reporter.zig");
 const Span = @import("Span.zig");
@@ -27,6 +28,11 @@ pub fn main() !void {
     const filepath = "example";
     const text = try utils.readFile(filepath, allocator);
     defer text.deinit();
+
+    const context = Context{
+        .filepath = filepath,
+        .text = text.items,
+    };
 
     var decls = ArrayList(Decl).init(allocator);
     defer decls.deinit();
@@ -53,7 +59,7 @@ pub fn main() !void {
             std.debug.assert(locals.isEmpty());
             try symbols.patchSymbols(
                 decl.term,
-                text.items,
+                &context,
                 &terms,
                 &locals,
                 decls.items,
