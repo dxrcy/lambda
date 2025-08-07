@@ -6,7 +6,8 @@ const Span = @import("Span.zig");
 var count: usize = 0;
 
 pub const Layout = union(enum) {
-    single_token: Span,
+    token: Span,
+    statement: Span,
     statement_token: struct {
         statement: Span,
         token: Span,
@@ -21,11 +22,7 @@ pub fn isEmpty() bool {
     return count == 0;
 }
 
-pub fn report(comptime format: []const u8, args: anytype, span: Span, context: *const Context) void {
-    reportInner(format, args, Layout{ .single_token = span }, context);
-}
-
-pub fn reportInner(comptime format: []const u8, args: anytype, layout: Layout, context: *const Context) void {
+pub fn report(comptime format: []const u8, args: anytype, layout: Layout, context: *const Context) void {
     count += 1;
 
     std.debug.print("Error: ", .{});
@@ -33,8 +30,11 @@ pub fn reportInner(comptime format: []const u8, args: anytype, layout: Layout, c
     std.debug.print(".\n", .{});
 
     switch (layout) {
-        .single_token => |token| {
+        .token => |token| {
             reportSpan("token", token, context);
+        },
+        .statement => |stmt| {
+            reportSpan("statement", stmt, context);
         },
         .statement_token => |value| {
             reportSpan("token", value.token, context);
