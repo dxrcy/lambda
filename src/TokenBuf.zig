@@ -4,13 +4,12 @@ const Span = @import("Span.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const Token = @import("Token.zig");
 
-text: []const u8,
+// TODO(refactor): Rename `inner` ?
 tokens: Tokenizer,
 peeked: ?Token,
 
 pub fn new(text: []const u8, stmt: Span) Self {
     return .{
-        .text = text,
         .tokens = Tokenizer.new(text, stmt),
         .peeked = null,
     };

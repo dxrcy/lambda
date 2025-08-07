@@ -1,8 +1,11 @@
 const Self = @This();
 
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 
+const Context = @import("Context.zig");
 const Span = @import("Span.zig");
+const Reporter = @import("Reporter.zig");
 const TokenBuf = @import("TokenBuf.zig");
 const Token = @import("Token.zig");
 
@@ -12,25 +15,23 @@ const TermIndex = model.TermIndex;
 const TermStore = model.TermStore;
 const Term = model.Term;
 
-const NewTermError = AnyTokenError || std.mem.Allocator.Error;
-const AnyTokenError = error{
-    UnexpectedToken,
-    UnexpectedEnd,
-};
-
+context: *const Context,
 tokens: TokenBuf,
 
-pub fn new(text: []const u8, stmt: Span) Self {
-    return .{ .tokens = TokenBuf.new(text, stmt) };
+pub fn new(stmt: Span, context: *const Context) Self {
+    return .{
+        .tokens = TokenBuf.new(context.text, stmt),
+        .context = context,
+    };
 }
 
-pub fn tryDeclaration(self: *Self, terms: *TermStore) NewTermError!?Decl {
-    const name = try self.expectIdentOrEnd() orelse {
+pub fn tryDeclaration(self: *Self, terms: *TermStore) Allocator.Error!?Decl {
+    const name = self.expectIdentOrEnd() orelse {
         return null;
     };
-    _ = try self.expectTokenKind(.Equals);
-    const index = try self.expectTermGreedy(terms);
-    try self.expectEnd();
+    _ = self.expectTokenKind(.Equals) orelse return null;
+    const index = try self.expectTermGreedy(terms) orelse return null;
+    self.expectEnd() orelse return null;
 
     return Decl{
         .name = name,
@@ -38,9 +39,15 @@ pub fn tryDeclaration(self: *Self, terms: *TermStore) NewTermError!?Decl {
     };
 }
 
-fn expectTermGreedy(self: *Self, terms: *TermStore) NewTermError!TermIndex {
+fn expectTermGreedy(self: *Self, terms: *TermStore) Allocator.Error!?TermIndex {
     const left = try self.tryTermSingle(terms) orelse {
-        return error.UnexpectedEnd;
+        Reporter.report(
+            "unexpected end of statement",
+            .{},
+            self.tokens.tokens.statement,
+            self.context,
+        );
+        return null;
     };
     const left_span = terms.get(left).span;
 
@@ -63,7 +70,7 @@ fn expectTermGreedy(self: *Self, terms: *TermStore) NewTermError!TermIndex {
     return parent;
 }
 
-fn tryTermSingle(self: *Self, terms: *TermStore) NewTermError!?TermIndex {
+fn tryTermSingle(self: *Self, terms: *TermStore) Allocator.Error!?TermIndex {
     const left = self.tryNext() orelse return null;
 
     switch (left.kind) {
@@ -77,10 +84,10 @@ fn tryTermSingle(self: *Self, terms: *TermStore) NewTermError!?TermIndex {
         },
 
         .Backslash => {
-            const parameter = try self.expectTokenKind(.Ident);
-            _ = try self.expectTokenKind(.Dot);
+            const parameter = self.expectTokenKind(.Ident) orelse return null;
+            _ = self.expectTokenKind(.Dot) orelse return null;
 
-            const right = try self.expectTermGreedy(terms);
+            const right = try self.expectTermGreedy(terms) orelse return null;
 
             return try terms.append(Term{
                 .span = left.span.join(terms.get(right).span),
@@ -94,8 +101,8 @@ fn tryTermSingle(self: *Self, terms: *TermStore) NewTermError!?TermIndex {
         },
 
         .ParenLeft => {
-            const inner = try self.expectTermGreedy(terms);
-            const right_paren = try self.expectTokenKind(.ParenRight);
+            const inner = try self.expectTermGreedy(terms) orelse return null;
+            const right_paren = self.expectTokenKind(.ParenRight) orelse return null;
 
             return try terms.append(Term{
                 .span = left.span.join(right_paren),
@@ -106,29 +113,33 @@ fn tryTermSingle(self: *Self, terms: *TermStore) NewTermError!?TermIndex {
         },
 
         .ParenRight, .Equals, .Dot, .Invalid => {
-            return error.UnexpectedToken;
+            Reporter.report("unexpected token", .{}, left.span, self.context);
+            return null;
         },
     }
 }
 
-fn expectEnd(self: *Self) error{UnexpectedToken}!void {
+fn expectEnd(self: *Self) ?void {
     if (!self.tokens.isEnd()) {
-        return error.UnexpectedToken;
+        Reporter.report("unexpected token", .{}, self.tokens.tokens.statement, self.context);
+        return null;
     }
 }
 
-fn expectIdentOrEnd(self: *Self) error{UnexpectedToken}!?Span {
+fn expectIdentOrEnd(self: *Self) ?Span {
     const token = self.tryNext() orelse return null;
     if (token.kind != .Ident) {
-        return error.UnexpectedToken;
+        Reporter.report("unexpected token", .{}, token.span, self.context);
+        return null;
     }
     return token.span;
 }
 
-fn expectTokenKind(self: *Self, kind: Token.Kind) AnyTokenError!Span {
-    const token = try self.expectNext();
+fn expectTokenKind(self: *Self, kind: Token.Kind) ?Span {
+    const token = self.expectNext() orelse return null;
     if (token.kind != kind) {
-        return error.UnexpectedToken;
+        Reporter.report("unexpected token", .{}, token.span, self.context);
+        return null;
     }
     return token.span;
 }
@@ -148,8 +159,14 @@ fn peek(self: *Self) ?Token {
 fn tryNext(self: *Self) ?Token {
     return self.tokens.next();
 }
-fn expectNext(self: *Self) error{UnexpectedEnd}!Token {
+fn expectNext(self: *Self) ?Token {
     return self.tryNext() orelse {
-        return error.UnexpectedEnd;
+        Reporter.report(
+            "unexpected end of statement",
+            .{},
+            self.tokens.tokens.statement,
+            self.context,
+        );
+        return null;
     };
 }

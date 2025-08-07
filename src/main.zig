@@ -43,13 +43,14 @@ pub fn main() !void {
     {
         var stmts = Statements.new(text.items);
         while (stmts.next()) |stmt| {
-            var parser = Parser.new(text.items, stmt);
+            var parser = Parser.new(stmt, &context);
             const decl = try parser.tryDeclaration(&terms) orelse {
                 continue;
             };
             try decls.append(decl);
         }
     }
+    if (!Reporter.isEmpty()) return;
 
     {
         var locals = LocalStore.init(allocator);
@@ -67,10 +68,7 @@ pub fn main() !void {
         }
         std.debug.assert(locals.isEmpty());
     }
-
-    if (!Reporter.isEmpty()) {
-        return;
-    }
+    if (!Reporter.isEmpty()) return;
 
     debug.printDeclarations(decls.items, &terms, text.items);
 }
