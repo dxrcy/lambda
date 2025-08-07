@@ -4,6 +4,7 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
 const Parser = @import("Parser.zig");
+const Reporter = @import("Reporter.zig");
 const Span = @import("Span.zig");
 const Statements = @import("Statements.zig");
 const Tokenizer = @import("Tokenizer.zig");
@@ -59,6 +60,10 @@ pub fn main() !void {
             );
         }
         std.debug.assert(locals.isEmpty());
+    }
+
+    if (!Reporter.isEmpty()) {
+        return;
     }
 
     debug.printDeclarations(decls.items, &terms, text.items);

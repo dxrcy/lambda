@@ -2,6 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
+const Reporter = @import("Reporter.zig");
 const Span = @import("Span.zig");
 
 const model = @import("model.zig");
@@ -11,19 +12,21 @@ const TermIndex = model.TermIndex;
 const TermStore = model.TermStore;
 const Term = model.Term;
 
-const SymbolError = error{UndefinedSymbol};
-
 pub fn patchSymbols(
     index: TermIndex,
     text: []const u8,
     terms: *TermStore,
     locals: *LocalStore,
     declarations: []const Decl,
-) (SymbolError || Allocator.Error)!void {
+) Allocator.Error!void {
     const term = terms.getMut(index);
     switch (term.value) {
         .unresolved => {
-            term.* = try resolveSymbol(term.span, text, locals, declarations);
+            if (resolveSymbol(term.span, text, locals, declarations)) |resolved| {
+                term.* = resolved;
+            } else {
+                Reporter.report("unresolved symbol", .{}, term.span, text);
+            }
         },
         .group => |inner| {
             try patchSymbols(inner, text, terms, locals, declarations);
@@ -49,7 +52,7 @@ fn resolveSymbol(
     text: []const u8,
     locals: *const LocalStore,
     declarations: []const Decl,
-) SymbolError!Term {
+) ?Term {
     const value = span.in(text);
     if (resolveLocal(locals, value)) |index| {
         return Term{
@@ -63,7 +66,7 @@ fn resolveSymbol(
             .value = .{ .global = index },
         };
     }
-    return error.UndefinedSymbol;
+    return null;
 }
 
 fn resolveLocal(locals: *const LocalStore, value: []const u8) ?TermIndex {
