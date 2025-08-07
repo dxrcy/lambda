@@ -16,6 +16,6 @@ pub fn report(comptime format: []const u8, args: anytype, span: Span, context: *
     std.debug.print(format, args);
     std.debug.print(".\n", .{});
 
-    std.debug.print("\tin \"{s}\", line (?)\n", .{context.filepath});
+    std.debug.print("\tin \"{s}\", line {}\n", .{ context.filepath, context.startingLineOf(span) });
     std.debug.print("\t\"{s}\"\n", .{span.in(context.text)});
 }
