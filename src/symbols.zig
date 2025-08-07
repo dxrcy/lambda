@@ -17,13 +17,18 @@ pub fn checkDeclarationCollisions(
     declarations: []const Decl,
     context: *const Context,
 ) void {
-    for (declarations, 0..) |decl_a, i| {
-        for (declarations[0..i], 0..) |decl_b, j| {
+    for (declarations, 0..) |current, i| {
+        for (declarations[0..i], 0..) |prior, j| {
             if (i == j) {
                 continue;
             }
-            if (std.mem.eql(u8, decl_a.name.in(context.text), decl_b.name.in(context.text))) {
-                Reporter.report("global already declared", .{}, decl_a.name, context);
+            if (std.mem.eql(u8, current.name.in(context.text), prior.name.in(context.text))) {
+                Reporter.reportInner("global already declared", .{}, .{
+                    .symbol_reference = .{
+                        .declaration = prior.name,
+                        .reference = current.name,
+                    },
+                }, context);
             }
         }
     }

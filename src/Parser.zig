@@ -39,6 +39,10 @@ pub fn tryDeclaration(self: *Self, terms: *TermStore) Allocator.Error!?Decl {
     };
 }
 
+fn getStatement(self: *const Self) Span {
+    return self.tokens.tokens.statement;
+}
+
 fn expectTermGreedy(self: *Self, terms: *TermStore) Allocator.Error!?TermIndex {
     const left = try self.tryTermSingle(terms) orelse {
         Reporter.report(
@@ -113,7 +117,12 @@ fn tryTermSingle(self: *Self, terms: *TermStore) Allocator.Error!?TermIndex {
         },
 
         .ParenRight, .Equals, .Dot, .Invalid => {
-            Reporter.report("unexpected token", .{}, left.span, self.context);
+            Reporter.reportInner("unexpected token", .{}, .{
+                .statement_token = .{
+                    .statement = self.getStatement(),
+                    .token = left.span,
+                },
+            }, self.context);
             return null;
         },
     }
