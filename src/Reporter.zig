@@ -89,6 +89,7 @@ fn printSpan(comptime label: []const u8, span: Span, context: *const Context) vo
         printLineParts(line, Span.new(line.end(), 0), context);
         printLineHighlight(line, Span.new(line.end(), 1));
     } else if (!context.isMultiline(span)) {
+        // TODO(fix): right side not printing
         const left = context.getLeftCharacters(span.offset);
         const right = context.getRightCharacters(span.end());
         printLineParts(left, right, context);

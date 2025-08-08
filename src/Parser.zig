@@ -44,22 +44,13 @@ fn getStatement(self: *const Self) Span {
 }
 
 fn expectTermGreedy(self: *Self, terms: *TermStore) Allocator.Error!?TermIndex {
-    const left = try self.tryTermSingle(terms) orelse {
-        Reporter.report(
-            "unexpected end of statement",
-            "expected term",
-            .{},
-            .{ .statement_end = self.getStatement() },
-            self.context,
-        );
-        return null;
-    };
+    const left = try self.tryTermSingle(false, terms) orelse return null;
     const left_span = terms.get(left).span;
 
     // Keep taking following terms until [end of group or statement]
     var parent = left;
     while (!self.peekIsTokenKind(.ParenRight)) {
-        const right = try self.tryTermSingle(terms) orelse {
+        const right = try self.tryTermSingle(true, terms) orelse {
             break;
         };
         parent = try terms.append(Term{
@@ -75,8 +66,19 @@ fn expectTermGreedy(self: *Self, terms: *TermStore) Allocator.Error!?TermIndex {
     return parent;
 }
 
-fn tryTermSingle(self: *Self, terms: *TermStore) Allocator.Error!?TermIndex {
-    const left = self.tryNext() orelse return null;
+fn tryTermSingle(self: *Self, comptime allow_end: bool, terms: *TermStore) Allocator.Error!?TermIndex {
+    const left = self.tryNext() orelse {
+        if (!allow_end) {
+            Reporter.report(
+                "unexpected end of statement",
+                "expected term",
+                .{},
+                .{ .statement_end = self.getStatement() },
+                self.context,
+            );
+        }
+        return null;
+    };
 
     switch (left.kind) {
         .Ident => {
@@ -120,7 +122,10 @@ fn tryTermSingle(self: *Self, terms: *TermStore) Allocator.Error!?TermIndex {
         .ParenRight, .Equals, .Dot, .Invalid => {
             Reporter.report(
                 "unexpected token",
-                "expected term, found {s}",
+                if (allow_end)
+                    "expected term or end of statement, found {s}"
+                else
+                    "expected term, found {s}",
                 .{left.kind.display()},
                 .{ .statement_token = .{
                     .statement = self.getStatement(),
@@ -165,7 +170,16 @@ fn expectIdentOrEnd(self: *Self) ?Span {
 }
 
 fn expectTokenKind(self: *Self, kind: Token.Kind) ?Span {
-    const token = self.expectNext() orelse return null;
+    const token = self.tryNext() orelse {
+        Reporter.report(
+            "unexpected end of statement",
+            "expected {s}",
+            .{kind.display()},
+            .{ .statement_end = self.getStatement() },
+            self.context,
+        );
+        return null;
+    };
     if (token.kind != kind) {
         Reporter.report(
             "unexpected token",
@@ -196,18 +210,4 @@ fn peek(self: *Self) ?Token {
 }
 fn tryNext(self: *Self) ?Token {
     return self.tokens.next();
-}
-
-// TODO(feat): Do not use this function. Inline calls, to report 'what was expected'
-fn expectNext(self: *Self) ?Token {
-    return self.tryNext() orelse {
-        Reporter.report(
-            "unexpected end of statement",
-            "expected token",
-            .{},
-            .{ .statement_end = self.getStatement() },
-            self.context,
-        );
-        return null;
-    };
 }
