@@ -28,8 +28,7 @@ pub fn new(stmt: Span, context: *const Context) Self {
 pub fn next(self: *Self) ?Token {
     while (true) {
         const span = self.nextTokenSpan() orelse return null;
-        // TODO(fix): Include anything BEGINNING with `--`
-        if (std.mem.eql(u8, span.in(self.context), "--")) {
+        if (std.mem.startsWith(u8, span.in(self.context), "--")) {
             self.advanceUntilLinebreak();
             continue;
         }
