@@ -46,7 +46,7 @@ fn getStatement(self: *const Self) Span {
 fn expectTermGreedy(self: *Self, terms: *TermStore) Allocator.Error!?TermIndex {
     const left = try self.tryTermSingle(terms) orelse {
         Reporter.report("unexpected end of statement", .{}, .{
-            .statement = self.getStatement(),
+            .statement_end = self.getStatement(),
         }, self.context);
         return null;
     };
@@ -180,7 +180,7 @@ fn tryNext(self: *Self) ?Token {
 fn expectNext(self: *Self) ?Token {
     return self.tryNext() orelse {
         Reporter.report("unexpected end of statement", .{}, .{
-            .statement = self.getStatement(),
+            .statement_end = self.getStatement(),
         }, self.context);
         return null;
     };

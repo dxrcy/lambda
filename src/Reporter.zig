@@ -1,13 +1,17 @@
 const std = @import("std");
+const assert = std.debug.assert;
 
 const Context = @import("Context.zig");
 const Span = @import("Span.zig");
+
+const INDENT = " " ** 4;
 
 var count: usize = 0;
 
 pub const Layout = union(enum) {
     token: Span,
     statement: Span,
+    statement_end: Span,
     statement_token: struct {
         statement: Span,
         token: Span,
@@ -39,6 +43,10 @@ pub fn report(comptime format: []const u8, args: anytype, layout: Layout, contex
         .statement => |stmt| {
             reportSpan("statement", stmt, context);
         },
+        .statement_end => |stmt| {
+            reportSpan("end of statement", Span.new(stmt.end(), 0), context);
+            reportSpan("statement", stmt, context);
+        },
         .statement_token => |value| {
             reportSpan("token", value.token, context);
             reportSpan("statement", value.statement, context);
@@ -51,18 +59,25 @@ pub fn report(comptime format: []const u8, args: anytype, layout: Layout, contex
 }
 
 fn reportSpan(comptime label: []const u8, span: Span, context: *const Context) void {
-    const indent = " " ** 4;
-
     setStyle(.{.Dim});
-    std.debug.print(indent ** 1 ++ "({s}:{}) {s}:\n", .{
+    std.debug.print(INDENT ** 1 ++ "({s}:{}) {s}:\n", .{
         context.filepath,
         context.startingLineOf(span),
         label,
     });
     setStyle(.{.Reset});
 
-    // TODO(feat): Properly handle multi line tokens/statements
-    if (context.isMultiline(span)) {
+    if (span.length == 0) {
+        const line = context.getSingleLine(span.offset);
+        printLineParts(line, Span.new(line.end(), 0), context);
+        printLineHighlight(line, Span.new(line.end(), 1));
+    } else if (!context.isMultiline(span)) {
+        const left = context.getLeftCharacters(span.offset);
+        const right = context.getRightCharacters(span.end());
+        printLineParts(left, right, context);
+        printLineHighlight(left, span);
+    } else {
+        // TODO(feat): Properly handle multi line tokens/statements
         const border_length = 20;
         setStyle(.{ .Dim, .FgWhite });
         std.debug.print("~" ** border_length ++ "\n", .{});
@@ -73,30 +88,36 @@ fn reportSpan(comptime label: []const u8, span: Span, context: *const Context) v
         setStyle(.{ .Dim, .FgWhite });
         std.debug.print("~" ** border_length ++ "\n\n", .{});
         setStyle(.{.Reset});
-    } else {
-        std.debug.print(indent ** 2, .{});
-
-        const left = context.getLeftCharacters(span);
-        const right = context.getRightCharacters(span);
-        setStyle(.{.FgYellow});
-        std.debug.print("{s}", .{left.in(context.text)});
-        setStyle(.{.Bold});
-        std.debug.print("{s}", .{span.in(context.text)});
-        setStyle(.{ .Reset, .FgYellow });
-        std.debug.print("{s}", .{right.in(context.text)});
-        std.debug.print("\n", .{});
-
-        setStyle(.{ .Reset, .FgRed });
-        std.debug.print(indent ** 2, .{});
-        for (0..left.length) |_| {
-            std.debug.print(" ", .{});
-        }
-        for (0..span.length) |_| {
-            std.debug.print("^", .{});
-        }
-        std.debug.print("\n", .{});
-        setStyle(.{.Reset});
     }
+}
+
+fn printLineParts(left: Span, right: Span, context: *const Context) void {
+    assert(left.end() <= right.offset);
+
+    std.debug.print(INDENT ** 2, .{});
+    setStyle(.{.FgYellow});
+    std.debug.print("{s}", .{left.in(context.text)});
+    setStyle(.{.Bold});
+    std.debug.print("{s}", .{Span.between(left, right).in(context.text)});
+    setStyle(.{ .Reset, .FgYellow });
+    std.debug.print("{s}", .{right.in(context.text)});
+    setStyle(.{.Reset});
+    std.debug.print("\n", .{});
+}
+
+fn printLineHighlight(left: Span, span: Span) void {
+    assert(left.end() <= span.offset);
+
+    setStyle(.{ .Reset, .FgRed });
+    std.debug.print(INDENT ** 2, .{});
+    for (0..left.length) |_| {
+        std.debug.print(" ", .{});
+    }
+    for (0..span.length) |_| {
+        std.debug.print("^", .{});
+    }
+    std.debug.print("\n", .{});
+    setStyle(.{.Reset});
 }
 
 const Style = enum(u8) {

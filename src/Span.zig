@@ -13,26 +13,39 @@ pub fn new(offset: usize, length: usize) Self {
     };
 }
 
-pub fn fromBounds(start: usize, end: usize) Self {
+pub fn fromBounds(start: usize, span_end: usize) Self {
     return .{
         .offset = start,
-        .length = end - start,
+        .length = span_end - start,
     };
+}
+
+/// Spans must be in-order and non-overlapping.
+pub fn between(left: Self, right: Self) Self {
+    assert(left.end() <= right.offset);
+    return .{
+        .offset = left.end(),
+        .length = right.offset - left.end(),
+    };
+}
+
+/// Spans must be in-order and non-overlapping.
+pub fn join(left: Self, right: Self) Self {
+    assert(left.end() <= right.offset);
+    return .{
+        .offset = left.offset,
+        .length = right.end() - left.offset,
+    };
+}
+
+pub fn end(self: Self) usize {
+    return self.offset + self.length;
 }
 
 pub fn withOffset(self: Self, offset: usize) Self {
     return .{
         .offset = self.offset + offset,
         .length = self.length,
-    };
-}
-
-/// Spans must be in-order and non-overlapping.
-pub fn join(self: Self, other: Self) Self {
-    assert(self.offset + self.length <= other.offset);
-    return .{
-        .offset = self.offset,
-        .length = other.offset - self.offset + other.length,
     };
 }
 

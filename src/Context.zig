@@ -9,7 +9,7 @@ filepath: []const u8,
 text: []const u8,
 
 pub fn startingLineOf(self: *const Self, span: Span) usize {
-    assert(span.offset + span.length < self.text.len);
+    assert(span.end() < self.text.len);
 
     var line: usize = 1;
     for (self.text, 0..) |char, i| {
@@ -24,48 +24,51 @@ pub fn startingLineOf(self: *const Self, span: Span) usize {
 }
 
 pub fn isMultiline(self: *const Self, span: Span) bool {
-    assert(span.offset + span.length < self.text.len);
-    for (0..span.length) |i| {
-        if (self.text[span.offset + i] == '\n') {
+    assert(span.end() < self.text.len);
+    for (span.offset..span.end()) |i| {
+        if (self.text[i] == '\n') {
             return true;
         }
     }
     return false;
 }
 
-pub fn getLeftCharacters(self: *const Self, span: Span) Span {
-    assert(span.offset + span.length < self.text.len);
+pub fn getSingleLine(self: *const Self, index: usize) Span {
+    return self.getLeftCharacters(index).join(self.getRightCharacters(index));
+}
 
-    var start = span.offset;
+pub fn getLeftCharacters(self: *const Self, index: usize) Span {
+    assert(index < self.text.len);
+
+    var start = index;
     while (start > 0) : (start -= 1) {
         if (self.text[start - 1] == '\n') {
             break;
         }
     }
-    while (start < span.offset) : (start += 1) {
+    while (start < index) : (start += 1) {
         if (!std.ascii.isWhitespace(self.text[start])) {
             break;
         }
     }
 
-    return Span.fromBounds(start, span.offset);
+    return Span.fromBounds(start, index);
 }
 
-pub fn getRightCharacters(self: *const Self, span: Span) Span {
-    assert(span.offset + span.length < self.text.len);
+pub fn getRightCharacters(self: *const Self, index: usize) Span {
+    assert(index < self.text.len);
 
-    const span_end = span.offset + span.length;
-    var end = span_end;
+    var end = index;
     while (end < self.text.len) : (end += 1) {
         if (self.text[end] == '\n') {
             break;
         }
     }
-    while (end > span_end) : (end -= 1) {
+    while (end > index) : (end -= 1) {
         if (!std.ascii.isWhitespace(self.text[end])) {
             break;
         }
     }
 
-    return Span.fromBounds(span_end, end);
+    return Span.fromBounds(index, end);
 }

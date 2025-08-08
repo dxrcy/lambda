@@ -8,7 +8,7 @@ F = \x. \T2. T2
 
 -- a
 
-& = \p. \q. AAAAA bbbbb
+& = \p. \q. AAAAA = bbbbb
 | = \p. \q. p p q
 ~ = \p. p F T
 
