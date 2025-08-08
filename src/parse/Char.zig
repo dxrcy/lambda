@@ -1,8 +1,9 @@
 const Self = @This();
-
 const std = @import("std");
 
 value: u8,
+
+// TODO(feat): Support UTF-8 !!!
 
 pub const Kind = enum {
     Atomic,

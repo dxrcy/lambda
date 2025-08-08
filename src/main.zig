@@ -45,10 +45,9 @@ pub fn main() !void {
         var stmts = Statements.new(text.items);
         while (stmts.next()) |stmt| {
             var parser = Parser.new(stmt, &context);
-            const decl = try parser.tryDeclaration(&terms) orelse {
-                continue;
-            };
-            try decls.append(decl);
+            if (try parser.tryDeclaration(&terms)) |decl| {
+                try decls.append(decl);
+            }
         }
     }
     // if (!Reporter.isEmpty()) return;

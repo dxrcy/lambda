@@ -18,11 +18,11 @@ const TokenBuf = @import("TokenBuf.zig");
 const Token = @import("Token.zig");
 
 context: *const Context,
-tokens: TokenBuf,
+token_buf: TokenBuf,
 
 pub fn new(stmt: Span, context: *const Context) Self {
     return .{
-        .tokens = TokenBuf.new(context.text, stmt),
+        .token_buf = TokenBuf.new(context.text, stmt),
         .context = context,
     };
 }
@@ -44,7 +44,7 @@ pub fn tryDeclaration(self: *Self, terms: *TermStore) Allocator.Error!?Decl {
 }
 
 fn getStatement(self: *const Self) Span {
-    return self.tokens.tokens.statement;
+    return self.token_buf.tokenizer.statement;
 }
 
 fn expectTermGreedy(self: *Self, comptime in_group: bool, terms: *TermStore) Allocator.Error!?TermIndex {
@@ -214,8 +214,8 @@ fn peekIsTokenKind(self: *Self, kind: Token.Kind) ?Span {
 }
 
 fn peek(self: *Self) ?Token {
-    return self.tokens.peek();
+    return self.token_buf.peek();
 }
 fn tryNext(self: *Self) ?Token {
-    return self.tokens.next();
+    return self.token_buf.next();
 }
