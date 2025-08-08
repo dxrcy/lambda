@@ -10,7 +10,7 @@ const Span = @import("../Span.zig");
 const model = @import("../model.zig");
 const Term = model.Term;
 
-const Char = @import("Char.zig");
+const TokenChar = @import("TokenChar.zig");
 const Token = @import("Token.zig");
 
 context: *const Context,
@@ -85,14 +85,14 @@ fn advanceUntilLinebreak(self: *Self) void {
     }
 }
 
-fn peekChar(self: *const Self) ?Char {
+fn peekChar(self: *const Self) ?TokenChar {
     if (self.isEnd()) {
         return null;
     }
-    return Char.new(self.context.text[self.statement.offset + self.index]);
+    return TokenChar.new(self.context.text[self.statement.offset + self.index]);
 }
 
-fn expectNonWhitespace(self: *const Self) Char {
+fn expectNonWhitespace(self: *const Self) TokenChar {
     assert(!self.isEnd());
     const first = self.peekChar() orelse unreachable;
     assert(!first.isWhitespace());
