@@ -1,8 +1,9 @@
 
 -- a = 123
 
-T = \x. \x. BB =  x
+T = \x. \x. BB =  xx  
 F = \x. \T2. T2
+oaij = 
 
 -- T = \x. \y. x
 

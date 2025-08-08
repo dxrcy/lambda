@@ -65,7 +65,7 @@ pub fn getRightCharacters(self: *const Self, index: usize) Span {
         }
     }
     while (end > index) : (end -= 1) {
-        if (!std.ascii.isWhitespace(self.text[end])) {
+        if (!std.ascii.isWhitespace(self.text[end - 1])) {
             break;
         }
     }
