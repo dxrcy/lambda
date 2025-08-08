@@ -11,17 +11,18 @@ const model = @import("../model.zig");
 const Term = model.Term;
 
 const TokenChar = @import("TokenChar.zig");
+const CharIter = @import("CharIter.zig");
 const Token = @import("Token.zig");
 
 context: *const Context,
 statement: Span,
-index: usize,
+char_iter: CharIter,
 
-pub fn new(stmt: Span, context: *const Context) Self {
+pub fn new(statement: Span, context: *const Context) Self {
     return .{
         .context = context,
-        .statement = stmt,
-        .index = 0,
+        .statement = statement,
+        .char_iter = CharIter.new(statement.in(context)),
     };
 }
 
@@ -34,6 +35,20 @@ pub fn next(self: *Self) ?Token {
         }
         return Token.new(span, self.context);
     }
+}
+
+fn peekChar(self: *const Self) ?TokenChar {
+    const char = self.char_iter.peek() orelse return null;
+    return TokenChar.from(char);
+}
+
+fn nextChar(self: *Self) ?TokenChar {
+    const char = self.char_iter.next() orelse return null;
+    return TokenChar.from(char);
+}
+
+fn getIndex(self: *const Self) usize {
+    return self.char_iter.index;
 }
 
 /// Treats comment symbol (anything beginning with `--`) as a normal token.
@@ -49,22 +64,22 @@ fn tryAtomic(self: *Self) ?Span {
     if (!self.expectNonWhitespace().isAtomic()) {
         return null;
     }
-    self.index += 1;
-    return Span.new(self.index - 1, 1).withOffset(self.statement.offset);
+    // self.index += 1;
+    return Span.new(self.getIndex() - 1, 1).withOffset(self.statement.offset);
 }
 
 fn expectCombination(self: *Self) Span {
     assert(!self.peekChar().?.isWhitespace());
 
-    const start = self.index;
-    self.index += 1;
+    const start = self.getIndex();
+    // self.index += 1;
     while (self.peekChar()) |ch| {
         if (ch.isWhitespace() or ch.isAtomic()) {
             break;
         }
-        self.index += 1;
+        // self.index += 1;
     }
-    return Span.fromBounds(start, self.index).withOffset(self.statement.offset);
+    return Span.fromBounds(start, self.getIndex()).withOffset(self.statement.offset);
 }
 
 fn advanceUntilNonwhitespace(self: *Self) void {
@@ -72,24 +87,17 @@ fn advanceUntilNonwhitespace(self: *Self) void {
         if (!ch.isWhitespace()) {
             break;
         }
-        self.index += 1;
+        // self.index += 1;
     }
 }
 
 fn advanceUntilLinebreak(self: *Self) void {
     while (self.peekChar()) |char| {
-        self.index += 1;
+        // self.index += 1;
         if (char.isLinebreak()) {
             break;
         }
     }
-}
-
-fn peekChar(self: *const Self) ?TokenChar {
-    if (self.isEnd()) {
-        return null;
-    }
-    return TokenChar.new(self.context.text[self.statement.offset + self.index]);
 }
 
 fn expectNonWhitespace(self: *const Self) TokenChar {
@@ -100,5 +108,5 @@ fn expectNonWhitespace(self: *const Self) TokenChar {
 }
 
 fn isEnd(self: *const Self) bool {
-    return self.index >= self.statement.length;
+    return self.char_iter.isEnd();
 }
