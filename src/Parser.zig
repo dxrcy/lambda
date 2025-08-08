@@ -2,6 +2,7 @@ const Self = @This();
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const assert = std.debug.assert;
 
 const Context = @import("Context.zig");
 const Span = @import("Span.zig");
@@ -30,8 +31,10 @@ pub fn tryDeclaration(self: *Self, terms: *TermStore) Allocator.Error!?Decl {
         return null;
     };
     _ = self.expectTokenKind(.Equals) orelse return null;
-    const index = try self.expectTermGreedy(terms) orelse return null;
-    self.expectEnd() orelse return null;
+    const index = try self.expectTermGreedy(false, terms) orelse return null;
+    // Any trailing characters should have already been handled (including
+    // unmatched right paren)
+    assert(self.tryNext() == null);
 
     return Decl{
         .name = name,
@@ -43,14 +46,30 @@ fn getStatement(self: *const Self) Span {
     return self.tokens.tokens.statement;
 }
 
-fn expectTermGreedy(self: *Self, terms: *TermStore) Allocator.Error!?TermIndex {
-    const left = try self.tryTermSingle(false, terms) orelse return null;
+fn expectTermGreedy(self: *Self, comptime in_group: bool, terms: *TermStore) Allocator.Error!?TermIndex {
+    const left = try self.tryTermSingle(false, in_group, terms) orelse return null;
     const left_span = terms.get(left).span;
 
     // Keep taking following terms until [end of group or statement]
     var parent = left;
-    while (!self.peekIsTokenKind(.ParenRight)) {
-        const right = try self.tryTermSingle(true, terms) orelse {
+    while (true) {
+        if (self.peekIsTokenKind(.ParenRight)) |right_paren| {
+            if (!in_group) {
+                Reporter.report(
+                    "unexpected token",
+                    "expected term or end of statement, found {s}",
+                    .{Token.Kind.ParenRight.display()},
+                    .{ .statement_token = .{
+                        .statement = self.getStatement(),
+                        .token = right_paren,
+                    } },
+                    self.context,
+                );
+                return null;
+            }
+            break;
+        }
+        const right = try self.tryTermSingle(true, in_group, terms) orelse {
             break;
         };
         parent = try terms.append(Term{
@@ -66,7 +85,7 @@ fn expectTermGreedy(self: *Self, terms: *TermStore) Allocator.Error!?TermIndex {
     return parent;
 }
 
-fn tryTermSingle(self: *Self, comptime allow_end: bool, terms: *TermStore) Allocator.Error!?TermIndex {
+fn tryTermSingle(self: *Self, comptime allow_end: bool, comptime in_group: bool, terms: *TermStore) Allocator.Error!?TermIndex {
     const left = self.tryNext() orelse {
         if (!allow_end) {
             Reporter.report(
@@ -94,7 +113,7 @@ fn tryTermSingle(self: *Self, comptime allow_end: bool, terms: *TermStore) Alloc
             const parameter = self.expectTokenKind(.Ident) orelse return null;
             _ = self.expectTokenKind(.Dot) orelse return null;
 
-            const right = try self.expectTermGreedy(terms) orelse return null;
+            const right = try self.expectTermGreedy(in_group, terms) orelse return null;
 
             return try terms.append(Term{
                 .span = left.span.join(terms.get(right).span),
@@ -108,7 +127,7 @@ fn tryTermSingle(self: *Self, comptime allow_end: bool, terms: *TermStore) Alloc
         },
 
         .ParenLeft => {
-            const inner = try self.expectTermGreedy(terms) orelse return null;
+            const inner = try self.expectTermGreedy(true, terms) orelse return null;
             const right_paren = self.expectTokenKind(.ParenRight) orelse return null;
 
             return try terms.append(Term{
@@ -120,12 +139,13 @@ fn tryTermSingle(self: *Self, comptime allow_end: bool, terms: *TermStore) Alloc
         },
 
         .ParenRight, .Equals, .Dot, .Invalid => {
+            assert(!(in_group and left.kind == .ParenRight));
             Reporter.report(
                 "unexpected token",
-                if (allow_end)
-                    "expected term or end of statement, found {s}"
+                if (in_group)
+                    "expected term or " ++ Token.Kind.ParenRight.display() ++ ", found {s}"
                 else
-                    "expected term, found {s}",
+                    "expected term or end of statement, found {s}",
                 .{left.kind.display()},
                 .{ .statement_token = .{
                     .statement = self.getStatement(),
@@ -135,19 +155,6 @@ fn tryTermSingle(self: *Self, comptime allow_end: bool, terms: *TermStore) Alloc
             );
             return null;
         },
-    }
-}
-
-fn expectEnd(self: *Self) ?void {
-    if (self.tryNext()) |token| {
-        Reporter.report(
-            "unexpected token",
-            "expected end of statement, found {s}",
-            .{token.kind.display()},
-            .{ .statement = self.getStatement() },
-            self.context,
-        );
-        return null;
     }
 }
 
@@ -196,13 +203,13 @@ fn expectTokenKind(self: *Self, kind: Token.Kind) ?Span {
     return token.span;
 }
 
-fn peekIsTokenKind(self: *Self, kind: Token.Kind) bool {
+fn peekIsTokenKind(self: *Self, kind: Token.Kind) ?Span {
     if (self.peek()) |token| {
         if (token.kind == kind) {
-            return true;
+            return token.span;
         }
     }
-    return false;
+    return null;
 }
 
 fn peek(self: *Self) ?Token {
