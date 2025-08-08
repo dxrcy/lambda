@@ -4,8 +4,8 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
-const Context = @import("../Context.zig");
 const Span = @import("../Span.zig");
+const Context = @import("../Context.zig");
 const Reporter = @import("../Reporter.zig");
 
 const model = @import("../model.zig");
@@ -17,14 +17,17 @@ const Term = model.Term;
 const TokenBuf = @import("TokenBuf.zig");
 const Token = @import("Token.zig");
 
-context: *const Context,
 token_buf: TokenBuf,
 
 pub fn new(stmt: Span, context: *const Context) Self {
-    return .{
-        .token_buf = TokenBuf.new(context.text, stmt),
-        .context = context,
-    };
+    return .{ .token_buf = TokenBuf.new(stmt, context) };
+}
+
+fn getContext(self: *const Self) *const Context {
+    return self.token_buf.tokenizer.context;
+}
+fn getStatement(self: *const Self) Span {
+    return self.token_buf.tokenizer.statement;
 }
 
 pub fn tryDeclaration(self: *Self, terms: *TermStore) Allocator.Error!?Decl {
@@ -41,10 +44,6 @@ pub fn tryDeclaration(self: *Self, terms: *TermStore) Allocator.Error!?Decl {
         .name = name,
         .term = index,
     };
-}
-
-fn getStatement(self: *const Self) Span {
-    return self.token_buf.tokenizer.statement;
 }
 
 fn expectTermGreedy(self: *Self, comptime in_group: bool, terms: *TermStore) Allocator.Error!?TermIndex {
@@ -64,7 +63,7 @@ fn expectTermGreedy(self: *Self, comptime in_group: bool, terms: *TermStore) All
                         .statement = self.getStatement(),
                         .token = right_paren,
                     } },
-                    self.context,
+                    self.getContext(),
                 );
                 return null;
             }
@@ -94,7 +93,7 @@ fn tryTermSingle(self: *Self, comptime allow_end: bool, comptime in_group: bool,
                 "expected term",
                 .{},
                 .{ .statement_end = self.getStatement() },
-                self.context,
+                self.getContext(),
             );
         }
         return null;
@@ -152,7 +151,7 @@ fn tryTermSingle(self: *Self, comptime allow_end: bool, comptime in_group: bool,
                     .statement = self.getStatement(),
                     .token = left.span,
                 } },
-                self.context,
+                self.getContext(),
             );
             return null;
         },
@@ -170,7 +169,7 @@ fn expectIdentOrEnd(self: *Self) ?Span {
                 .statement = self.getStatement(),
                 .token = token.span,
             } },
-            self.context,
+            self.getContext(),
         );
         return null;
     }
@@ -184,7 +183,7 @@ fn expectTokenKind(self: *Self, kind: Token.Kind) ?Span {
             "expected {s}",
             .{kind.display()},
             .{ .statement_end = self.getStatement() },
-            self.context,
+            self.getContext(),
         );
         return null;
     };
@@ -197,7 +196,7 @@ fn expectTokenKind(self: *Self, kind: Token.Kind) ?Span {
                 .statement = self.getStatement(),
                 .token = token.span,
             } },
-            self.context,
+            self.getContext(),
         );
         return null;
     }

@@ -42,7 +42,7 @@ pub fn main() !void {
     defer terms.deinit();
 
     {
-        var stmts = Statements.new(text.items);
+        var stmts = Statements.new(&context);
         while (stmts.next()) |stmt| {
             var parser = Parser.new(stmt, &context);
             if (try parser.tryDeclaration(&terms)) |decl| {
@@ -75,5 +75,5 @@ pub fn main() !void {
     }
     if (!Reporter.isEmpty()) return;
 
-    debug.printDeclarations(decls.items, &terms, text.items);
+    debug.printDeclarations(decls.items, &terms, &context);
 }

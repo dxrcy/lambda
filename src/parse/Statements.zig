@@ -4,14 +4,14 @@ const std = @import("std");
 const assert = std.debug.assert;
 
 const Span = @import("../Span.zig");
+const Context = @import("../Context.zig");
 
-// TODO(refactor): Use `Context`
-text: []const u8,
+context: *const Context,
 index: usize,
 
-pub fn new(text: []const u8) Self {
+pub fn new(context: *const Context) Self {
     return .{
-        .text = text,
+        .context = context,
         .index = 0,
     };
 }
@@ -39,7 +39,7 @@ pub fn next(self: *Self) ?Span {
     }
 
     var end = self.index - 1;
-    while (end > 0 and isWhitespace(self.text[end - 1])) {
+    while (end > 0 and isWhitespace(self.context.text[end - 1])) {
         end -= 1;
     }
     assert(end > 0);
@@ -48,10 +48,10 @@ pub fn next(self: *Self) ?Span {
 }
 
 fn peekChar(self: *const Self) ?u8 {
-    if (self.index >= self.text.len) {
+    if (self.index >= self.context.text.len) {
         return null;
     }
-    return self.text[self.index];
+    return self.context.text[self.index];
 }
 
 fn advanceUntilNonwhitespace(self: *Self) void {

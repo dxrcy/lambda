@@ -4,6 +4,7 @@ const std = @import("std");
 const assert = std.debug.assert;
 const ArrayList = std.ArrayList;
 
+const Context = @import("../Context.zig");
 const Span = @import("../Span.zig");
 
 const model = @import("../model.zig");
@@ -12,14 +13,13 @@ const Term = model.Term;
 const Char = @import("Char.zig");
 const Token = @import("Token.zig");
 
-// TODO(refactor): Use `Context`
-text: []const u8,
+context: *const Context,
 statement: Span,
 index: usize,
 
-pub fn new(text: []const u8, stmt: Span) Self {
+pub fn new(stmt: Span, context: *const Context) Self {
     return .{
-        .text = text,
+        .context = context,
         .statement = stmt,
         .index = 0,
     };
@@ -29,11 +29,11 @@ pub fn next(self: *Self) ?Token {
     while (true) {
         const span = self.nextTokenSpan() orelse return null;
         // TODO(fix): Include anything BEGINNING with `--`
-        if (std.mem.eql(u8, span.in(self.text), "--")) {
+        if (std.mem.eql(u8, span.in(self.context), "--")) {
             self.advanceUntilLinebreak();
             continue;
         }
-        return Token.new(self.text, span);
+        return Token.new(span, self.context);
     }
 }
 
@@ -90,7 +90,7 @@ fn peekChar(self: *const Self) ?Char {
     if (self.isEnd()) {
         return null;
     }
-    return Char.new(self.text[self.statement.offset + self.index]);
+    return Char.new(self.context.text[self.statement.offset + self.index]);
 }
 
 fn expectNonWhitespace(self: *const Self) Char {

@@ -22,11 +22,12 @@ pub fn checkDeclarationCollisions(
             if (i == j) {
                 continue;
             }
-            if (std.mem.eql(u8, current.name.in(context.text), prior.name.in(context.text))) {
+            const prior_value = prior.name.in(context);
+            if (std.mem.eql(u8, current.name.in(context), prior_value)) {
                 Reporter.report(
                     "global already declared",
                     "cannot redeclare `{s}` as a global",
-                    .{prior.name.in(context.text)},
+                    .{prior_value},
                     .{ .symbol_reference = .{
                         .declaration = prior.name,
                         .reference = current.name,
@@ -48,13 +49,13 @@ pub fn patchSymbols(
     const term = terms.getMut(index);
     switch (term.value) {
         .unresolved => {
-            if (resolveSymbol(term.span, context.text, locals, declarations)) |resolved| {
+            if (resolveSymbol(term.span, locals, declarations, context)) |resolved| {
                 term.* = resolved;
             } else {
                 Reporter.report(
                     "unresolved symbol",
                     "`{s}` was not declared a global or a parameter in this scope",
-                    .{term.span.in(context.text)},
+                    .{term.span.in(context)},
                     .{ .token = term.span },
                     context,
                 );
@@ -64,7 +65,7 @@ pub fn patchSymbols(
             try patchSymbols(inner, context, terms, locals, declarations);
         },
         .abstraction => |abstr| {
-            const value = abstr.parameter.in(context.text);
+            const value = abstr.parameter.in(context);
             if (resolveLocal(locals, value)) |prior_index| {
                 const prior_param = switch (terms.get(prior_index).value) {
                     .abstraction => |prior_abstr| prior_abstr.parameter,
@@ -73,7 +74,7 @@ pub fn patchSymbols(
                 Reporter.report(
                     "parameter already declared as a variable in this scope",
                     "cannot shadow existing variable `{s}`",
-                    .{abstr.parameter.in(context.text)},
+                    .{abstr.parameter.in(context)},
                     .{ .symbol_reference = .{
                         .declaration = prior_param,
                         .reference = abstr.parameter,
@@ -81,11 +82,11 @@ pub fn patchSymbols(
                     context,
                 );
             }
-            if (resolveGlobal(declarations, value, context.text)) |global_index| {
+            if (resolveGlobal(declarations, value, context)) |global_index| {
                 Reporter.report(
                     "parameter already declared as a global",
                     "cannot shadow existing global declaration `{s}`",
-                    .{abstr.parameter.in(context.text)},
+                    .{abstr.parameter.in(context)},
                     .{ .symbol_reference = .{
                         .declaration = declarations[global_index].name,
                         .reference = abstr.parameter,
@@ -109,18 +110,18 @@ pub fn patchSymbols(
 
 fn resolveSymbol(
     span: Span,
-    text: []const u8,
     locals: *const LocalStore,
     declarations: []const Decl,
+    context: *const Context,
 ) ?Term {
-    const value = span.in(text);
+    const value = span.in(context);
     if (resolveLocal(locals, value)) |index| {
         return Term{
             .span = span,
             .value = .{ .local = index },
         };
     }
-    if (resolveGlobal(declarations, value, text)) |index| {
+    if (resolveGlobal(declarations, value, context)) |index| {
         return Term{
             .span = span,
             .value = .{ .global = index },
@@ -141,10 +142,10 @@ fn resolveLocal(locals: *const LocalStore, value: []const u8) ?TermIndex {
 fn resolveGlobal(
     declarations: []const Decl,
     value: []const u8,
-    text: []const u8,
+    context: *const Context,
 ) ?DeclIndex {
     for (declarations, 0..) |*decl, i| {
-        if (std.mem.eql(u8, decl.name.in(text), value)) {
+        if (std.mem.eql(u8, decl.name.in(context), value)) {
             return i;
         }
     }

@@ -99,9 +99,7 @@ fn printSpan(comptime label: []const u8, span: Span, context: *const Context) vo
         setStyle(.{ .Dim, .FgWhite });
         std.debug.print("~" ** border_length ++ "\n", .{});
         setStyle(.{ .Reset, .FgYellow });
-        std.debug.print("{s}\n", .{
-            span.in(context.text),
-        });
+        std.debug.print("{s}\n", .{span.in(context)});
         setStyle(.{ .Dim, .FgWhite });
         std.debug.print("~" ** border_length ++ "\n\n", .{});
         setStyle(.{.Reset});
@@ -113,11 +111,11 @@ fn printLineParts(left: Span, right: Span, context: *const Context) void {
 
     printIndent(2);
     setStyle(.{.FgYellow});
-    std.debug.print("{s}", .{left.in(context.text)});
+    std.debug.print("{s}", .{left.in(context)});
     setStyle(.{.Bold});
-    std.debug.print("{s}", .{Span.between(left, right).in(context.text)});
+    std.debug.print("{s}", .{Span.between(left, right).in(context)});
     setStyle(.{ .Reset, .FgYellow });
-    std.debug.print("{s}", .{right.in(context.text)});
+    std.debug.print("{s}", .{right.in(context)});
     setStyle(.{.Reset});
     std.debug.print("\n", .{});
 }

@@ -1,14 +1,16 @@
 const Self = @This();
 const std = @import("std");
+
+const Context = @import("../Context.zig");
 const Span = @import("../Span.zig");
 
 span: Span,
 kind: Kind,
 
-pub fn new(text: []const u8, span: Span) Self {
+pub fn new(span: Span, context: *const Context) Self {
     return .{
         .span = span,
-        .kind = Kind.from(span.in(text)),
+        .kind = Kind.from(span.in(context)),
     };
 }
 

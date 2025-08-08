@@ -1,15 +1,21 @@
 const std = @import("std");
 
+const Context = @import("Context.zig");
+
 const model = @import("model.zig");
 const Decl = model.Decl;
 const TermStore = model.TermStore;
 const Term = model.Term;
 
-pub fn printDeclarations(declarations: []const Decl, terms: *const TermStore, text: []const u8) void {
+pub fn printDeclarations(
+    declarations: []const Decl,
+    terms: *const TermStore,
+    context: *const Context,
+) void {
     for (declarations, 0..) |*decl, i| {
         const term = terms.get(decl.term);
-        std.debug.print("\n[{}] {s}\n", .{ i, decl.name.in(text) });
-        printTerm(term, 0, "", terms.entries.items, text);
+        std.debug.print("\n[{}] {s}\n", .{ i, decl.name.in(context) });
+        printTerm(term, 0, "", terms.entries.items, context);
         std.debug.print("\n", .{});
     }
 }
@@ -19,40 +25,40 @@ fn printTerm(
     depth: usize,
     comptime prefix: []const u8,
     terms: []const Term,
-    text: []const u8,
+    context: *const Context,
 ) void {
     switch (term.value) {
         .unresolved => {
             printLabel(depth, prefix, "UNRESOLVED");
-            printSpan(term.span.in(text));
+            printSpan(term.span.in(context));
         },
         .local => |index| {
             printLabel(depth, prefix, "local");
             std.debug.print("{{{}}} ", .{index});
-            printSpan(term.span.in(text));
+            printSpan(term.span.in(context));
         },
         .global => |index| {
             printLabel(depth, prefix, "global");
             std.debug.print("[{}] ", .{index});
-            printSpan(term.span.in(text));
+            printSpan(term.span.in(context));
         },
         .group => |inner| {
             printLabel(depth, prefix, "group");
-            printSpan(term.span.in(text));
-            printTerm(&terms[inner], depth + 1, "", terms, text);
+            printSpan(term.span.in(context));
+            printTerm(&terms[inner], depth + 1, "", terms, context);
         },
         .abstraction => |abstr| {
             printLabel(depth, prefix, "abstraction");
-            printSpan(term.span.in(text));
+            printSpan(term.span.in(context));
             printLabel(depth + 1, "parameter", "");
-            printSpan(abstr.parameter.in(text));
-            printTerm(&terms[abstr.body], depth + 1, "body", terms, text);
+            printSpan(abstr.parameter.in(context));
+            printTerm(&terms[abstr.body], depth + 1, "body", terms, context);
         },
         .application => |appl| {
             printLabel(depth, prefix, "application");
-            printSpan(term.span.in(text));
-            printTerm(&terms[appl.function], depth + 1, "function", terms, text);
-            printTerm(&terms[appl.argument], depth + 1, "argument", terms, text);
+            printSpan(term.span.in(context));
+            printTerm(&terms[appl.function], depth + 1, "function", terms, context);
+            printTerm(&terms[appl.argument], depth + 1, "argument", terms, context);
         },
     }
 }

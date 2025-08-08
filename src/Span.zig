@@ -3,6 +3,8 @@ const Self = @This();
 const std = @import("std");
 const assert = std.debug.assert;
 
+const Context = @import("Context.zig");
+
 offset: usize,
 length: usize,
 
@@ -49,6 +51,7 @@ pub fn withOffset(self: Self, offset: usize) Self {
     };
 }
 
-pub fn in(self: *const Self, text: []const u8) []const u8 {
-    return text[self.offset..][0..self.length];
+// TODO(refactor): Use `Context`
+pub fn in(self: *const Self, context: *const Context) []const u8 {
+    return context.text[self.offset..][0..self.length];
 }
