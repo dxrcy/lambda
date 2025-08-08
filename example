@@ -1,34 +1,25 @@
 
--- a = 123
+T = \x. \y. x
+F = \x. \y. y
 
-T = \x. \x. BB =  xx  
-F = \x. \T2. T2
-oaij = 
-
--- T = \x. \y. x
-
--- a
-
-& = \p. \q. AAAAA bbbbb \
+& = \p. (\q. p q p . x)
+& = \p. (\q. p q p ) x)
+& = \p. (\q. p q p ) x.
 | = \p. \q. p p q
 ~ = \p. p F T
 
-0 = \f. \x. x
+0 = \f. \T. x
 S = \n. \f. \x. f (n f x)
-1 = S 0
 
 + = \m. \n. m S n
 * = \m. \n. m (+ n) 0
 ^ = \b. \e. e b
 
 P = \n. \f. \x. n
-    (\g. \h. h (g f)) (\u. x) (\u. u)
+    (\g. \f. h (g f)) (\u. x) (\u. u)
 - = \m. \n. n P m
 
-Is0 = \n. n (\x. F)  -- comment
-	-- another comment
-
-	T
+Is0 = \n. n (\x. F) T
 <= = \m. \n. Is0 (- m n)
 == = \m. \n. & (<= m n) (<= n m)
 
@@ -36,14 +27,8 @@ Pair = \x. \y. \f. f x y
 Fst = \p. p T
 Snd = \p. p F
 
-Apply2Wrong = \f. \x. f f x 
 Apply2 = \f. \x. f (f x) -- Comment
 Apply4 = Apply2
-	Apply2
+	Apply2 )
 
-	Apply2
-
--- X = \a.\b. a(\c. b c) (\e.e) e
-
-b2 = T
-
+	

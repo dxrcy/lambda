@@ -1,6 +1,7 @@
 const Self = @This();
 
-const Span = @import("Span.zig");
+const Span = @import("../Span.zig");
+
 const Tokenizer = @import("Tokenizer.zig");
 const Token = @import("Token.zig");
 

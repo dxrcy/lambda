@@ -4,12 +4,13 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
 const Context = @import("Context.zig");
-const Parser = @import("Parser.zig");
 const Reporter = @import("Reporter.zig");
 const Span = @import("Span.zig");
-const Statements = @import("Statements.zig");
-const Tokenizer = @import("Tokenizer.zig");
 const utils = @import("utils.zig");
+
+const Parser = @import("parse/Parser.zig");
+const Statements = @import("parse/Statements.zig");
+const Tokenizer = @import("parse/Tokenizer.zig");
 
 const model = @import("model.zig");
 const Decl = model.Decl;

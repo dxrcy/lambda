@@ -3,7 +3,7 @@ const Self = @This();
 const std = @import("std");
 const assert = std.debug.assert;
 
-const Span = @import("Span.zig");
+const Span = @import("../Span.zig");
 
 text: []const u8,
 index: usize,

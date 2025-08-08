@@ -4,12 +4,13 @@ const std = @import("std");
 const assert = std.debug.assert;
 const ArrayList = std.ArrayList;
 
-const Char = @import("Char.zig");
-const Span = @import("Span.zig");
-const Token = @import("Token.zig");
+const Span = @import("../Span.zig");
 
-const model = @import("model.zig");
+const model = @import("../model.zig");
 const Term = model.Term;
+
+const Char = @import("Char.zig");
+const Token = @import("Token.zig");
 
 text: []const u8,
 statement: Span,

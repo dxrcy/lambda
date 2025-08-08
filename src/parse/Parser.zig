@@ -4,17 +4,18 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
-const Context = @import("Context.zig");
-const Span = @import("Span.zig");
-const Reporter = @import("Reporter.zig");
-const TokenBuf = @import("TokenBuf.zig");
-const Token = @import("Token.zig");
+const Context = @import("../Context.zig");
+const Span = @import("../Span.zig");
+const Reporter = @import("../Reporter.zig");
 
-const model = @import("model.zig");
+const model = @import("../model.zig");
 const Decl = model.Decl;
 const TermIndex = model.TermIndex;
 const TermStore = model.TermStore;
 const Term = model.Term;
+
+const TokenBuf = @import("TokenBuf.zig");
+const Token = @import("Token.zig");
 
 context: *const Context,
 tokens: TokenBuf,

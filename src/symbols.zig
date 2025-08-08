@@ -2,10 +2,10 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
+const Context = @import("Context.zig");
 const Reporter = @import("Reporter.zig");
 const Span = @import("Span.zig");
 
-const Context = @import("Context.zig");
 const model = @import("model.zig");
 const Decl = model.Decl;
 const DeclIndex = model.DeclIndex;

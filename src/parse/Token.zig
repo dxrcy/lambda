@@ -2,7 +2,7 @@ const Self = @This();
 
 const std = @import("std");
 
-const Span = @import("Span.zig");
+const Span = @import("../Span.zig");
 
 span: Span,
 kind: Kind,
