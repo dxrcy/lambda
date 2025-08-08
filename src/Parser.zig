@@ -45,9 +45,13 @@ fn getStatement(self: *const Self) Span {
 
 fn expectTermGreedy(self: *Self, terms: *TermStore) Allocator.Error!?TermIndex {
     const left = try self.tryTermSingle(terms) orelse {
-        Reporter.report("unexpected end of statement", .{}, .{
-            .statement_end = self.getStatement(),
-        }, self.context);
+        Reporter.report(
+            "unexpected end of statement",
+            "expected term",
+            .{},
+            .{ .statement_end = self.getStatement() },
+            self.context,
+        );
         return null;
     };
     const left_span = terms.get(left).span;
@@ -114,12 +118,17 @@ fn tryTermSingle(self: *Self, terms: *TermStore) Allocator.Error!?TermIndex {
         },
 
         .ParenRight, .Equals, .Dot, .Invalid => {
-            Reporter.report("unexpected token", .{}, .{
-                .statement_token = .{
+            // TODO(feat): Show what was expected
+            Reporter.report(
+                "unexpected token",
+                "expected <something else>",
+                .{},
+                .{ .statement_token = .{
                     .statement = self.getStatement(),
                     .token = left.span,
-                },
-            }, self.context);
+                } },
+                self.context,
+            );
             return null;
         },
     }
@@ -127,9 +136,14 @@ fn tryTermSingle(self: *Self, terms: *TermStore) Allocator.Error!?TermIndex {
 
 fn expectEnd(self: *Self) ?void {
     if (!self.tokens.isEnd()) {
-        Reporter.report("unexpected token (todo)", .{}, .{
-            .statement = self.getStatement(),
-        }, self.context);
+        // TODO(feat): Show what was found
+        Reporter.report(
+            "unexpected token (todo)",
+            "expected end of statement, found <something else>",
+            .{},
+            .{ .statement = self.getStatement() },
+            self.context,
+        );
         return null;
     }
 }
@@ -137,12 +151,16 @@ fn expectEnd(self: *Self) ?void {
 fn expectIdentOrEnd(self: *Self) ?Span {
     const token = self.tryNext() orelse return null;
     if (token.kind != .Ident) {
-        Reporter.report("unexpected token", .{}, .{
-            .statement_token = .{
+        Reporter.report(
+            "unexpected token",
+            "expected {s} or end of statement, found {s}",
+            .{ Token.Kind.Ident.display(), token.kind.display() },
+            .{ .statement_token = .{
                 .statement = self.getStatement(),
                 .token = token.span,
-            },
-        }, self.context);
+            } },
+            self.context,
+        );
         return null;
     }
     return token.span;
@@ -151,12 +169,16 @@ fn expectIdentOrEnd(self: *Self) ?Span {
 fn expectTokenKind(self: *Self, kind: Token.Kind) ?Span {
     const token = self.expectNext() orelse return null;
     if (token.kind != kind) {
-        Reporter.report("unexpected token", .{}, .{
-            .statement_token = .{
+        Reporter.report(
+            "unexpected token",
+            "expected {s}, found {s}",
+            .{ kind.display(), token.kind.display() },
+            .{ .statement_token = .{
                 .statement = self.getStatement(),
                 .token = token.span,
-            },
-        }, self.context);
+            } },
+            self.context,
+        );
         return null;
     }
     return token.span;
@@ -179,9 +201,14 @@ fn tryNext(self: *Self) ?Token {
 }
 fn expectNext(self: *Self) ?Token {
     return self.tryNext() orelse {
-        Reporter.report("unexpected end of statement", .{}, .{
-            .statement_end = self.getStatement(),
-        }, self.context);
+        // TODO(feat): Show what was expected
+        Reporter.report(
+            "unexpected end of statement",
+            "expected <something else>",
+            .{},
+            .{ .statement_end = self.getStatement() },
+            self.context,
+        );
         return null;
     };
 }

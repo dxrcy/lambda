@@ -15,6 +15,18 @@ pub const Kind = enum {
     ParenRight,
     Ident,
     Invalid,
+
+    pub fn display(self: Kind) []const u8 {
+        return switch (self) {
+            .Backslash => "`\\`",
+            .Dot => "`.`",
+            .Equals => "`=`",
+            .ParenLeft => "`(`",
+            .ParenRight => "`)`",
+            .Ident => "<identifier>",
+            .Invalid => "<invalid token>",
+        };
+    }
 };
 
 pub fn new(text: []const u8, span: Span) Self {

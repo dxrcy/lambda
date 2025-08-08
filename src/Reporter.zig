@@ -4,8 +4,6 @@ const assert = std.debug.assert;
 const Context = @import("Context.zig");
 const Span = @import("Span.zig");
 
-const INDENT = " " ** 4;
-
 var count: usize = 0;
 
 pub const Layout = union(enum) {
@@ -26,41 +24,60 @@ pub fn isEmpty() bool {
     return count == 0;
 }
 
-pub fn report(comptime format: []const u8, args: anytype, layout: Layout, context: *const Context) void {
+pub fn report(
+    comptime kind: []const u8,
+    comptime description: []const u8,
+    args: anytype,
+    layout: Layout,
+    context: *const Context,
+) void {
     count += 1;
 
-    setStyle(.{ .Bold, .FgRed });
-    std.debug.print("Error: ", .{});
+    setStyle(.{ .Bold, .Underline, .FgRed });
+    std.debug.print("Error", .{});
+    setStyle(.{ .Reset, .Bold, .FgRed });
+    std.debug.print(": ", .{});
     setStyle(.{ .Reset, .FgRed });
-    std.debug.print(format, args);
+    std.debug.print(kind, .{});
+    std.debug.print(".\n", .{});
+
+    setStyle(.{ .Reset, .FgRed });
+    printIndent(1);
+    std.debug.print(description, args);
     std.debug.print(".\n", .{});
     setStyle(.{.Reset});
 
     switch (layout) {
         .token => |token| {
-            reportSpan("token", token, context);
+            printSpan("token", token, context);
         },
         .statement => |stmt| {
-            reportSpan("statement", stmt, context);
+            printSpan("statement", stmt, context);
         },
         .statement_end => |stmt| {
-            reportSpan("end of statement", Span.new(stmt.end(), 0), context);
-            reportSpan("statement", stmt, context);
+            printSpan("end of statement", Span.new(stmt.end(), 0), context);
+            printSpan("statement", stmt, context);
         },
         .statement_token => |value| {
-            reportSpan("token", value.token, context);
-            reportSpan("statement", value.statement, context);
+            printSpan("token", value.token, context);
+            printSpan("statement", value.statement, context);
         },
         .symbol_reference => |value| {
-            reportSpan("declaration", value.declaration, context);
-            reportSpan("reference", value.reference, context);
+            printSpan("declaration", value.declaration, context);
+            printSpan("reference", value.reference, context);
         },
     }
 }
 
-fn reportSpan(comptime label: []const u8, span: Span, context: *const Context) void {
-    setStyle(.{.Dim});
-    std.debug.print(INDENT ** 1 ++ "({s}:{}) {s}:\n", .{
+fn printIndent(comptime depth: usize) void {
+    const INDENT = " " ** 4;
+    std.debug.print(INDENT ** depth, .{});
+}
+
+fn printSpan(comptime label: []const u8, span: Span, context: *const Context) void {
+    setStyle(.{ .FgWhite, .Dim });
+    printIndent(1);
+    std.debug.print("({s}:{}) {s}:\n", .{
         context.filepath,
         context.startingLineOf(span),
         label,
@@ -94,7 +111,7 @@ fn reportSpan(comptime label: []const u8, span: Span, context: *const Context) v
 fn printLineParts(left: Span, right: Span, context: *const Context) void {
     assert(left.end() <= right.offset);
 
-    std.debug.print(INDENT ** 2, .{});
+    printIndent(2);
     setStyle(.{.FgYellow});
     std.debug.print("{s}", .{left.in(context.text)});
     setStyle(.{.Bold});
@@ -109,7 +126,7 @@ fn printLineHighlight(left: Span, span: Span) void {
     assert(left.end() <= span.offset);
 
     setStyle(.{ .Reset, .FgRed });
-    std.debug.print(INDENT ** 2, .{});
+    printIndent(2);
     for (0..left.length) |_| {
         std.debug.print(" ", .{});
     }
@@ -124,6 +141,7 @@ const Style = enum(u8) {
     Reset = 0,
     Bold = 1,
     Dim = 2,
+    Underline = 4,
     FgRed = 31,
     FgYellow = 33,
     FgWhite = 37,

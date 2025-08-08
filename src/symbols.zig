@@ -23,12 +23,16 @@ pub fn checkDeclarationCollisions(
                 continue;
             }
             if (std.mem.eql(u8, current.name.in(context.text), prior.name.in(context.text))) {
-                Reporter.report("global already declared", .{}, .{
-                    .symbol_reference = .{
+                Reporter.report(
+                    "global already declared",
+                    "cannot redeclare `{s}` as a global",
+                    .{prior.name.in(context.text)},
+                    .{ .symbol_reference = .{
                         .declaration = prior.name,
                         .reference = current.name,
-                    },
-                }, context);
+                    } },
+                    context,
+                );
             }
         }
     }
@@ -47,9 +51,13 @@ pub fn patchSymbols(
             if (resolveSymbol(term.span, context.text, locals, declarations)) |resolved| {
                 term.* = resolved;
             } else {
-                Reporter.report("unresolved symbol", .{}, .{
-                    .token = term.span,
-                }, context);
+                Reporter.report(
+                    "unresolved symbol",
+                    "`{s}` was not declared a global or a parameter in this scope",
+                    .{term.span.in(context.text)},
+                    .{ .token = term.span },
+                    context,
+                );
             }
         },
         .group => |inner| {
@@ -58,14 +66,22 @@ pub fn patchSymbols(
         .abstraction => |abstr| {
             const value = abstr.parameter.in(context.text);
             if (resolveLocal(locals, value) != null) {
-                Reporter.report("parameter already declared as a variable", .{}, .{
-                    .token = abstr.parameter,
-                }, context);
+                Reporter.report(
+                    "parameter already declared as a variable in this scope",
+                    "cannot shadow existing variable `{s}`",
+                    .{abstr.parameter.in(context.text)},
+                    .{ .token = abstr.parameter },
+                    context,
+                );
             }
             if (resolveGlobal(declarations, value, context.text) != null) {
-                Reporter.report("parameter already declared as a global", .{}, .{
-                    .token = abstr.parameter,
-                }, context);
+                Reporter.report(
+                    "parameter already declared as a global",
+                    "cannot shadow existing global declaration `{s}`",
+                    .{abstr.parameter.in(context.text)},
+                    .{ .token = abstr.parameter },
+                    context,
+                );
             }
             try locals.push(index, value);
             try patchSymbols(abstr.body, context, terms, locals, declarations);

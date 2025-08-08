@@ -50,7 +50,7 @@ pub fn main() !void {
             try decls.append(decl);
         }
     }
-    if (!Reporter.isEmpty()) return;
+    // if (!Reporter.isEmpty()) return;
 
     {
         symbols.checkDeclarationCollisions(
