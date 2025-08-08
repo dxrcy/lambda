@@ -118,11 +118,10 @@ fn tryTermSingle(self: *Self, terms: *TermStore) Allocator.Error!?TermIndex {
         },
 
         .ParenRight, .Equals, .Dot, .Invalid => {
-            // TODO(feat): Show what was expected
             Reporter.report(
                 "unexpected token",
-                "expected <something else>",
-                .{},
+                "expected term, found {s}",
+                .{left.kind.display()},
                 .{ .statement_token = .{
                     .statement = self.getStatement(),
                     .token = left.span,
@@ -135,12 +134,11 @@ fn tryTermSingle(self: *Self, terms: *TermStore) Allocator.Error!?TermIndex {
 }
 
 fn expectEnd(self: *Self) ?void {
-    if (!self.tokens.isEnd()) {
-        // TODO(feat): Show what was found
+    if (self.tryNext()) |token| {
         Reporter.report(
-            "unexpected token (todo)",
-            "expected end of statement, found <something else>",
-            .{},
+            "unexpected token",
+            "expected end of statement, found {s}",
+            .{token.kind.display()},
             .{ .statement = self.getStatement() },
             self.context,
         );
@@ -199,12 +197,13 @@ fn peek(self: *Self) ?Token {
 fn tryNext(self: *Self) ?Token {
     return self.tokens.next();
 }
+
+// TODO(feat): Do not use this function. Inline calls, to report 'what was expected'
 fn expectNext(self: *Self) ?Token {
     return self.tryNext() orelse {
-        // TODO(feat): Show what was expected
         Reporter.report(
             "unexpected end of statement",
-            "expected <something else>",
+            "expected token",
             .{},
             .{ .statement_end = self.getStatement() },
             self.context,
