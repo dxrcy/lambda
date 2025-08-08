@@ -65,21 +65,31 @@ pub fn patchSymbols(
         },
         .abstraction => |abstr| {
             const value = abstr.parameter.in(context.text);
-            if (resolveLocal(locals, value) != null) {
+            if (resolveLocal(locals, value)) |prior_index| {
+                const prior_param = switch (terms.get(prior_index).value) {
+                    .abstraction => |prior_abstr| prior_abstr.parameter,
+                    else => unreachable,
+                };
                 Reporter.report(
                     "parameter already declared as a variable in this scope",
                     "cannot shadow existing variable `{s}`",
                     .{abstr.parameter.in(context.text)},
-                    .{ .token = abstr.parameter },
+                    .{ .symbol_reference = .{
+                        .declaration = prior_param,
+                        .reference = abstr.parameter,
+                    } },
                     context,
                 );
             }
-            if (resolveGlobal(declarations, value, context.text) != null) {
+            if (resolveGlobal(declarations, value, context.text)) |global_index| {
                 Reporter.report(
                     "parameter already declared as a global",
                     "cannot shadow existing global declaration `{s}`",
                     .{abstr.parameter.in(context.text)},
-                    .{ .token = abstr.parameter },
+                    .{ .symbol_reference = .{
+                        .declaration = declarations[global_index].name,
+                        .reference = abstr.parameter,
+                    } },
                     context,
                 );
             }

@@ -63,8 +63,8 @@ pub fn report(
             printSpan("statement", value.statement, context);
         },
         .symbol_reference => |value| {
-            printSpan("declaration", value.declaration, context);
-            printSpan("reference", value.reference, context);
+            printSpan("initial declaration", value.declaration, context);
+            printSpan("redeclaration", value.reference, context);
         },
     }
 }
