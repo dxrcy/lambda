@@ -11,6 +11,7 @@ const Reporter = @import("../Reporter.zig");
 
 const model = @import("../model.zig");
 const Decl = model.Decl;
+const Query = model.Query;
 const TermIndex = model.TermIndex;
 const TermStore = model.TermStore;
 const Term = model.Term;
@@ -34,7 +35,7 @@ token_buf: TokenBuf,
 // Zig's type system. Perhaps by using another error union but this creates
 // other problems.
 
-fn SomeNull(T: type) ?T {
+fn SomeNull(comptime T: type) ?T {
     return @as(?T, null);
 }
 
@@ -48,6 +49,20 @@ fn getContext(self: *const Self) *const Context {
 }
 fn getStatement(self: *const Self) Span {
     return self.token_buf.tokenizer.statement;
+}
+
+pub fn tryQuery(self: *Self, terms: *TermStore) Allocator.Error!?Query {
+    if (self.peekTokenIfKind(.Query) == null) {
+        return SomeNull(Query);
+    }
+    _ = self.nextToken() orelse (return null) orelse unreachable;
+
+    const index = try self.expectTermGreedy(false, terms) orelse
+        (return null) orelse return null;
+
+    return Query{
+        .term = index,
+    };
 }
 
 pub fn tryDeclaration(self: *Self, terms: *TermStore) Allocator.Error!?Decl {
@@ -175,7 +190,7 @@ fn tryTermSingle(self: *Self, comptime allow_end: bool, comptime in_group: bool,
             });
         },
 
-        .ParenRight, .Equals, .Dot, .Invalid => {
+        .ParenRight, .Equals, .Dot, .Query => {
             assert(!(in_group and left.kind == .ParenRight));
             Reporter.report(
                 "unexpected token",
@@ -293,10 +308,10 @@ fn findDisallowedCharacter(value: []const u8) ?u21 {
     while (iter.nextCodepoint()) |codepoint| {
         switch (codepoint) {
             ' ', '\t'...'\r' => unreachable,
-            // Greek letters
-            0x3b1...0x3c9, 0x391...0x3a1, 0x3a3...0x3a9 => {},
             // Ascii (except whitespace or control)
             0x21...0x7e => {},
+            // Greek letters
+            0x3b1...0x3c9, 0x391...0x3a1, 0x3a3...0x3a9 => {},
             else => return codepoint,
         }
     }

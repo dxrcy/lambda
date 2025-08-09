@@ -20,8 +20,8 @@ pub const Kind = enum {
     Equals,
     ParenLeft,
     ParenRight,
+    Query,
     Ident,
-    Invalid,
 
     pub fn from(slice: []const u8) Kind {
         const Candidate = struct { []const u8, Kind };
@@ -31,6 +31,7 @@ pub const Kind = enum {
             .{ "=", .Equals },
             .{ "(", .ParenLeft },
             .{ ")", .ParenRight },
+            .{ "?", .Query },
         };
         for (KEYWORDS) |symbol| {
             if (std.mem.eql(u8, symbol[0], slice)) {
@@ -47,8 +48,8 @@ pub const Kind = enum {
             .Equals => "`=`",
             .ParenLeft => "`(`",
             .ParenRight => "`)`",
+            .Query => "`?`",
             .Ident => "<identifier>",
-            .Invalid => "<invalid token>",
         };
     }
 };

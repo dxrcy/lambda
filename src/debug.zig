@@ -4,6 +4,7 @@ const Context = @import("Context.zig");
 
 const model = @import("model.zig");
 const Decl = model.Decl;
+const Query = model.Query;
 const TermStore = model.TermStore;
 const Term = model.Term;
 
@@ -15,6 +16,19 @@ pub fn printDeclarations(
     for (declarations, 0..) |*decl, i| {
         const term = terms.get(decl.term);
         std.debug.print("\n[{}] {s}\n", .{ i, decl.name.in(context) });
+        printTerm(term, 0, "", terms.entries.items, context);
+        std.debug.print("\n", .{});
+    }
+}
+
+pub fn printQueries(
+    queries: []const Query,
+    terms: *const TermStore,
+    context: *const Context,
+) void {
+    for (queries, 0..) |*query, i| {
+        const term = terms.get(query.term);
+        std.debug.print("\n<{}>\n", .{i});
         printTerm(term, 0, "", terms.entries.items, context);
         std.debug.print("\n", .{});
     }

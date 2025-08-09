@@ -14,6 +14,7 @@ const Tokenizer = @import("parse/Tokenizer.zig");
 
 const model = @import("model.zig");
 const Decl = model.Decl;
+const Query = model.Query;
 const TermStore = model.TermStore;
 
 const symbols = @import("symbols.zig");
@@ -48,6 +49,9 @@ pub fn main() !void {
     var decls = ArrayList(Decl).init(allocator);
     defer decls.deinit();
 
+    var queries = ArrayList(Query).init(allocator);
+    defer queries.deinit();
+
     var terms = TermStore.init(allocator);
     defer terms.deinit();
 
@@ -55,7 +59,9 @@ pub fn main() !void {
         var stmts = Statements.new(&context);
         while (stmts.next()) |stmt| {
             var parser = Parser.new(stmt, &context);
-            if (try parser.tryDeclaration(&terms)) |decl| {
+            if (try parser.tryQuery(&terms)) |query| {
+                try queries.append(query);
+            } else if (try parser.tryDeclaration(&terms)) |decl| {
                 try decls.append(decl);
             }
         }
@@ -68,6 +74,7 @@ pub fn main() !void {
             &context,
         );
 
+        // TODO(opt): Reuse local store
         var locals = LocalStore.init(allocator);
         defer locals.deinit();
 
@@ -83,9 +90,28 @@ pub fn main() !void {
         }
         std.debug.assert(locals.isEmpty());
     }
+
+    {
+        var locals = LocalStore.init(allocator);
+        defer locals.deinit();
+
+        for (queries.items) |*query| {
+            std.debug.assert(locals.isEmpty());
+            try symbols.patchSymbols(
+                query.term,
+                &context,
+                &terms,
+                &locals,
+                decls.items,
+            );
+        }
+        std.debug.assert(locals.isEmpty());
+    }
+
     if (!Reporter.isEmpty()) return;
 
     debug.printDeclarations(decls.items, &terms, &context);
+    debug.printQueries(queries.items, &terms, &context);
 }
 
 fn checkUtf8(context: *const Context) void {
