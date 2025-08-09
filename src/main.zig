@@ -26,7 +26,14 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const filepath = "example/valid";
+    var args = std.process.args();
+    _ = args.next();
+
+    const filepath = args.next() orelse {
+        std.debug.print("Please provide a file path.\n", .{});
+        return;
+    };
+
     const text = try utils.readFile(filepath, allocator);
     defer text.deinit();
 

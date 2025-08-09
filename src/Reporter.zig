@@ -6,6 +6,8 @@ const Span = @import("Span.zig");
 
 var count: usize = 0;
 
+// TODO(feat): Use proper stderr handle
+
 pub const Layout = union(enum) {
     file: void,
     token: Span,
