@@ -41,7 +41,7 @@ pub fn tryDeclaration(self: *Self, terms: *TermStore) Allocator.Error!?Decl {
     const index = try self.expectTermGreedy(false, terms) orelse return null;
     // Any trailing characters should have already been handled (including
     // unmatched right paren)
-    assert(self.tryNext() == null);
+    assert((self.tryNext() orelse return null) == null);
 
     return Decl{
         .name = name,
@@ -89,7 +89,7 @@ fn expectTermGreedy(self: *Self, comptime in_group: bool, terms: *TermStore) All
 }
 
 fn tryTermSingle(self: *Self, comptime allow_end: bool, comptime in_group: bool, terms: *TermStore) Allocator.Error!?TermIndex {
-    const left = self.tryNext() orelse {
+    const left = (self.tryNext() orelse return null) orelse {
         if (!allow_end) {
             Reporter.report(
                 "unexpected end of statement",
@@ -162,7 +162,7 @@ fn tryTermSingle(self: *Self, comptime allow_end: bool, comptime in_group: bool,
 }
 
 fn expectIdentOrEnd(self: *Self) ?Span {
-    const token = self.tryNext() orelse return null;
+    const token = (self.tryNext() orelse return null) orelse return null;
     if (token.kind != .Ident) {
         Reporter.report(
             "unexpected token",
@@ -180,7 +180,7 @@ fn expectIdentOrEnd(self: *Self) ?Span {
 }
 
 fn expectTokenKind(self: *Self, kind: Token.Kind) ?Span {
-    const token = self.tryNext() orelse {
+    const token = (self.tryNext() orelse return null) orelse {
         Reporter.report(
             "unexpected end of statement",
             "expected {s}",
@@ -222,13 +222,18 @@ fn peek(self: *Self) ?Token {
     return self.token_buf.peek();
 }
 // TODO(refactor): Rename `nextToken`
-fn tryNext(self: *Self) ?Token {
-    const token = self.token_buf.next() orelse return null;
-    return self.validateToken(token);
+fn tryNext(self: *Self) ??Token {
+    const token = self.token_buf.next() orelse {
+        return @as(?Token, null); // Some(null)
+    };
+    if (!self.validateToken(token)) {
+        return null;
+    }
+    return token;
 }
 
 /// Does not check for invalid UTF-8, this should already be checked.
-fn validateToken(self: *const Self, token: Token) ?Token {
+fn validateToken(self: *const Self, token: Token) bool {
     const value = token.span.in(self.getContext());
 
     if (findDisallowedCharacter(value)) |codepoint| {
@@ -243,9 +248,9 @@ fn validateToken(self: *const Self, token: Token) ?Token {
             .{ .token = token.span },
             self.getContext(),
         );
-        return null;
+        return false;
     }
-    return token;
+    return true;
 }
 
 fn findDisallowedCharacter(value: []const u8) ?u21 {

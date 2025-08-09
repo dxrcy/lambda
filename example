@@ -8,8 +8,11 @@ F = \x. \y. y
 | = \p. \q. p p q
 ~ = \p. p F T
 
-0 = \f. \T. x
+0 = \f. \T. 🍎 x
 S = \n. \f. \x. f (n f x)
+
+x = \x
+x = 
 
 + = \m. \n. m S n
 * = \m. \n. m (+ n) 0
