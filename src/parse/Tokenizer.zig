@@ -3,6 +3,8 @@ const Self = @This();
 const std = @import("std");
 const assert = std.debug.assert;
 const ArrayList = std.ArrayList;
+const Utf8Iterator = std.unicode.Utf8Iterator;
+const Utf8View = std.unicode.Utf8View;
 
 const Context = @import("../Context.zig");
 const Span = @import("../Span.zig");
@@ -11,18 +13,21 @@ const model = @import("../model.zig");
 const Term = model.Term;
 
 const TokenChar = @import("TokenChar.zig");
-const CharIter = @import("CharIter.zig");
 const Token = @import("Token.zig");
 
 context: *const Context,
 statement: Span,
-char_iter: CharIter,
+
+char_iter: Utf8Iterator,
 
 pub fn new(statement: Span, context: *const Context) Self {
+    const view = Utf8View.init(statement.in(context)) catch {
+        std.debug.panic("invalid utf8", .{});
+    };
     return .{
         .context = context,
         .statement = statement,
-        .char_iter = CharIter.new(statement.in(context)),
+        .char_iter = view.iterator(),
     };
 }
 
@@ -37,18 +42,33 @@ pub fn next(self: *Self) ?Token {
     }
 }
 
-fn peekChar(self: *const Self) ?TokenChar {
-    const char = self.char_iter.peek() orelse return null;
-    return TokenChar.from(char);
+fn getIndex(self: *const Self) usize {
+    return self.char_iter.i;
+}
+
+fn isEnd(self: *Self) bool {
+    return self.char_iter.peek(1).len < 1;
+}
+
+fn peekChar(self: *Self) ?TokenChar {
+    const chars = self.char_iter.peek(1);
+    assert(chars.len <= 1);
+    if (chars.len == 0) {
+        return null;
+    }
+    return TokenChar.from(chars[0]);
 }
 
 fn nextChar(self: *Self) ?TokenChar {
-    const char = self.char_iter.next() orelse return null;
-    return TokenChar.from(char);
+    const codepoint = self.char_iter.nextCodepoint() orelse return null;
+    return TokenChar.from(codepoint);
 }
 
-fn getIndex(self: *const Self) usize {
-    return self.char_iter.index;
+fn expectNonWhitespace(self: *Self) TokenChar {
+    assert(!self.isEnd());
+    const first = self.peekChar() orelse unreachable;
+    assert(!first.isWhitespace());
+    return first;
 }
 
 /// Treats comment symbol (anything beginning with `--`) as a normal token.
@@ -98,15 +118,4 @@ fn advanceUntilLinebreak(self: *Self) void {
             break;
         }
     }
-}
-
-fn expectNonWhitespace(self: *const Self) TokenChar {
-    assert(!self.isEnd());
-    const first = self.peekChar() orelse unreachable;
-    assert(!first.isWhitespace());
-    return first;
-}
-
-fn isEnd(self: *const Self) bool {
-    return self.char_iter.isEnd();
 }

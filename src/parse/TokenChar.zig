@@ -1,8 +1,6 @@
 const Self = @This();
 const std = @import("std");
 
-const Char = @import("Char.zig");
-
 value: u8,
 
 pub const Kind = enum {
@@ -13,15 +11,13 @@ pub const Kind = enum {
     NonAscii,
 };
 
-pub fn from(char: Char) Self {
-    // TODO(feat): Support `_` ????
-
+pub fn from(char: u21) Self {
     // TODO(feat): Support UTF-8
-    if (char.value > 0xff) {
+    if (char > 0xff) {
         return .{ .value = 0xff };
     }
 
-    return .{ .value = @intCast(char.value) };
+    return .{ .value = @intCast(char) };
 }
 
 pub fn kind(self: *const Self) Kind {
