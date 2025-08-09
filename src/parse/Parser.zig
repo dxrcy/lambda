@@ -3,6 +3,7 @@ const Self = @This();
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
+const unicode = std.unicode;
 
 const Span = @import("../Span.zig");
 const Context = @import("../Context.zig");
@@ -205,6 +206,7 @@ fn expectTokenKind(self: *Self, kind: Token.Kind) ?Span {
     return token.span;
 }
 
+// TODO(refactor): Rename
 fn peekIsTokenKind(self: *Self, kind: Token.Kind) ?Span {
     if (self.peek()) |token| {
         if (token.kind == kind) {
@@ -214,9 +216,48 @@ fn peekIsTokenKind(self: *Self, kind: Token.Kind) ?Span {
     return null;
 }
 
+// TODO(refactor): Rename `peekToken`
 fn peek(self: *Self) ?Token {
+    // Only validate token when actually consuming with `nextToken`
     return self.token_buf.peek();
 }
+// TODO(refactor): Rename `nextToken`
 fn tryNext(self: *Self) ?Token {
-    return self.token_buf.next();
+    const token = self.token_buf.next() orelse return null;
+    return self.validateToken(token);
+}
+
+/// Does not check for invalid UTF-8, this should already be checked.
+fn validateToken(self: *const Self, token: Token) ?Token {
+    const value = token.span.in(self.getContext());
+
+    if (findDisallowedCharacter(value)) |codepoint| {
+        var buffer: [4]u8 = undefined;
+        const length = unicode.utf8Encode(codepoint, &buffer) catch unreachable;
+        const slice = buffer[0..length];
+
+        Reporter.report(
+            "invalid charracter in token",
+            "character not allowed `{s}` (0x{x})",
+            .{ slice, codepoint },
+            .{ .token = token.span },
+            self.getContext(),
+        );
+        return null;
+    }
+    return token;
+}
+
+fn findDisallowedCharacter(value: []const u8) ?u21 {
+    const view = unicode.Utf8View.init(value) catch unreachable;
+    var iter = view.iterator();
+    while (iter.nextCodepoint()) |codepoint| {
+        switch (codepoint) {
+            // TODO(feat): Support more characters
+            ' ', '\t'...'\r' => unreachable,
+            0x21...0x7e => {},
+            else => return codepoint,
+        }
+    }
+    return null;
 }

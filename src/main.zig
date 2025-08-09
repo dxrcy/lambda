@@ -53,7 +53,7 @@ pub fn main() !void {
             }
         }
     }
-    // if (!Reporter.isEmpty()) return;
+    if (!Reporter.isEmpty()) return;
 
     // std.debug.print("Done\n", .{});
     // debug.printDeclarations(decls.items, &terms, &context);
