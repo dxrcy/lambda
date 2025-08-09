@@ -286,14 +286,16 @@ fn validateToken(self: *const Self, token: Token) bool {
     return true;
 }
 
+// TODO(feat): Support more characters
 fn findDisallowedCharacter(value: []const u8) ?u21 {
     const view = unicode.Utf8View.init(value) catch unreachable;
     var iter = view.iterator();
     while (iter.nextCodepoint()) |codepoint| {
         switch (codepoint) {
-            // TODO(feat): Support more characters
             ' ', '\t'...'\r' => unreachable,
-            'α' => {},
+            // Greek letters
+            0x3b1...0x3c9, 0x391...0x3a1, 0x3a3...0x3a9 => {},
+            // Ascii (except whitespace or control)
             0x21...0x7e => {},
             else => return codepoint,
         }
