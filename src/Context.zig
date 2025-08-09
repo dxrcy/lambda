@@ -2,11 +2,17 @@ const Self = @This();
 
 const std = @import("std");
 const assert = std.debug.assert;
+const unicode = std.unicode;
 
 const Span = @import("Span.zig");
 
 filepath: []const u8,
 text: []const u8,
+
+/// Assumes valid UTF-8.
+pub fn charCount(self: *const Self, span: Span) usize {
+    return unicode.utf8CountCodepoints(span.in(self)) catch unreachable;
+}
 
 pub fn startingLineOf(self: *const Self, span: Span) usize {
     assert(span.end() < self.text.len);

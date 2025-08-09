@@ -105,12 +105,12 @@ fn printSpan(comptime label: []const u8, span: Span, context: *const Context) vo
     if (span.length == 0) {
         const line = context.getSingleLine(span.offset);
         printLineParts(line, Span.new(line.end(), 0), context);
-        printLineHighlight(line, Span.new(line.end(), 1));
+        printLineHighlight(line, Span.new(line.end(), 1), context);
     } else if (!context.isMultiline(span)) {
         const left = context.getLeftCharacters(span.offset);
         const right = context.getRightCharacters(span.end());
         printLineParts(left, right, context);
-        printLineHighlight(left, span);
+        printLineHighlight(left, span, context);
     } else {
         // TODO(feat): Properly handle multi line tokens/statements
         const border_length = 20;
@@ -138,15 +138,15 @@ fn printLineParts(left: Span, right: Span, context: *const Context) void {
     std.debug.print("\n", .{});
 }
 
-fn printLineHighlight(left: Span, span: Span) void {
+fn printLineHighlight(left: Span, span: Span, context: *const Context) void {
     assert(left.end() <= span.offset);
 
     setStyle(.{ .Reset, .FgRed });
     printIndent(2);
-    for (0..left.length) |_| {
+    for (0..context.charCount(left)) |_| {
         std.debug.print(" ", .{});
     }
-    for (0..span.length) |_| {
+    for (0..context.charCount(span)) |_| {
         std.debug.print("^", .{});
     }
     std.debug.print("\n", .{});

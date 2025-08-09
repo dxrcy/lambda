@@ -3,8 +3,7 @@ const Self = @This();
 const std = @import("std");
 const assert = std.debug.assert;
 const ArrayList = std.ArrayList;
-const Utf8Iterator = std.unicode.Utf8Iterator;
-const Utf8View = std.unicode.Utf8View;
+const unicode = std.unicode;
 
 const Context = @import("../Context.zig");
 const Span = @import("../Span.zig");
@@ -17,11 +16,11 @@ const Token = @import("Token.zig");
 
 context: *const Context,
 statement: Span,
-char_iter: Utf8Iterator,
+char_iter: unicode.Utf8Iterator,
 
 pub fn new(statement: Span, context: *const Context) Self {
     // Text should have already been checked as valid UTF-8
-    const view = Utf8View.init(statement.in(context)) catch unreachable;
+    const view = unicode.Utf8View.init(statement.in(context)) catch unreachable;
     return .{
         .context = context,
         .statement = statement,
@@ -57,7 +56,7 @@ fn peekChar(self: *Self) ?TokenChar {
     const bytes = self.char_iter.peek(1);
     assert(bytes.len > 0 and bytes.len <= 4);
 
-    const codepoint = std.unicode.utf8Decode(bytes) catch unreachable;
+    const codepoint = unicode.utf8Decode(bytes) catch unreachable;
     return TokenChar.from(codepoint);
 }
 
@@ -88,7 +87,7 @@ fn tryAtomic(self: *Self) ?Span {
     _ = self.nextChar();
 
     return Span.fromBounds(start, self.getIndex())
-        .withOffset(self.statement.offset);
+        .addOffset(self.statement.offset);
 }
 
 fn expectCombination(self: *Self) Span {
@@ -106,7 +105,7 @@ fn expectCombination(self: *Self) Span {
     }
 
     return Span.fromBounds(start, self.getIndex())
-        .withOffset(self.statement.offset);
+        .addOffset(self.statement.offset);
 }
 
 fn advanceUntilNonwhitespace(self: *Self) void {

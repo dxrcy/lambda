@@ -44,8 +44,7 @@ pub fn end(self: Self) usize {
     return self.offset + self.length;
 }
 
-// TODO(refactor): Rename `addOffset`
-pub fn withOffset(self: Self, offset: usize) Self {
+pub fn addOffset(self: Self, offset: usize) Self {
     return .{
         .offset = self.offset + offset,
         .length = self.length,
