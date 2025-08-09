@@ -35,40 +35,37 @@ pub fn next(self: *Self) ?Token {
     while (true) {
         const span = self.nextTokenSpan() orelse return null;
         if (std.mem.startsWith(u8, span.in(self.context), "--")) {
-            self.advanceUntilLinebreak();
+            self.advanceUntilNextLine();
             continue;
         }
         return Token.new(span, self.context);
     }
 }
 
+/// Byte index *within statement*.
 fn getIndex(self: *const Self) usize {
     return self.char_iter.i;
 }
 
 fn isEnd(self: *Self) bool {
-    return self.char_iter.peek(1).len < 1;
+    return self.char_iter.i >= self.char_iter.bytes.len;
 }
 
 fn peekChar(self: *Self) ?TokenChar {
-    const chars = self.char_iter.peek(1);
-    assert(chars.len <= 1);
-    if (chars.len == 0) {
+    if (self.isEnd()) {
         return null;
     }
-    return TokenChar.from(chars[0]);
+
+    const bytes = self.char_iter.peek(1);
+    assert(bytes.len > 0 and bytes.len <= 4);
+
+    const codepoint = std.unicode.utf8Decode(bytes) catch unreachable;
+    return TokenChar.from(codepoint);
 }
 
 fn nextChar(self: *Self) ?TokenChar {
     const codepoint = self.char_iter.nextCodepoint() orelse return null;
     return TokenChar.from(codepoint);
-}
-
-fn expectNonWhitespace(self: *Self) TokenChar {
-    assert(!self.isEnd());
-    const first = self.peekChar() orelse unreachable;
-    assert(!first.isWhitespace());
-    return first;
 }
 
 /// Treats comment symbol (anything beginning with `--`) as a normal token.
@@ -81,39 +78,50 @@ fn nextTokenSpan(self: *Self) ?Span {
 }
 
 fn tryAtomic(self: *Self) ?Span {
-    if (!self.expectNonWhitespace().isAtomic()) {
+    assert(!self.isEnd());
+
+    const char = self.peekChar() orelse unreachable;
+    assert(!char.isWhitespace());
+    if (!char.isAtomic()) {
         return null;
     }
-    // self.index += 1;
-    return Span.new(self.getIndex() - 1, 1).withOffset(self.statement.offset);
+
+    const start = self.getIndex();
+    _ = self.nextChar();
+
+    return Span.fromBounds(start, self.getIndex())
+        .withOffset(self.statement.offset);
 }
 
 fn expectCombination(self: *Self) Span {
-    assert(!self.peekChar().?.isWhitespace());
+    assert(!self.isEnd());
 
     const start = self.getIndex();
-    // self.index += 1;
-    while (self.peekChar()) |ch| {
-        if (ch.isWhitespace() or ch.isAtomic()) {
+    const first = self.nextChar() orelse unreachable;
+    assert(!first.isWhitespace());
+
+    while (self.peekChar()) |char| {
+        if (char.isWhitespace() or char.isAtomic()) {
             break;
         }
-        // self.index += 1;
+        _ = self.nextChar();
     }
-    return Span.fromBounds(start, self.getIndex()).withOffset(self.statement.offset);
+
+    return Span.fromBounds(start, self.getIndex())
+        .withOffset(self.statement.offset);
 }
 
 fn advanceUntilNonwhitespace(self: *Self) void {
-    while (self.peekChar()) |ch| {
-        if (!ch.isWhitespace()) {
+    while (self.peekChar()) |char| {
+        if (!char.isWhitespace()) {
             break;
         }
-        // self.index += 1;
+        _ = self.nextChar();
     }
 }
 
-fn advanceUntilLinebreak(self: *Self) void {
-    while (self.peekChar()) |char| {
-        // self.index += 1;
+fn advanceUntilNextLine(self: *Self) void {
+    while (self.nextChar()) |char| {
         if (char.isLinebreak()) {
             break;
         }

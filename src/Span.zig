@@ -44,6 +44,7 @@ pub fn end(self: Self) usize {
     return self.offset + self.length;
 }
 
+// TODO(refactor): Rename `addOffset`
 pub fn withOffset(self: Self, offset: usize) Self {
     return .{
         .offset = self.offset + offset,
@@ -51,7 +52,6 @@ pub fn withOffset(self: Self, offset: usize) Self {
     };
 }
 
-// TODO(refactor): Use `Context`
 pub fn in(self: *const Self, context: *const Context) []const u8 {
     return context.text[self.offset..][0..self.length];
 }
