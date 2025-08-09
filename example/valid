@@ -29,3 +29,5 @@ Apply4 = Apply2
 	Apply2
 
 	Apply2
+
+α = \β. β

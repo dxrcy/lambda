@@ -62,7 +62,7 @@ pub fn tryDeclaration(self: *Self, terms: *TermStore) Allocator.Error!?Decl {
 
     // Any trailing characters should have already been handled (including
     // unmatched right paren)
-    assert(self.nextToken() == null);
+    assert(self.nextToken().? == null);
 
     return Decl{
         .name = name,
@@ -126,7 +126,7 @@ fn tryTermSingle(self: *Self, comptime allow_end: bool, comptime in_group: bool,
                 self.getContext(),
             );
         }
-        return null;
+        return SomeNull(TermIndex);
     };
 
     switch (left.kind) {

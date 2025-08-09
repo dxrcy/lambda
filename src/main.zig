@@ -55,9 +55,6 @@ pub fn main() !void {
     }
     if (!Reporter.isEmpty()) return;
 
-    std.debug.print("Done\n", .{});
-    debug.printDeclarations(decls.items, &terms, &context);
-
     {
         symbols.checkDeclarationCollisions(
             decls.items,
