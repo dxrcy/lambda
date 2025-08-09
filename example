@@ -2,14 +2,19 @@
 T = \x. \y. x
 F = \x. \y. y
 
-& = \p. (\q. p q p . x)
+& = \p. (\q. p q p 💛. x)
 & = \p. (\q. p q p ) x)
 & = \p. (\q. p q p ) x.
 | = \p. \q. p p q
 ~ = \p. p F T
 
-0 = \f. \T. x
+0 = \f. \T. 🍎 x
 S = \n. \f. \x. f (n f x)
+
+x = \x
+x = 
+
+xx = a α b β c
 
 + = \m. \n. m S n
 * = \m. \n. m (+ n) 0

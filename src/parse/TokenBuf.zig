@@ -9,11 +9,8 @@ const Token = @import("Token.zig");
 tokenizer: Tokenizer,
 peeked: ?Token,
 
-pub fn new(stmt: Span, context: *const Context) Self {
-    return .{
-        .tokenizer = Tokenizer.new(stmt, context),
-        .peeked = null,
-    };
+pub fn new(tokenizer: Tokenizer) Self {
+    return .{ .tokenizer = tokenizer, .peeked = null };
 }
 
 pub fn next(self: *Self) ?Token {

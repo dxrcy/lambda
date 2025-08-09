@@ -44,14 +44,13 @@ pub fn end(self: Self) usize {
     return self.offset + self.length;
 }
 
-pub fn withOffset(self: Self, offset: usize) Self {
+pub fn addOffset(self: Self, offset: usize) Self {
     return .{
         .offset = self.offset + offset,
         .length = self.length,
     };
 }
 
-// TODO(refactor): Use `Context`
 pub fn in(self: *const Self, context: *const Context) []const u8 {
     return context.text[self.offset..][0..self.length];
 }

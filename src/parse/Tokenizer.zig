@@ -3,6 +3,7 @@ const Self = @This();
 const std = @import("std");
 const assert = std.debug.assert;
 const ArrayList = std.ArrayList;
+const unicode = std.unicode;
 
 const Context = @import("../Context.zig");
 const Span = @import("../Span.zig");
@@ -15,13 +16,15 @@ const Token = @import("Token.zig");
 
 context: *const Context,
 statement: Span,
-index: usize,
+char_iter: unicode.Utf8Iterator,
 
-pub fn new(stmt: Span, context: *const Context) Self {
+pub fn new(statement: Span, context: *const Context) Self {
+    // Text should have already been checked as valid UTF-8
+    const view = unicode.Utf8View.init(statement.in(context)) catch unreachable;
     return .{
         .context = context,
-        .statement = stmt,
-        .index = 0,
+        .statement = statement,
+        .char_iter = view.iterator(),
     };
 }
 
@@ -29,11 +32,37 @@ pub fn next(self: *Self) ?Token {
     while (true) {
         const span = self.nextTokenSpan() orelse return null;
         if (std.mem.startsWith(u8, span.in(self.context), "--")) {
-            self.advanceUntilLinebreak();
+            self.advanceUntilNextLine();
             continue;
         }
         return Token.new(span, self.context);
     }
+}
+
+/// Byte index *within statement*.
+fn getIndex(self: *const Self) usize {
+    return self.char_iter.i;
+}
+
+fn isEnd(self: *Self) bool {
+    return self.char_iter.i >= self.char_iter.bytes.len;
+}
+
+fn peekChar(self: *Self) ?TokenChar {
+    if (self.isEnd()) {
+        return null;
+    }
+
+    const bytes = self.char_iter.peek(1);
+    assert(bytes.len > 0 and bytes.len <= 4);
+
+    const codepoint = unicode.utf8Decode(bytes) catch unreachable;
+    return TokenChar.from(codepoint);
+}
+
+fn nextChar(self: *Self) ?TokenChar {
+    const codepoint = self.char_iter.nextCodepoint() orelse return null;
+    return TokenChar.from(codepoint);
 }
 
 /// Treats comment symbol (anything beginning with `--`) as a normal token.
@@ -46,59 +75,52 @@ fn nextTokenSpan(self: *Self) ?Span {
 }
 
 fn tryAtomic(self: *Self) ?Span {
-    if (!self.expectNonWhitespace().isAtomic()) {
+    assert(!self.isEnd());
+
+    const char = self.peekChar() orelse unreachable;
+    assert(!char.isWhitespace());
+    if (!char.isAtomic()) {
         return null;
     }
-    self.index += 1;
-    return Span.new(self.index - 1, 1).withOffset(self.statement.offset);
+
+    const start = self.getIndex();
+    _ = self.nextChar();
+
+    return Span.fromBounds(start, self.getIndex())
+        .addOffset(self.statement.offset);
 }
 
 fn expectCombination(self: *Self) Span {
-    assert(!self.peekChar().?.isWhitespace());
+    assert(!self.isEnd());
 
-    const start = self.index;
-    self.index += 1;
-    while (self.peekChar()) |ch| {
-        if (ch.isWhitespace() or ch.isAtomic()) {
+    const start = self.getIndex();
+    const first = self.nextChar() orelse unreachable;
+    assert(!first.isWhitespace());
+
+    while (self.peekChar()) |char| {
+        if (char.isWhitespace() or char.isAtomic()) {
             break;
         }
-        self.index += 1;
+        _ = self.nextChar();
     }
-    return Span.fromBounds(start, self.index).withOffset(self.statement.offset);
+
+    return Span.fromBounds(start, self.getIndex())
+        .addOffset(self.statement.offset);
 }
 
 fn advanceUntilNonwhitespace(self: *Self) void {
-    while (self.peekChar()) |ch| {
-        if (!ch.isWhitespace()) {
+    while (self.peekChar()) |char| {
+        if (!char.isWhitespace()) {
             break;
         }
-        self.index += 1;
+        _ = self.nextChar();
     }
 }
 
-fn advanceUntilLinebreak(self: *Self) void {
-    while (self.peekChar()) |char| {
-        self.index += 1;
+fn advanceUntilNextLine(self: *Self) void {
+    while (self.nextChar()) |char| {
         if (char.isLinebreak()) {
             break;
         }
     }
-}
-
-fn peekChar(self: *const Self) ?TokenChar {
-    if (self.isEnd()) {
-        return null;
-    }
-    return TokenChar.new(self.context.text[self.statement.offset + self.index]);
-}
-
-fn expectNonWhitespace(self: *const Self) TokenChar {
-    assert(!self.isEnd());
-    const first = self.peekChar() orelse unreachable;
-    assert(!first.isWhitespace());
-    return first;
-}
-
-fn isEnd(self: *const Self) bool {
-    return self.index >= self.statement.length;
 }

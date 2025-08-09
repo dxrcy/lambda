@@ -1,29 +1,24 @@
 const Self = @This();
-const std = @import("std");
 
-value: u8,
-
-// TODO(feat): Support UTF-8 !!!
+codepoint: u21,
 
 pub const Kind = enum {
     Atomic,
     Combining,
     Whitespace,
     Control,
-    NonAscii,
 };
 
-pub fn new(value: u8) Self {
-    std.debug.assert(value != '_');
-    return .{ .value = value };
+pub fn from(codepoint: u21) Self {
+    return .{ .codepoint = codepoint };
 }
 
 pub fn kind(self: *const Self) Kind {
-    return switch (self.value) {
+    return switch (self.codepoint) {
         ' ', '\t'...'\r' => .Whitespace,
         0x00...0x08, 0x0e...0x1f, 0x7f => .Control,
         '\\', '.', ',', ';', '(', ')', '[', ']', '{', '}' => .Atomic,
-        else => |char| if (char > 0x80) .NonAscii else .Combining,
+        else => .Combining,
     };
 }
 
@@ -34,5 +29,5 @@ pub fn isAtomic(self: *const Self) bool {
     return self.kind() == .Atomic;
 }
 pub fn isLinebreak(self: *const Self) bool {
-    return self.value == '\n';
+    return self.codepoint == '\n';
 }
