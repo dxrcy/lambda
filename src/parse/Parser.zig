@@ -41,7 +41,7 @@ pub fn tryDeclaration(self: *Self, terms: *TermStore) Allocator.Error!?Decl {
     const index = try self.expectTermGreedy(false, terms) orelse return null;
     // Any trailing characters should have already been handled (including
     // unmatched right paren)
-    assert((self.tryNext() orelse return null) == null);
+    assert((self.nextToken() orelse return null) == null);
 
     return Decl{
         .name = name,
@@ -56,7 +56,7 @@ fn expectTermGreedy(self: *Self, comptime in_group: bool, terms: *TermStore) All
     // Keep taking following terms until [end of group or statement]
     var parent = left;
     while (true) {
-        if (self.peekIsTokenKind(.ParenRight)) |right_paren| {
+        if (self.peekTokenIfKind(.ParenRight)) |right_paren| {
             if (!in_group) {
                 Reporter.report(
                     "unexpected token",
@@ -89,7 +89,7 @@ fn expectTermGreedy(self: *Self, comptime in_group: bool, terms: *TermStore) All
 }
 
 fn tryTermSingle(self: *Self, comptime allow_end: bool, comptime in_group: bool, terms: *TermStore) Allocator.Error!?TermIndex {
-    const left = (self.tryNext() orelse return null) orelse {
+    const left = (self.nextToken() orelse return null) orelse {
         if (!allow_end) {
             Reporter.report(
                 "unexpected end of statement",
@@ -162,7 +162,7 @@ fn tryTermSingle(self: *Self, comptime allow_end: bool, comptime in_group: bool,
 }
 
 fn expectIdentOrEnd(self: *Self) ?Span {
-    const token = (self.tryNext() orelse return null) orelse return null;
+    const token = (self.nextToken() orelse return null) orelse return null;
     if (token.kind != .Ident) {
         Reporter.report(
             "unexpected token",
@@ -180,7 +180,7 @@ fn expectIdentOrEnd(self: *Self) ?Span {
 }
 
 fn expectTokenKind(self: *Self, kind: Token.Kind) ?Span {
-    const token = (self.tryNext() orelse return null) orelse {
+    const token = (self.nextToken() orelse return null) orelse {
         Reporter.report(
             "unexpected end of statement",
             "expected {s}",
@@ -206,9 +206,8 @@ fn expectTokenKind(self: *Self, kind: Token.Kind) ?Span {
     return token.span;
 }
 
-// TODO(refactor): Rename
-fn peekIsTokenKind(self: *Self, kind: Token.Kind) ?Span {
-    if (self.peek()) |token| {
+fn peekTokenIfKind(self: *Self, kind: Token.Kind) ?Span {
+    if (self.peekToken()) |token| {
         if (token.kind == kind) {
             return token.span;
         }
@@ -216,13 +215,12 @@ fn peekIsTokenKind(self: *Self, kind: Token.Kind) ?Span {
     return null;
 }
 
-// TODO(refactor): Rename `peekToken`
-fn peek(self: *Self) ?Token {
+fn peekToken(self: *Self) ?Token {
     // Only validate token when actually consuming with `nextToken`
     return self.token_buf.peek();
 }
-// TODO(refactor): Rename `nextToken`
-fn tryNext(self: *Self) ??Token {
+
+fn nextToken(self: *Self) ??Token {
     const token = self.token_buf.next() orelse {
         return @as(?Token, null); // Some(null)
     };
