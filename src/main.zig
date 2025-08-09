@@ -26,7 +26,7 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const filepath = "example";
+    const filepath = "example/valid";
     const text = try utils.readFile(filepath, allocator);
     defer text.deinit();
 
@@ -55,8 +55,8 @@ pub fn main() !void {
     }
     if (!Reporter.isEmpty()) return;
 
-    // std.debug.print("Done\n", .{});
-    // debug.printDeclarations(decls.items, &terms, &context);
+    std.debug.print("Done\n", .{});
+    debug.printDeclarations(decls.items, &terms, &context);
 
     {
         symbols.checkDeclarationCollisions(
