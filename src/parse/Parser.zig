@@ -15,12 +15,14 @@ const TermStore = model.TermStore;
 const Term = model.Term;
 
 const TokenBuf = @import("TokenBuf.zig");
+const Tokenizer = @import("Tokenizer.zig");
 const Token = @import("Token.zig");
 
 token_buf: TokenBuf,
 
+/// Assumes valid UTF-8.
 pub fn new(stmt: Span, context: *const Context) Self {
-    return .{ .token_buf = TokenBuf.new(stmt, context) };
+    return .{ .token_buf = TokenBuf.new(Tokenizer.new(stmt, context)) };
 }
 
 fn getContext(self: *const Self) *const Context {

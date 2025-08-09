@@ -7,6 +7,7 @@ const Span = @import("Span.zig");
 var count: usize = 0;
 
 pub const Layout = union(enum) {
+    file: void,
     token: Span,
     statement: Span,
     statement_end: Span,
@@ -33,6 +34,7 @@ pub fn report(
 ) void {
     count += 1;
 
+    comptime assert(kind.len > 0);
     setStyle(.{ .Bold, .Underline, .FgRed });
     std.debug.print("Error", .{});
     setStyle(.{ .Reset, .Bold, .FgRed });
@@ -41,13 +43,18 @@ pub fn report(
     std.debug.print(kind, .{});
     std.debug.print(".\n", .{});
 
-    setStyle(.{ .Reset, .FgRed });
-    printIndent(1);
-    std.debug.print(description, args);
-    std.debug.print(".\n", .{});
-    setStyle(.{.Reset});
+    if (description.len > 0) {
+        setStyle(.{ .Reset, .FgRed });
+        printIndent(1);
+        std.debug.print(description, args);
+        std.debug.print(".\n", .{});
+        setStyle(.{.Reset});
+    }
 
     switch (layout) {
+        .file => {
+            printFileLabel("bytes in file", context);
+        },
         .token => |token| {
             printSpan("token", token, context);
         },
@@ -74,15 +81,26 @@ fn printIndent(comptime depth: usize) void {
     std.debug.print(INDENT ** depth, .{});
 }
 
-fn printSpan(comptime label: []const u8, span: Span, context: *const Context) void {
+fn printLabel(comptime format: []const u8, args: anytype) void {
     setStyle(.{ .FgWhite, .Dim });
     printIndent(1);
-    std.debug.print("({s}:{}) {s}:\n", .{
+    std.debug.print(format, args);
+    setStyle(.{.Reset});
+}
+
+fn printFileLabel(comptime label: []const u8, context: *const Context) void {
+    printLabel("({s}) {s}\n", .{
+        context.filepath,
+        label,
+    });
+}
+
+fn printSpan(comptime label: []const u8, span: Span, context: *const Context) void {
+    printLabel("({s}:{}) {s}:\n", .{
         context.filepath,
         context.startingLineOf(span),
         label,
     });
-    setStyle(.{.Reset});
 
     if (span.length == 0) {
         const line = context.getSingleLine(span.offset);

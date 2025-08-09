@@ -2,7 +2,7 @@
 T = \x. \y. x
 F = \x. \y. y
 
-& = \p. (\q. p q p . x)
+& = \p. (\q. p q p 💛. x)
 & = \p. (\q. p q p ) x)
 & = \p. (\q. p q p ) x.
 | = \p. \q. p p q

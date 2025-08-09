@@ -35,6 +35,9 @@ pub fn main() !void {
         .text = text.items,
     };
 
+    checkUtf8(&context);
+    if (!Reporter.isEmpty()) return;
+
     var decls = ArrayList(Decl).init(allocator);
     defer decls.deinit();
 
@@ -51,6 +54,9 @@ pub fn main() !void {
         }
     }
     // if (!Reporter.isEmpty()) return;
+
+    // std.debug.print("Done\n", .{});
+    // debug.printDeclarations(decls.items, &terms, &context);
 
     {
         symbols.checkDeclarationCollisions(
@@ -76,4 +82,16 @@ pub fn main() !void {
     if (!Reporter.isEmpty()) return;
 
     debug.printDeclarations(decls.items, &terms, &context);
+}
+
+fn checkUtf8(context: *const Context) void {
+    if (!std.unicode.utf8ValidateSlice(context.text)) {
+        Reporter.report(
+            "file contains invalid UTF-8 bytes",
+            "",
+            .{},
+            .{ .file = {} },
+            context,
+        );
+    }
 }

@@ -17,13 +17,11 @@ const Token = @import("Token.zig");
 
 context: *const Context,
 statement: Span,
-
 char_iter: Utf8Iterator,
 
 pub fn new(statement: Span, context: *const Context) Self {
-    const view = Utf8View.init(statement.in(context)) catch {
-        std.debug.panic("invalid utf8", .{});
-    };
+    // Text should have already been checked as valid UTF-8
+    const view = Utf8View.init(statement.in(context)) catch unreachable;
     return .{
         .context = context,
         .statement = statement,
