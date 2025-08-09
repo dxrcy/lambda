@@ -36,12 +36,27 @@ fn getStatement(self: *const Self) Span {
 pub fn tryDeclaration(self: *Self, terms: *TermStore) Allocator.Error!?Decl {
     const name = self.expectIdentOrEnd() orelse {
         return null;
+    } orelse {
+        return null;
     };
-    _ = self.expectTokenKind(.Equals) orelse return null;
-    const index = try self.expectTermGreedy(false, terms) orelse return null;
+    _ = self.expectTokenKind(.Equals) orelse {
+        return null;
+    } orelse {
+        return null;
+    };
+
+    const index = try self.expectTermGreedy(false, terms) orelse {
+        return null;
+    } orelse {
+        return null;
+    };
+
     // Any trailing characters should have already been handled (including
     // unmatched right paren)
-    assert((self.nextToken() orelse return null) == null);
+    const last = self.nextToken() orelse {
+        return null;
+    };
+    assert(last == null);
 
     return Decl{
         .name = name,
@@ -49,8 +64,19 @@ pub fn tryDeclaration(self: *Self, terms: *TermStore) Allocator.Error!?Decl {
     };
 }
 
-fn expectTermGreedy(self: *Self, comptime in_group: bool, terms: *TermStore) Allocator.Error!?TermIndex {
-    const left = try self.tryTermSingle(false, in_group, terms) orelse return null;
+fn NullNull(T: type) ??T {
+    return @as(??T, null);
+}
+fn SomeNull(T: type) ?T {
+    return @as(?T, null);
+}
+
+fn expectTermGreedy(self: *Self, comptime in_group: bool, terms: *TermStore) Allocator.Error!??TermIndex {
+    const left = try self.tryTermSingle(false, in_group, terms) orelse {
+        return NullNull(TermIndex);
+    } orelse {
+        return SomeNull(TermIndex);
+    };
     const left_span = terms.get(left).span;
 
     // Keep taking following terms until [end of group or statement]
@@ -68,13 +94,17 @@ fn expectTermGreedy(self: *Self, comptime in_group: bool, terms: *TermStore) All
                     } },
                     self.getContext(),
                 );
-                return null;
+                return NullNull(TermIndex);
             }
             break;
         }
+
         const right = try self.tryTermSingle(true, in_group, terms) orelse {
+            return NullNull(TermIndex);
+        } orelse {
             break;
         };
+
         parent = try terms.append(Term{
             .span = left_span.join(terms.get(right).span),
             .value = .{
@@ -88,7 +118,7 @@ fn expectTermGreedy(self: *Self, comptime in_group: bool, terms: *TermStore) All
     return parent;
 }
 
-fn tryTermSingle(self: *Self, comptime allow_end: bool, comptime in_group: bool, terms: *TermStore) Allocator.Error!?TermIndex {
+fn tryTermSingle(self: *Self, comptime allow_end: bool, comptime in_group: bool, terms: *TermStore) Allocator.Error!??TermIndex {
     const left = (self.nextToken() orelse return null) orelse {
         if (!allow_end) {
             Reporter.report(
@@ -113,10 +143,22 @@ fn tryTermSingle(self: *Self, comptime allow_end: bool, comptime in_group: bool,
         },
 
         .Backslash => {
-            const parameter = self.expectTokenKind(.Ident) orelse return null;
-            _ = self.expectTokenKind(.Dot) orelse return null;
+            const parameter = self.expectTokenKind(.Ident) orelse {
+                return NullNull(TermIndex);
+            } orelse {
+                return SomeNull(TermIndex);
+            };
+            _ = self.expectTokenKind(.Dot) orelse {
+                return NullNull(TermIndex);
+            } orelse {
+                return SomeNull(TermIndex);
+            };
 
-            const right = try self.expectTermGreedy(in_group, terms) orelse return null;
+            const right = try self.expectTermGreedy(in_group, terms) orelse {
+                return NullNull(TermIndex);
+            } orelse {
+                return SomeNull(TermIndex);
+            };
 
             return try terms.append(Term{
                 .span = left.span.join(terms.get(right).span),
@@ -130,8 +172,17 @@ fn tryTermSingle(self: *Self, comptime allow_end: bool, comptime in_group: bool,
         },
 
         .ParenLeft => {
-            const inner = try self.expectTermGreedy(true, terms) orelse return null;
-            const right_paren = self.expectTokenKind(.ParenRight) orelse return null;
+            const inner = try self.expectTermGreedy(true, terms) orelse {
+                return NullNull(TermIndex);
+            } orelse {
+                return SomeNull(TermIndex);
+            };
+
+            const right_paren = self.expectTokenKind(.ParenRight) orelse {
+                return NullNull(TermIndex);
+            } orelse {
+                return SomeNull(TermIndex);
+            };
 
             return try terms.append(Term{
                 .span = left.span.join(right_paren),
@@ -156,13 +207,17 @@ fn tryTermSingle(self: *Self, comptime allow_end: bool, comptime in_group: bool,
                 } },
                 self.getContext(),
             );
-            return null;
+            return NullNull(TermIndex);
         },
     }
 }
 
-fn expectIdentOrEnd(self: *Self) ?Span {
-    const token = (self.nextToken() orelse return null) orelse return null;
+fn expectIdentOrEnd(self: *Self) ??Span {
+    const token = self.nextToken() orelse {
+        return NullNull(Span);
+    } orelse {
+        return SomeNull(Span);
+    };
     if (token.kind != .Ident) {
         Reporter.report(
             "unexpected token",
@@ -174,13 +229,15 @@ fn expectIdentOrEnd(self: *Self) ?Span {
             } },
             self.getContext(),
         );
-        return null;
+        return NullNull(Span);
     }
     return token.span;
 }
 
-fn expectTokenKind(self: *Self, kind: Token.Kind) ?Span {
-    const token = (self.nextToken() orelse return null) orelse {
+fn expectTokenKind(self: *Self, kind: Token.Kind) ??Span {
+    const token = self.nextToken() orelse {
+        return NullNull(Span);
+    } orelse {
         Reporter.report(
             "unexpected end of statement",
             "expected {s}",
@@ -188,7 +245,7 @@ fn expectTokenKind(self: *Self, kind: Token.Kind) ?Span {
             .{ .statement_end = self.getStatement() },
             self.getContext(),
         );
-        return null;
+        return NullNull(Span);
     };
     if (token.kind != kind) {
         Reporter.report(
@@ -201,7 +258,7 @@ fn expectTokenKind(self: *Self, kind: Token.Kind) ?Span {
             } },
             self.getContext(),
         );
-        return null;
+        return SomeNull(Span);
     }
     return token.span;
 }
@@ -222,10 +279,10 @@ fn peekToken(self: *Self) ?Token {
 
 fn nextToken(self: *Self) ??Token {
     const token = self.token_buf.next() orelse {
-        return @as(?Token, null); // Some(null)
+        return SomeNull(Token);
     };
     if (!self.validateToken(token)) {
-        return null;
+        return NullNull(Token);
     }
     return token;
 }
@@ -258,6 +315,7 @@ fn findDisallowedCharacter(value: []const u8) ?u21 {
         switch (codepoint) {
             // TODO(feat): Support more characters
             ' ', '\t'...'\r' => unreachable,
+            'α' => {},
             0x21...0x7e => {},
             else => return codepoint,
         }

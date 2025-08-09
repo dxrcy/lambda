@@ -14,6 +14,8 @@ S = \n. \f. \x. f (n f x)
 x = \x
 x = 
 
+xx = a α b β c
+
 + = \m. \n. m S n
 * = \m. \n. m (+ n) 0
 ^ = \b. \e. e b
