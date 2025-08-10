@@ -22,7 +22,7 @@ const LocalStore = symbols.LocalStore;
 
 const debug = @import("debug.zig");
 
-pub fn main() !void {
+pub fn main() Allocator.Error!void {
     var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
@@ -30,12 +30,16 @@ pub fn main() !void {
     var args = std.process.args();
     _ = args.next();
 
+    errdefer Reporter.Output.flush();
+
     const filepath = args.next() orelse {
-        std.debug.print("Please provide a file path.\n", .{});
-        return;
+        Reporter.reportFatal("no filepath argument was provided", "", .{});
     };
 
-    const text = try utils.readFile(filepath, allocator);
+    // TODO(feat): Include filepath in report
+    const text = utils.readFile(filepath, allocator) catch |err| {
+        Reporter.reportFatal("failed to read file", "{}", .{err});
+    };
     defer text.deinit();
 
     const context = Context{
@@ -43,8 +47,17 @@ pub fn main() !void {
         .text = text.items,
     };
 
-    checkUtf8(&context);
-    if (!Reporter.isEmpty()) return;
+    if (!std.unicode.utf8ValidateSlice(context.text)) {
+        // To include context filepath
+        Reporter.report(
+            "file contains invalid UTF-8 bytes",
+            "",
+            .{},
+            .{ .file = {} },
+            &context,
+        );
+        Reporter.checkFatal();
+    }
 
     var decls = ArrayList(Decl).init(allocator);
     defer decls.deinit();
@@ -66,7 +79,8 @@ pub fn main() !void {
             }
         }
     }
-    if (!Reporter.isEmpty()) return;
+
+    Reporter.checkFatal();
 
     {
         var locals = LocalStore.init(allocator);
@@ -101,7 +115,8 @@ pub fn main() !void {
         }
         std.debug.assert(locals.isEmpty());
     }
-    if (!Reporter.isEmpty()) return;
+
+    Reporter.checkFatal();
 
     debug.printDeclarations(decls.items, &terms, &context);
     debug.printQueries(queries.items, &terms, &context);
@@ -139,16 +154,4 @@ fn evaluateTerm(index: model.TermIndex, terms: *const TermStore, decls: []const 
             unreachable;
         },
     };
-}
-
-fn checkUtf8(context: *const Context) void {
-    if (!std.unicode.utf8ValidateSlice(context.text)) {
-        Reporter.report(
-            "file contains invalid UTF-8 bytes",
-            "",
-            .{},
-            .{ .file = {} },
-            context,
-        );
-    }
 }
