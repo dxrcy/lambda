@@ -36,6 +36,7 @@ pub fn main() Allocator.Error!void {
         Reporter.reportFatal("no filepath argument was provided", "", .{});
     };
 
+    // TODO(feat): Include filepath in report
     const text = utils.readFile(filepath, allocator) catch |err| {
         Reporter.reportFatal("failed to read file", "{}", .{err});
     };
