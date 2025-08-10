@@ -30,6 +30,8 @@ pub fn main() Allocator.Error!void {
     var args = std.process.args();
     _ = args.next();
 
+    errdefer Reporter.Output.flush();
+
     const filepath = args.next() orelse {
         Reporter.reportFatal("no filepath argument was provided", "", .{});
     };
@@ -44,9 +46,17 @@ pub fn main() Allocator.Error!void {
         .text = text.items,
     };
 
-    checkUtf8(&context);
-
-    Reporter.checkFatal();
+    if (!std.unicode.utf8ValidateSlice(context.text)) {
+        // To include context filepath
+        Reporter.report(
+            "file contains invalid UTF-8 bytes",
+            "",
+            .{},
+            .{ .file = {} },
+            &context,
+        );
+        Reporter.checkFatal();
+    }
 
     var decls = ArrayList(Decl).init(allocator);
     defer decls.deinit();
@@ -115,16 +125,4 @@ pub fn main() Allocator.Error!void {
 
     debug.printDeclarations(decls.items, &terms, &context);
     debug.printQueries(queries.items, &terms, &context);
-}
-
-fn checkUtf8(context: *const Context) void {
-    if (!std.unicode.utf8ValidateSlice(context.text)) {
-        Reporter.report(
-            "file contains invalid UTF-8 bytes",
-            "",
-            .{},
-            .{ .file = {} },
-            context,
-        );
-    }
 }

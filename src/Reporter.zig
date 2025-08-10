@@ -1,12 +1,28 @@
 const std = @import("std");
+const io = std.io;
 const assert = std.debug.assert;
 
 const Context = @import("Context.zig");
 const Span = @import("Span.zig");
 
-var count: usize = 0;
+var accumulated_count: usize = 0;
 
-// TODO(feat): Use proper stderr handle
+/// Call `flush` at the end of public functions.
+pub const Output = struct {
+    var stderr = io.bufferedWriter(io.getStdErr().writer());
+
+    fn print(comptime format: []const u8, args: anytype) void {
+        stderr.writer().print(format, args) catch |err| {
+            std.debug.panic("failed to write to buffered stderr: {}", .{err});
+        };
+    }
+
+    pub fn flush() void {
+        stderr.flush() catch |err| {
+            std.debug.panic("failed to flush buffered stderr: {}", .{err});
+        };
+    }
+};
 
 pub const Layout = union(enum) {
     file: void,
@@ -23,8 +39,16 @@ pub const Layout = union(enum) {
     },
 };
 
-pub fn isEmpty() bool {
-    return count == 0;
+// TODO(refactor): Rename
+pub fn checkFatal() void {
+    if (accumulated_count == 0) {
+        return;
+    }
+    reportFatal(
+        "unable to continue",
+        "{} errors occurred",
+        .{accumulated_count},
+    );
 }
 
 pub fn reportFatal(
@@ -34,29 +58,8 @@ pub fn reportFatal(
 ) noreturn {
     printErrorHeading(kind);
     printErrorDescription(description, args);
+    Output.flush();
     std.process.exit(1);
-}
-
-// TODO(refactor): Rename
-pub fn checkFatal() void {
-    if (count == 0) {
-        return;
-    }
-    reportFatal(
-        "unable to continue",
-        "{} errors occurred",
-        .{count},
-    );
-}
-
-pub fn reportNoContext(
-    comptime kind: []const u8,
-    comptime description: []const u8,
-    args: anytype,
-) void {
-    count += 1;
-    printErrorHeading(kind);
-    printErrorDescription(description, args);
 }
 
 pub fn report(
@@ -66,7 +69,11 @@ pub fn report(
     layout: Layout,
     context: *const Context,
 ) void {
-    reportNoContext(kind, description, args);
+    accumulated_count += 1;
+    printErrorHeading(kind);
+    printErrorDescription(description, args);
+
+    defer Output.flush();
 
     switch (layout) {
         .file => {
@@ -97,12 +104,12 @@ fn printErrorHeading(comptime kind: []const u8) void {
     comptime assert(kind.len > 0);
 
     setStyle(.{ .Bold, .Underline, .FgRed });
-    std.debug.print("Error", .{});
+    Output.print("Error", .{});
     setStyle(.{ .Reset, .Bold, .FgRed });
-    std.debug.print(": ", .{});
+    Output.print(": ", .{});
     setStyle(.{ .Reset, .FgRed });
-    std.debug.print(kind, .{});
-    std.debug.print(".\n", .{});
+    Output.print(kind, .{});
+    Output.print(".\n", .{});
     setStyle(.{.Reset});
 }
 
@@ -113,20 +120,20 @@ fn printErrorDescription(comptime description: []const u8, args: anytype) void {
 
     setStyle(.{.FgRed});
     printIndent(1);
-    std.debug.print(description, args);
-    std.debug.print(".\n", .{});
+    Output.print(description, args);
+    Output.print(".\n", .{});
     setStyle(.{.Reset});
 }
 
 fn printIndent(comptime depth: usize) void {
     const INDENT = " " ** 4;
-    std.debug.print(INDENT ** depth, .{});
+    Output.print(INDENT ** depth, .{});
 }
 
 fn printLabel(comptime format: []const u8, args: anytype) void {
     setStyle(.{ .FgWhite, .Dim });
     printIndent(1);
-    std.debug.print(format, args);
+    Output.print(format, args);
     setStyle(.{.Reset});
 }
 
@@ -157,11 +164,11 @@ fn printSpan(comptime label: []const u8, span: Span, context: *const Context) vo
         // TODO(feat): Properly handle multi line tokens/statements
         const border_length = 20;
         setStyle(.{ .Dim, .FgWhite });
-        std.debug.print("~" ** border_length ++ "\n", .{});
+        Output.print("~" ** border_length ++ "\n", .{});
         setStyle(.{ .Reset, .FgYellow });
-        std.debug.print("{s}\n", .{span.in(context)});
+        Output.print("{s}\n", .{span.in(context)});
         setStyle(.{ .Dim, .FgWhite });
-        std.debug.print("~" ** border_length ++ "\n\n", .{});
+        Output.print("~" ** border_length ++ "\n\n", .{});
         setStyle(.{.Reset});
     }
 }
@@ -171,13 +178,13 @@ fn printLineParts(left: Span, right: Span, context: *const Context) void {
 
     printIndent(2);
     setStyle(.{.FgYellow});
-    std.debug.print("{s}", .{left.in(context)});
+    Output.print("{s}", .{left.in(context)});
     setStyle(.{.Bold});
-    std.debug.print("{s}", .{Span.between(left, right).in(context)});
+    Output.print("{s}", .{Span.between(left, right).in(context)});
     setStyle(.{ .Reset, .FgYellow });
-    std.debug.print("{s}", .{right.in(context)});
+    Output.print("{s}", .{right.in(context)});
     setStyle(.{.Reset});
-    std.debug.print("\n", .{});
+    Output.print("\n", .{});
 }
 
 fn printLineHighlight(left: Span, span: Span, context: *const Context) void {
@@ -186,12 +193,12 @@ fn printLineHighlight(left: Span, span: Span, context: *const Context) void {
     setStyle(.{ .Reset, .FgRed });
     printIndent(2);
     for (0..context.charCount(left)) |_| {
-        std.debug.print(" ", .{});
+        Output.print(" ", .{});
     }
     for (0..context.charCount(span)) |_| {
-        std.debug.print("^", .{});
+        Output.print("^", .{});
     }
-    std.debug.print("\n", .{});
+    Output.print("\n", .{});
     setStyle(.{.Reset});
 }
 
@@ -208,6 +215,6 @@ const Style = enum(u8) {
 fn setStyle(comptime styles: anytype) void {
     inline for (styles) |item| {
         const style: Style = item;
-        std.debug.print("\x1b[{}m", .{@intFromEnum(style)});
+        Output.print("\x1b[{}m", .{@intFromEnum(style)});
     }
 }
