@@ -69,14 +69,13 @@ pub fn main() !void {
     if (!Reporter.isEmpty()) return;
 
     {
+        var locals = LocalStore.init(allocator);
+        defer locals.deinit();
+
         symbols.checkDeclarationCollisions(
             decls.items,
             &context,
         );
-
-        // TODO(opt): Reuse local store
-        var locals = LocalStore.init(allocator);
-        defer locals.deinit();
 
         for (decls.items) |*decl| {
             std.debug.assert(locals.isEmpty());
@@ -89,11 +88,6 @@ pub fn main() !void {
             );
         }
         std.debug.assert(locals.isEmpty());
-    }
-
-    {
-        var locals = LocalStore.init(allocator);
-        defer locals.deinit();
 
         for (queries.items) |*query| {
             std.debug.assert(locals.isEmpty());
@@ -107,11 +101,44 @@ pub fn main() !void {
         }
         std.debug.assert(locals.isEmpty());
     }
-
     if (!Reporter.isEmpty()) return;
 
     debug.printDeclarations(decls.items, &terms, &context);
     debug.printQueries(queries.items, &terms, &context);
+
+    // TODO(feat): Check for recursive abstractions, in resolution step
+
+    std.debug.print("Results:\n", .{});
+    {
+        for (queries.items) |*query| {
+            const result = evaluateTerm(query.term, &terms, decls.items);
+            debug.printResult(&result, &terms, &context);
+        }
+    }
+}
+
+fn evaluateTerm(index: model.TermIndex, terms: *const TermStore, decls: []const Decl) model.Result {
+    const term = terms.get(index);
+    return switch (term.value) {
+        .unresolved => unreachable,
+        .local => |local| .{ .local = local },
+        .global => |global| {
+            const decl = decls[global];
+            return evaluateTerm(decl.term, terms, decls);
+        },
+        .group => |inner| evaluateTerm(inner, terms, decls),
+        .abstraction => |abstr| .{
+            .abstraction = abstr,
+        },
+        .application => |appl| {
+            const argument = evaluateTerm(appl.argument, terms, decls);
+            const function = evaluateTerm(appl.function, terms, decls);
+            _ = argument;
+            _ = function;
+            // TODO
+            unreachable;
+        },
+    };
 }
 
 fn checkUtf8(context: *const Context) void {

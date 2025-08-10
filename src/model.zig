@@ -17,6 +17,12 @@ pub const Query = struct {
     term: TermIndex,
 };
 
+pub const Result = union(enum) {
+    local: TermIndex,
+    // global: DeclIndex,
+    abstraction: Term.Kind.Abstr,
+};
+
 pub const Term = struct {
     const Self = @This();
 
