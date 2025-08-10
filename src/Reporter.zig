@@ -27,6 +27,22 @@ pub fn isEmpty() bool {
     return count == 0;
 }
 
+pub fn fatal() noreturn {
+    printErrorHeading("unable to continue");
+    printErrorDescription("{} errors occurred", .{count});
+    std.process.exit(1);
+}
+
+pub fn reportNoContext(
+    comptime kind: []const u8,
+    comptime description: []const u8,
+    args: anytype,
+) void {
+    count += 1;
+    printErrorHeading(kind);
+    printErrorDescription(description, args);
+}
+
 pub fn report(
     comptime kind: []const u8,
     comptime description: []const u8,
@@ -34,24 +50,7 @@ pub fn report(
     layout: Layout,
     context: *const Context,
 ) void {
-    count += 1;
-
-    comptime assert(kind.len > 0);
-    setStyle(.{ .Bold, .Underline, .FgRed });
-    std.debug.print("Error", .{});
-    setStyle(.{ .Reset, .Bold, .FgRed });
-    std.debug.print(": ", .{});
-    setStyle(.{ .Reset, .FgRed });
-    std.debug.print(kind, .{});
-    std.debug.print(".\n", .{});
-
-    if (description.len > 0) {
-        setStyle(.{ .Reset, .FgRed });
-        printIndent(1);
-        std.debug.print(description, args);
-        std.debug.print(".\n", .{});
-        setStyle(.{.Reset});
-    }
+    reportNoContext(kind, description, args);
 
     switch (layout) {
         .file => {
@@ -76,6 +75,31 @@ pub fn report(
             printSpan("redeclaration", value.reference, context);
         },
     }
+}
+
+fn printErrorHeading(comptime kind: []const u8) void {
+    comptime assert(kind.len > 0);
+
+    setStyle(.{ .Bold, .Underline, .FgRed });
+    std.debug.print("Error", .{});
+    setStyle(.{ .Reset, .Bold, .FgRed });
+    std.debug.print(": ", .{});
+    setStyle(.{ .Reset, .FgRed });
+    std.debug.print(kind, .{});
+    std.debug.print(".\n", .{});
+    setStyle(.{.Reset});
+}
+
+fn printErrorDescription(comptime description: []const u8, args: anytype) void {
+    if (description.len == 0) {
+        return;
+    }
+
+    setStyle(.{.FgRed});
+    printIndent(1);
+    std.debug.print(description, args);
+    std.debug.print(".\n", .{});
+    setStyle(.{.Reset});
 }
 
 fn printIndent(comptime depth: usize) void {

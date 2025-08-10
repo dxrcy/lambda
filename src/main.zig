@@ -31,8 +31,12 @@ pub fn main() !void {
     _ = args.next();
 
     const filepath = args.next() orelse {
-        std.debug.print("Please provide a file path.\n", .{});
-        return;
+        Reporter.reportNoContext(
+            "no filepath argument was provided",
+            "",
+            .{},
+        );
+        Reporter.fatal();
     };
 
     const text = try utils.readFile(filepath, allocator);
@@ -66,7 +70,10 @@ pub fn main() !void {
             }
         }
     }
-    if (!Reporter.isEmpty()) return;
+
+    if (!Reporter.isEmpty()) {
+        Reporter.fatal();
+    }
 
     {
         symbols.checkDeclarationCollisions(
@@ -108,7 +115,9 @@ pub fn main() !void {
         std.debug.assert(locals.isEmpty());
     }
 
-    if (!Reporter.isEmpty()) return;
+    if (!Reporter.isEmpty()) {
+        Reporter.fatal();
+    }
 
     debug.printDeclarations(decls.items, &terms, &context);
     debug.printQueries(queries.items, &terms, &context);
