@@ -22,7 +22,7 @@ const LocalStore = symbols.LocalStore;
 
 const debug = @import("debug.zig");
 
-pub fn main() !void {
+pub fn main() Allocator.Error!void {
     var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
@@ -31,19 +31,11 @@ pub fn main() !void {
     _ = args.next();
 
     const filepath = args.next() orelse {
-        Reporter.reportFatal(
-            "no filepath argument was provided",
-            "",
-            .{},
-        );
+        Reporter.reportFatal("no filepath argument was provided", "", .{});
     };
 
     const text = utils.readFile(filepath, allocator) catch |err| {
-        Reporter.reportFatal(
-            "failed to read file",
-            "{}",
-            .{err},
-        );
+        Reporter.reportFatal("failed to read file", "{}", .{err});
     };
     defer text.deinit();
 
