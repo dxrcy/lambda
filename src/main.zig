@@ -31,15 +31,20 @@ pub fn main() !void {
     _ = args.next();
 
     const filepath = args.next() orelse {
-        Reporter.reportNoContext(
+        Reporter.reportFatal(
             "no filepath argument was provided",
             "",
             .{},
         );
-        Reporter.fatal();
     };
 
-    const text = try utils.readFile(filepath, allocator);
+    const text = utils.readFile(filepath, allocator) catch |err| {
+        Reporter.reportFatal(
+            "failed to read file",
+            "{}",
+            .{err},
+        );
+    };
     defer text.deinit();
 
     const context = Context{
@@ -48,7 +53,8 @@ pub fn main() !void {
     };
 
     checkUtf8(&context);
-    if (!Reporter.isEmpty()) return;
+
+    Reporter.checkFatal();
 
     var decls = ArrayList(Decl).init(allocator);
     defer decls.deinit();
@@ -71,9 +77,7 @@ pub fn main() !void {
         }
     }
 
-    if (!Reporter.isEmpty()) {
-        Reporter.fatal();
-    }
+    Reporter.checkFatal();
 
     {
         symbols.checkDeclarationCollisions(
@@ -115,9 +119,7 @@ pub fn main() !void {
         std.debug.assert(locals.isEmpty());
     }
 
-    if (!Reporter.isEmpty()) {
-        Reporter.fatal();
-    }
+    Reporter.checkFatal();
 
     debug.printDeclarations(decls.items, &terms, &context);
     debug.printQueries(queries.items, &terms, &context);

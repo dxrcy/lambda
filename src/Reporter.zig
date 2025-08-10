@@ -27,10 +27,26 @@ pub fn isEmpty() bool {
     return count == 0;
 }
 
-pub fn fatal() noreturn {
-    printErrorHeading("unable to continue");
-    printErrorDescription("{} errors occurred", .{count});
+pub fn reportFatal(
+    comptime kind: []const u8,
+    comptime description: []const u8,
+    args: anytype,
+) noreturn {
+    printErrorHeading(kind);
+    printErrorDescription(description, args);
     std.process.exit(1);
+}
+
+// TODO(refactor): Rename
+pub fn checkFatal() void {
+    if (count == 0) {
+        return;
+    }
+    reportFatal(
+        "unable to continue",
+        "{} errors occurred",
+        .{count},
+    );
 }
 
 pub fn reportNoContext(
