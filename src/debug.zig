@@ -86,7 +86,10 @@ fn printLabel(
         std.debug.print("|" ++ " " ** 5, .{});
     }
     if (prefix.len > 0) {
-        std.debug.print("{s}.", .{prefix});
+        std.debug.print("{s}", .{prefix});
+    }
+    if (prefix.len > 0 and label.len > 0) {
+        std.debug.print(".", .{});
     }
     std.debug.print("{s}: ", .{label});
 }
