@@ -85,7 +85,11 @@ pub fn tryDeclaration(self: *Self, terms: *TermStore) Allocator.Error!?Decl {
     };
 }
 
-fn expectTermGreedy(self: *Self, comptime in_group: bool, terms: *TermStore) Allocator.Error!??TermIndex {
+fn expectTermGreedy(
+    self: *Self,
+    comptime in_group: bool,
+    terms: *TermStore,
+) Allocator.Error!??TermIndex {
     const left = try self.tryTermSingle(false, in_group, terms) orelse
         (return null) orelse return SomeNull(TermIndex);
 
@@ -130,7 +134,12 @@ fn expectTermGreedy(self: *Self, comptime in_group: bool, terms: *TermStore) All
     return parent;
 }
 
-fn tryTermSingle(self: *Self, comptime allow_end: bool, comptime in_group: bool, terms: *TermStore) Allocator.Error!??TermIndex {
+fn tryTermSingle(
+    self: *Self,
+    comptime allow_end: bool,
+    comptime in_group: bool,
+    terms: *TermStore,
+) Allocator.Error!??TermIndex {
     const left = self.nextToken() orelse (return null) orelse {
         if (!allow_end) {
             Reporter.report(

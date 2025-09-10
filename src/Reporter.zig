@@ -144,7 +144,11 @@ fn printFileLabel(comptime label: []const u8, context: *const Context) void {
     });
 }
 
-fn printSpan(comptime label: []const u8, span: Span, context: *const Context) void {
+fn printSpan(
+    comptime label: []const u8,
+    span: Span,
+    context: *const Context,
+) void {
     printLabel("({s}:{}) {s}:\n", .{
         context.filepath,
         context.startingLineOf(span),
