@@ -28,7 +28,7 @@ pub const Kind = enum {
         const KEYWORDS = [_]Candidate{
             .{ "\\", .Backslash },
             .{ ".", .Dot },
-            .{ "=", .Equals },
+            .{ ":=", .Equals },
             .{ "(", .ParenLeft },
             .{ ")", .ParenRight },
             .{ "?", .Query },
@@ -45,7 +45,7 @@ pub const Kind = enum {
         return switch (self) {
             .Backslash => "`\\`",
             .Dot => "`.`",
-            .Equals => "`=`",
+            .Equals => "`:=`",
             .ParenLeft => "`(`",
             .ParenRight => "`)`",
             .Query => "`?`",
