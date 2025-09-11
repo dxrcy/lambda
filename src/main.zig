@@ -122,8 +122,8 @@ pub fn main() Allocator.Error!void {
 
     Reporter.checkFatal();
 
-    debug.printDeclarations(decls.items, &context);
-    debug.printQueries(queries.items, &context);
+    // debug.printDeclarations(decls.items, &context);
+    // debug.printQueries(queries.items, &context);
 
     std.debug.print("Results:\n", .{});
     {
@@ -133,9 +133,9 @@ pub fn main() Allocator.Error!void {
                 0,
                 decls.items,
                 term_allocator.allocator(),
+                &context,
             );
-            _ = result;
-            // debug.printResult(&result, &context);
+            debug.printTerm(result, 0, "", &context);
         }
     }
 }
@@ -147,8 +147,11 @@ fn resolve(
     depth: usize,
     decls: []const Decl,
     term_allocator: Allocator,
+    context: *const Context,
 ) ResolveError!*const Term {
-    const MAX_RESOLVE_RECURSION = 20;
+    const MAX_RESOLVE_RECURSION = 50;
+
+    // std.debug.print("resolve?\n", .{});
 
     if (depth >= MAX_RESOLVE_RECURSION) {
         @panic("max recursion");
@@ -162,22 +165,32 @@ fn resolve(
             depth + 1,
             decls,
             term_allocator,
+            context,
         ),
         .global, .abstraction => return term,
         .application => |appl| appl,
     };
+
+    // std.debug.print("RESOLVE!\n", .{});
 
     switch (appl.function.value) {
         .global, .abstraction, .application => {},
         else => unreachable,
     }
 
+    // std.debug.print("\n\n", .{});
+    // debug.printTerm(appl.function, 0, "PRE-EXPAND", context);
+
     const function_term = try expand_globals_recursively(
         appl.function,
-        depth + 1,
+        depth,
         decls,
         term_allocator,
+        context,
     );
+
+    // debug.printTerm(function_term, 0, "POST-EXPAND", context);
+    // std.debug.print("\n", .{});
 
     const function_abstr = function_term.value.abstraction;
 
@@ -186,9 +199,24 @@ fn resolve(
         function_abstr.body,
         appl.argument,
         term_allocator,
+        context,
     );
 
-    return resolve(result, depth + 1, decls, term_allocator);
+    switch (result.value) {
+        .global, .abstraction, .application => {},
+        else => unreachable,
+    }
+
+    // debug.printTerm(result, 0, "result", context);
+    // std.debug.print("last resolve.\n", .{});
+
+    return resolve(
+        result,
+        depth + 1,
+        decls,
+        term_allocator,
+        context,
+    );
 }
 
 fn expand_globals_recursively(
@@ -196,13 +224,21 @@ fn expand_globals_recursively(
     depth: usize,
     decls: []const Decl,
     term_allocator: Allocator,
+    context: *const Context,
 ) ResolveError!*const Term {
+    // std.debug.print("EXPAND GLOBAL\n", .{});
     const MAX_GLOBAL_EXPAND = 100;
 
     var term = initial_term;
 
     for (0..MAX_GLOBAL_EXPAND) |_| {
-        const product = try resolve(term, depth, decls, term_allocator);
+        const product = try resolve(
+            term,
+            depth + 1,
+            decls,
+            term_allocator,
+            context,
+        );
         term = switch (product.value) {
             .unresolved, .local, .application => unreachable,
             .global => |global| decls[global].term,
@@ -222,13 +258,16 @@ fn beta_reduce(
     substitution_body: *Term,
     substitution_argument: *Term,
     term_allocator: Allocator,
+    context: *const Context,
 ) Allocator.Error!*Term {
     switch (substitution_body.value) {
         .unresolved => unreachable,
-        .global => unreachable,
+        .global => return substitution_body,
         .local => |ptr| {
             if (ptr == abstr_def) {
-                return try substitution_body.clone(term_allocator);
+                // std.debug.print("\n\n----- SUBSTITUTE -----\n", .{});
+                // debug.printTerm(substitution_argument, 0, "SUBSTITUTION-ARGUMENT", context);
+                return try substitution_argument.clone(term_allocator);
             }
             return ptr;
         },
@@ -238,6 +277,7 @@ fn beta_reduce(
                 inner,
                 substitution_argument,
                 term_allocator,
+                context,
             );
         },
         .abstraction => |abstr| {
@@ -246,6 +286,7 @@ fn beta_reduce(
                 abstr.body,
                 substitution_argument,
                 term_allocator,
+                context,
             );
             return try Term.create(substitution_body.span, .{
                 .abstraction = .{
@@ -260,12 +301,14 @@ fn beta_reduce(
                 appl.function,
                 substitution_argument,
                 term_allocator,
+                context,
             );
             const argument = try beta_reduce(
                 abstr_def,
                 appl.argument,
                 substitution_argument,
                 term_allocator,
+                context,
             );
             return try Term.create(substitution_body.span, .{
                 .application = .{

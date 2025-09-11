@@ -29,7 +29,7 @@ pub fn printQueries(
     }
 }
 
-fn printTerm(
+pub fn printTerm(
     term: *const Term,
     depth: usize,
     comptime prefix: []const u8,
