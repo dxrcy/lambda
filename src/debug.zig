@@ -29,6 +29,55 @@ pub fn printQueries(
     }
 }
 
+pub fn printTermAll(
+    comptime label: []const u8,
+    term: *const Term,
+    decls: []const Decl,
+    context: *const Context,
+) void {
+    std.debug.print("\n:: " ++ label ++ " :: \n", .{});
+    std.debug.print("[ ", .{});
+    printTermExpr(term, decls, context);
+    std.debug.print(" ]\n", .{});
+    printTerm(term, 0, "", context);
+    std.debug.print("\n", .{});
+}
+
+pub fn printTermExpr(
+    term: *const Term,
+    decls: []const Decl,
+    context: *const Context,
+) void {
+    switch (term.value) {
+        .unresolved => {
+            std.debug.print("UNRESOLVED", .{});
+        },
+        .local => {
+            std.debug.print("{s}", .{term.span.in(context)});
+        },
+        .global => |index| {
+            std.debug.print("{s}", .{decls[index].name.in(context)});
+        },
+        .group => |inner| {
+            std.debug.print("(", .{});
+            printTermExpr(inner, decls, context);
+            std.debug.print(")", .{});
+        },
+        .abstraction => |abstr| {
+            std.debug.print("(\\{s}. ", .{abstr.parameter.in(context)});
+            printTermExpr(abstr.body, decls, context);
+            std.debug.print(")", .{});
+        },
+        .application => |appl| {
+            std.debug.print("(", .{});
+            printTermExpr(appl.function, decls, context);
+            std.debug.print(" ", .{});
+            printTermExpr(appl.argument, decls, context);
+            std.debug.print(")", .{});
+        },
+    }
+}
+
 pub fn printTerm(
     term: *const Term,
     depth: usize,
@@ -92,20 +141,24 @@ fn printLabel(
 }
 
 fn printSpan(value: []const u8, term_ptr: ?*const Term) void {
-    std.debug.print("`", .{});
-    var was_whitespace = true;
-    for (value) |char| {
-        if (std.ascii.isWhitespace(char)) {
-            if (!was_whitespace) {
-                std.debug.print(" ", .{});
-                was_whitespace = true;
+    if (value.len == 0) {
+        std.debug.print("-", .{});
+    } else {
+        std.debug.print("`", .{});
+        var was_whitespace = true;
+        for (value) |char| {
+            if (std.ascii.isWhitespace(char)) {
+                if (!was_whitespace) {
+                    std.debug.print(" ", .{});
+                    was_whitespace = true;
+                }
+            } else {
+                was_whitespace = false;
+                std.debug.print("{c}", .{char});
             }
-        } else {
-            was_whitespace = false;
-            std.debug.print("{c}", .{char});
         }
+        std.debug.print("`", .{});
     }
-    std.debug.print("`", .{});
 
     if (term_ptr) |ptr| {
         std.debug.print(" {{0x{x:08}}}", .{@intFromPtr(ptr)});

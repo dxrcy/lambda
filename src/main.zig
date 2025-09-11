@@ -147,11 +147,12 @@ fn resolve(
     depth: usize,
     decls: []const Decl,
     term_allocator: Allocator,
+    // debugging
     context: *const Context,
 ) ResolveError!*const Term {
     const MAX_RESOLVE_RECURSION = 50;
 
-    // std.debug.print("resolve?\n", .{});
+    std.debug.print("-- resolve\n", .{});
 
     if (depth >= MAX_RESOLVE_RECURSION) {
         @panic("max recursion");
@@ -171,15 +172,14 @@ fn resolve(
         .application => |appl| appl,
     };
 
-    // std.debug.print("RESOLVE!\n", .{});
+    debug.printTermAll("RESOLVE APPLICATION", term, decls, context);
 
     switch (appl.function.value) {
         .global, .abstraction, .application => {},
         else => unreachable,
     }
 
-    std.debug.print("\n\n", .{});
-    debug.printTerm(appl.function, 0, "PRE-EXPAND-FUNCTION", context);
+    // debug.printTermAll("PRE EXPAND", appl.function, decls, context);
 
     const function_term = try expand_global(
         appl.function,
@@ -189,14 +189,14 @@ fn resolve(
         context,
     );
 
-    debug.printTerm(&Term{
+    const temp = Term{
         .span = Span.new(0, 0),
         .value = .{ .application = .{
             .function = @constCast(function_term),
             .argument = appl.argument,
         } },
-    }, 0, "POST-EXPAND", context);
-    std.debug.print("\n", .{});
+    };
+    debug.printTermAll("POST EXPAND", &temp, decls, context);
 
     const function_abstr = function_term.value.abstraction;
 
@@ -205,15 +205,16 @@ fn resolve(
         function_abstr.body,
         appl.argument,
         term_allocator,
+        decls,
         context,
-    );
+    ) orelse function_abstr.body;
 
-    debug.printTerm(result, 0, "RESULT", context);
-    std.debug.print("\n", .{});
+    debug.printTermAll("RESULT", result, decls, context);
 
     switch (result.value) {
+        .unresolved, .group => unreachable,
+        .local => @panic("local binding should have been beta-reduced already"),
         .global, .abstraction, .application => {},
-        else => unreachable,
     }
 
     return resolve(
@@ -230,14 +231,20 @@ fn expand_global(
     depth: usize,
     decls: []const Decl,
     term_allocator: Allocator,
+    // debugging
     context: *const Context,
 ) ResolveError!*const Term {
-    // std.debug.print("EXPAND GLOBAL\n", .{});
     const MAX_GLOBAL_EXPAND = 100;
+
+    std.debug.print("-- expand?\n", .{});
 
     var term = initial_term;
 
-    for (0..MAX_GLOBAL_EXPAND) |_| {
+    for (0..MAX_GLOBAL_EXPAND) |i| {
+        if (i > 0) {
+            std.debug.print("-- expand!\n", .{});
+        }
+
         const product = try resolve(
             term,
             depth + 1,
@@ -245,6 +252,8 @@ fn expand_global(
             term_allocator,
             context,
         );
+        std.debug.print("-- expansion => {s}\n", .{@tagName(product.value)});
+
         term = switch (product.value) {
             .unresolved, .local, .application => unreachable,
             .global => |global| decls[global].term,
@@ -259,32 +268,43 @@ fn expand_global(
     // return error.MaxRecursion;
 }
 
+/// Returns `null` if no decendant term was substituted; no need to deep-copy.
 fn beta_reduce(
     abstr_def: *const Term,
     substitution_body: *Term,
     substitution_argument: *Term,
     term_allocator: Allocator,
+    // debugging
+    decls: []const Decl,
     context: *const Context,
-) Allocator.Error!*Term {
+) Allocator.Error!?*Term {
+    std.debug.print("-- beta-reduce ", .{});
+    debug.printTermExpr(substitution_body, decls, context);
+    std.debug.print("\n", .{});
+
     switch (substitution_body.value) {
         .unresolved => unreachable,
-        .global => return substitution_body,
+        .global => return null,
         .local => |ptr| {
-            if (ptr == abstr_def) {
-                std.debug.print("\n\n----- SUBSTITUTE -----\n", .{});
-                debug.printTerm(substitution_body, 0, "SUBSTITUTION-BODY", context);
-                debug.printTerm(substitution_argument, 0, "SUBSTITUTION-ARGUMENT", context);
-                std.debug.print("\n", .{});
-                return try substitution_argument.clone(term_allocator);
+            if (ptr != abstr_def) {
+                return null;
             }
-            return substitution_body;
+
+            debug.printTermAll("SUBSTITUTION BODY", substitution_body, decls, context);
+            debug.printTermAll("SUBSTITUTION ARGUMENT", substitution_argument, decls, context);
+
+            // TODO: Is this clone necessary?
+            return try substitution_argument.clone(term_allocator);
         },
         .group => |inner| {
+            // Skip group and return inner term
+            // Since this does not correspond to user text
             return try beta_reduce(
                 abstr_def,
                 inner,
                 substitution_argument,
                 term_allocator,
+                decls,
                 context,
             );
         },
@@ -294,8 +314,11 @@ fn beta_reduce(
                 abstr.body,
                 substitution_argument,
                 term_allocator,
+                decls,
                 context,
-            );
+            ) orelse {
+                return null;
+            };
             return try Term.create(Span.new(0, 0), .{
                 .abstraction = .{
                     .parameter = abstr.parameter,
@@ -309,6 +332,7 @@ fn beta_reduce(
                 appl.function,
                 substitution_argument,
                 term_allocator,
+                decls,
                 context,
             );
             const argument = try beta_reduce(
@@ -316,12 +340,16 @@ fn beta_reduce(
                 appl.argument,
                 substitution_argument,
                 term_allocator,
+                decls,
                 context,
             );
+            if (function == null and argument == null) {
+                return null;
+            }
             return try Term.create(Span.new(0, 0), .{
                 .application = .{
-                    .function = function,
-                    .argument = argument,
+                    .function = function orelse appl.function,
+                    .argument = argument orelse appl.argument,
                 },
             }, term_allocator);
         },
