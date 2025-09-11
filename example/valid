@@ -1,35 +1,7 @@
-T := \x. \y. x
-F := \x. \y. y
+T := \xt. \yt. xt
+F := \xf. \yf. yf
 
-& := \p. \q. p q p
 | := \p. \q. p p q
-~ := \p. p F T
 
-0 := \f. \x. x
-S := \n. \f. \x. f (n f x)
-
-+ := \m. \n. m S n
-* := \m. \n. m (+ n) 0
-^ := \b. \e. e b
-
-P := \n. \f. \x. n
-    (\g. \h. h (g f)) (\u. x) (\u. u)
-- := \m. \n. n P m
-
-Is0 := \n. n (\x. F) T
-<= := \m. \n. Is0 (- m n)
-== := \m. \n. & (<= m n) (<= n m)
-
-Pair := \x. \y. \f. f x y
-Fst := \p. p T
-Snd := \p. p F
-
-Apply2 := \f. \x. f (f x) -- Comment
-Apply4 := Apply2
-	Apply2
-
-	Apply2
-
-α := \β. β
-
+? | F T
 ? | T F

@@ -49,6 +49,7 @@ pub const Term = struct {
     }
 
     /// *Deep-copy* self by allocating and copying children.
+    /// Copy of `.local` refers to *original* abstraction definition
     pub fn clone(self: *Self, allocator: Allocator) Allocator.Error!*Term {
         const copy_value = switch (self.value) {
             .unresolved, .global, .local => self.value,

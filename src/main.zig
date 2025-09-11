@@ -122,8 +122,8 @@ pub fn main() Allocator.Error!void {
 
     Reporter.checkFatal();
 
-    // debug.printDeclarations(decls.items, &context);
-    // debug.printQueries(queries.items, &context);
+    debug.printDeclarations(decls.items, &context);
+    debug.printQueries(queries.items, &context);
 
     std.debug.print("Results:\n", .{});
     {
@@ -178,10 +178,10 @@ fn resolve(
         else => unreachable,
     }
 
-    // std.debug.print("\n\n", .{});
-    // debug.printTerm(appl.function, 0, "PRE-EXPAND", context);
+    std.debug.print("\n\n", .{});
+    debug.printTerm(appl.function, 0, "PRE-EXPAND-FUNCTION", context);
 
-    const function_term = try expand_globals_recursively(
+    const function_term = try expand_global(
         appl.function,
         depth,
         decls,
@@ -189,8 +189,14 @@ fn resolve(
         context,
     );
 
-    // debug.printTerm(function_term, 0, "POST-EXPAND", context);
-    // std.debug.print("\n", .{});
+    debug.printTerm(&Term{
+        .span = Span.new(0, 0),
+        .value = .{ .application = .{
+            .function = @constCast(function_term),
+            .argument = appl.argument,
+        } },
+    }, 0, "POST-EXPAND", context);
+    std.debug.print("\n", .{});
 
     const function_abstr = function_term.value.abstraction;
 
@@ -202,13 +208,13 @@ fn resolve(
         context,
     );
 
+    debug.printTerm(result, 0, "RESULT", context);
+    std.debug.print("\n", .{});
+
     switch (result.value) {
         .global, .abstraction, .application => {},
         else => unreachable,
     }
-
-    // debug.printTerm(result, 0, "result", context);
-    // std.debug.print("last resolve.\n", .{});
 
     return resolve(
         result,
@@ -219,7 +225,7 @@ fn resolve(
     );
 }
 
-fn expand_globals_recursively(
+fn expand_global(
     initial_term: *const Term,
     depth: usize,
     decls: []const Decl,
@@ -265,11 +271,13 @@ fn beta_reduce(
         .global => return substitution_body,
         .local => |ptr| {
             if (ptr == abstr_def) {
-                // std.debug.print("\n\n----- SUBSTITUTE -----\n", .{});
-                // debug.printTerm(substitution_argument, 0, "SUBSTITUTION-ARGUMENT", context);
+                std.debug.print("\n\n----- SUBSTITUTE -----\n", .{});
+                debug.printTerm(substitution_body, 0, "SUBSTITUTION-BODY", context);
+                debug.printTerm(substitution_argument, 0, "SUBSTITUTION-ARGUMENT", context);
+                std.debug.print("\n", .{});
                 return try substitution_argument.clone(term_allocator);
             }
-            return ptr;
+            return substitution_body;
         },
         .group => |inner| {
             return try beta_reduce(
@@ -288,7 +296,7 @@ fn beta_reduce(
                 term_allocator,
                 context,
             );
-            return try Term.create(substitution_body.span, .{
+            return try Term.create(Span.new(0, 0), .{
                 .abstraction = .{
                     .parameter = abstr.parameter,
                     .body = body,
@@ -310,7 +318,7 @@ fn beta_reduce(
                 term_allocator,
                 context,
             );
-            return try Term.create(substitution_body.span, .{
+            return try Term.create(Span.new(0, 0), .{
                 .application = .{
                     .function = function,
                     .argument = argument,
