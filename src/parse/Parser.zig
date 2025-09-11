@@ -12,8 +12,6 @@ const Reporter = @import("../Reporter.zig");
 const model = @import("../model.zig");
 const Decl = model.Decl;
 const Query = model.Query;
-const TermIndex = model.TermIndex;
-const TermStore = model.TermStore;
 const Term = model.Term;
 
 const TokenBuf = @import("TokenBuf.zig");
@@ -51,49 +49,49 @@ fn getStatement(self: *const Self) Span {
     return self.token_buf.tokenizer.statement;
 }
 
-pub fn tryQuery(self: *Self, terms: *TermStore) Allocator.Error!?Query {
+/// Allocate and initialize a `Term`.
+fn newTerm(term_allocator: Allocator, term: Term) Allocator.Error!*Term {
+    const ptr = try term_allocator.create(Term);
+    ptr.* = term;
+    return ptr;
+}
+
+pub fn tryQuery(self: *Self, term_allocator: Allocator) Allocator.Error!?Query {
     if (self.peekTokenIfKind(.Query) == null) {
         return SomeNull(Query);
     }
     _ = self.nextToken() orelse (return null) orelse unreachable;
 
-    const index = try self.expectTermGreedy(false, terms) orelse
+    const term = try self.expectTermGreedy(false, term_allocator) orelse
         (return null) orelse return null;
 
-    return Query{
-        .term = index,
-    };
+    return Query{ .term = term };
 }
 
-pub fn tryDeclaration(self: *Self, terms: *TermStore) Allocator.Error!?Decl {
+pub fn tryDeclaration(self: *Self, term_allocator: Allocator) Allocator.Error!?Decl {
     const name = self.expectIdentOrEnd() orelse
         (return null) orelse return null;
 
     _ = self.expectTokenKind(.Equals) orelse
         (return null) orelse return null;
 
-    const index = try self.expectTermGreedy(false, terms) orelse
+    const term = try self.expectTermGreedy(false, term_allocator) orelse
         (return null) orelse return null;
 
     // Any trailing characters should have already been handled (including
     // unmatched right paren)
     assert(self.nextToken().? == null);
 
-    return Decl{
-        .name = name,
-        .term = index,
-    };
+    return Decl{ .name = name, .term = term };
 }
 
 fn expectTermGreedy(
     self: *Self,
     comptime in_group: bool,
-    terms: *TermStore,
-) Allocator.Error!??TermIndex {
-    const left = try self.tryTermSingle(false, in_group, terms) orelse
-        (return null) orelse return SomeNull(TermIndex);
-
-    const left_span = terms.get(left).span;
+    term_allocator: Allocator,
+) Allocator.Error!??*Term {
+    const left = try self.tryTermSingle(false, in_group, term_allocator) orelse
+        (return null) orelse return SomeNull(*Term);
 
     // Keep taking following terms until [end of group or statement]
     var parent = left;
@@ -115,14 +113,14 @@ fn expectTermGreedy(
             break;
         }
 
-        const right = try self.tryTermSingle(true, in_group, terms) orelse
+        const right = try self.tryTermSingle(true, in_group, term_allocator) orelse
             (return null) orelse
             {
                 break;
             };
 
-        parent = try terms.append(Term{
-            .span = left_span.join(terms.get(right).span),
+        parent = try newTerm(term_allocator, Term{
+            .span = left.span.join(right.span),
             .value = .{
                 .application = .{
                     .function = parent,
@@ -138,8 +136,8 @@ fn tryTermSingle(
     self: *Self,
     comptime allow_end: bool,
     comptime in_group: bool,
-    terms: *TermStore,
-) Allocator.Error!??TermIndex {
+    term_allocator: Allocator,
+) Allocator.Error!??*Term {
     const left = self.nextToken() orelse (return null) orelse {
         if (!allow_end) {
             Reporter.report(
@@ -150,12 +148,12 @@ fn tryTermSingle(
                 self.getContext(),
             );
         }
-        return SomeNull(TermIndex);
+        return SomeNull(*Term);
     };
 
     switch (left.kind) {
         .Ident => {
-            return try terms.append(Term{
+            return try newTerm(term_allocator, Term{
                 .span = left.span,
                 .value = .{
                     .unresolved = {},
@@ -165,16 +163,16 @@ fn tryTermSingle(
 
         .Backslash => {
             const parameter = self.expectTokenKind(.Ident) orelse
-                (return null) orelse return SomeNull(TermIndex);
+                (return null) orelse return SomeNull(*Term);
 
             _ = self.expectTokenKind(.Dot) orelse
-                (return null) orelse return SomeNull(TermIndex);
+                (return null) orelse return SomeNull(*Term);
 
-            const right = try self.expectTermGreedy(in_group, terms) orelse
-                (return null) orelse return SomeNull(TermIndex);
+            const right = try self.expectTermGreedy(in_group, term_allocator) orelse
+                (return null) orelse return SomeNull(*Term);
 
-            return try terms.append(Term{
-                .span = left.span.join(terms.get(right).span),
+            return try newTerm(term_allocator, Term{
+                .span = left.span.join(right.span),
                 .value = .{
                     .abstraction = .{
                         .parameter = parameter,
@@ -185,13 +183,13 @@ fn tryTermSingle(
         },
 
         .ParenLeft => {
-            const inner = try self.expectTermGreedy(true, terms) orelse
-                (return null) orelse return SomeNull(TermIndex);
+            const inner = try self.expectTermGreedy(true, term_allocator) orelse
+                (return null) orelse return SomeNull(*Term);
 
             const right_paren = self.expectTokenKind(.ParenRight) orelse
-                (return null) orelse return SomeNull(TermIndex);
+                (return null) orelse return SomeNull(*Term);
 
-            return try terms.append(Term{
+            return try newTerm(term_allocator, Term{
                 .span = left.span.join(right_paren),
                 .value = .{
                     .group = inner,

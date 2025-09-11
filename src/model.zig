@@ -5,16 +5,15 @@ const assert = std.debug.assert;
 
 const Span = @import("Span.zig");
 
-pub const TermIndex = usize;
 pub const DeclIndex = usize;
 
 pub const Decl = struct {
     name: Span,
-    term: TermIndex,
+    term: *Term,
 };
 
 pub const Query = struct {
-    term: TermIndex,
+    term: *Term,
 };
 
 pub const Term = struct {
@@ -25,50 +24,19 @@ pub const Term = struct {
 
     const Kind = union(enum) {
         unresolved: void,
-        local: TermIndex,
+        local: *Term,
         global: DeclIndex,
-        group: TermIndex,
+        group: *Term,
         abstraction: Abstr,
         application: Appl,
 
         const Abstr = struct {
             parameter: Span,
-            body: TermIndex,
+            body: *Term,
         };
         const Appl = struct {
-            function: TermIndex,
-            argument: TermIndex,
+            function: *Term,
+            argument: *Term,
         };
     };
-};
-
-pub const TermStore = struct {
-    const Self = @This();
-
-    entries: ArrayList(Term),
-
-    pub fn init(allocator: Allocator) Self {
-        return .{
-            .entries = ArrayList(Term).init(allocator),
-        };
-    }
-
-    pub fn deinit(self: *const Self) void {
-        self.entries.deinit();
-    }
-
-    pub fn append(self: *Self, term: Term) Allocator.Error!usize {
-        try self.entries.append(term);
-        return self.entries.items.len - 1;
-    }
-
-    pub fn get(self: *const Self, index: TermIndex) *const Term {
-        assert(index <= self.entries.items.len);
-        return &self.entries.items[index];
-    }
-
-    pub fn getMut(self: *Self, index: TermIndex) *Term {
-        assert(index <= self.entries.items.len);
-        return &self.entries.items[index];
-    }
 };

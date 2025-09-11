@@ -9,8 +9,6 @@ const Span = @import("Span.zig");
 const model = @import("model.zig");
 const Decl = model.Decl;
 const DeclIndex = model.DeclIndex;
-const TermIndex = model.TermIndex;
-const TermStore = model.TermStore;
 const Term = model.Term;
 
 pub fn checkDeclarationCollisions(
@@ -40,13 +38,11 @@ pub fn checkDeclarationCollisions(
 }
 
 pub fn patchSymbols(
-    index: TermIndex,
+    term: *Term,
     context: *const Context,
-    terms: *TermStore,
     locals: *LocalStore,
     declarations: []const Decl,
 ) Allocator.Error!void {
-    const term = terms.getMut(index);
     switch (term.value) {
         .unresolved => {
             if (resolveSymbol(term.span, locals, declarations, context)) |resolved| {
@@ -62,12 +58,12 @@ pub fn patchSymbols(
             }
         },
         .group => |inner| {
-            try patchSymbols(inner, context, terms, locals, declarations);
+            try patchSymbols(inner, context, locals, declarations);
         },
         .abstraction => |abstr| {
             const value = abstr.parameter.in(context);
-            if (resolveLocal(locals, value)) |prior_index| {
-                const prior_param = switch (terms.get(prior_index).value) {
+            if (resolveLocal(locals, value)) |prior_term| {
+                const prior_param = switch (prior_term.value) {
                     .abstraction => |prior_abstr| prior_abstr.parameter,
                     else => unreachable,
                 };
@@ -94,13 +90,13 @@ pub fn patchSymbols(
                     context,
                 );
             }
-            try locals.push(index, value);
-            try patchSymbols(abstr.body, context, terms, locals, declarations);
+            try locals.push(term, value);
+            try patchSymbols(abstr.body, context, locals, declarations);
             locals.pop();
         },
         .application => |appl| {
-            try patchSymbols(appl.function, context, terms, locals, declarations);
-            try patchSymbols(appl.argument, context, terms, locals, declarations);
+            try patchSymbols(appl.function, context, locals, declarations);
+            try patchSymbols(appl.argument, context, locals, declarations);
         },
         // No symbols in this branch should be resolved yet
         .local => unreachable,
@@ -130,7 +126,7 @@ fn resolveSymbol(
     return null;
 }
 
-fn resolveLocal(locals: *const LocalStore, value: []const u8) ?TermIndex {
+fn resolveLocal(locals: *const LocalStore, value: []const u8) ?*Term {
     for (locals.entries.items) |item| {
         if (std.mem.eql(u8, item.value, value)) {
             return item.index;
@@ -159,7 +155,7 @@ pub const LocalStore = struct {
     entries: ArrayList(Entry),
 
     const Entry = struct {
-        index: TermIndex,
+        index: *Term,
         value: []const u8,
     };
 
@@ -179,7 +175,7 @@ pub const LocalStore = struct {
 
     pub fn push(
         self: *Self,
-        index: TermIndex,
+        index: *Term,
         value: []const u8,
     ) Allocator.Error!void {
         try self.entries.append(.{
