@@ -41,10 +41,10 @@ B := A
 
 C := C
 
-? A B
+-- ? A B
 ? C
 
-? | F F
+? (|) F F
 ? | F T
 ? | T F
 ? | T T

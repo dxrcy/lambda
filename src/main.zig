@@ -135,7 +135,6 @@ pub fn main() Allocator.Error!void {
                 0,
                 decls.items,
                 term_allocator.allocator(),
-                &context,
             ) catch |err| switch (err) {
                 error.MaxRecursion => {
                     Reporter.report(
@@ -160,6 +159,9 @@ pub fn main() Allocator.Error!void {
     }
 }
 
+const MAX_RESOLVE_RECURSION = 2_000;
+const MAX_GLOBAL_EXPAND = 200;
+
 const ResolveError = Allocator.Error || error{MaxRecursion};
 
 fn resolve(
@@ -167,150 +169,138 @@ fn resolve(
     depth: usize,
     decls: []const Decl,
     term_allocator: Allocator,
-    // debugging
-    context: *const Context,
 ) ResolveError!*const Term {
-    const MAX_RESOLVE_RECURSION = 20;
-
     if (depth >= MAX_RESOLVE_RECURSION) {
         return error.MaxRecursion;
     }
-
-    const appl = switch (term.value) {
-        .unresolved, .local => unreachable,
-        .group => |inner| return resolve(
+    return switch (term.value) {
+        .global, .abstraction => term,
+        // Flatten group
+        .group => |inner| try resolve(
             inner,
             depth + 1,
             decls,
             term_allocator,
-            context,
         ),
-        .global, .abstraction => return term,
-        .application => |appl| appl,
+        .application => |appl| try resolveApplication(
+            &appl,
+            depth + 1,
+            decls,
+            term_allocator,
+        ),
+        .unresolved => @panic("symbol should have been resolved already"),
+        .local => @panic("local binding should have been beta-reduced already"),
     };
+}
 
+fn resolveApplication(
+    appl: *const Term.Appl,
+    depth: usize,
+    decls: []const Decl,
+    term_allocator: Allocator,
+) ResolveError!*const Term {
     switch (appl.function.value) {
-        .global, .abstraction, .application => {},
-        else => unreachable,
+        .group, .global, .abstraction, .application => {},
+        .unresolved => @panic("symbol should have been resolved already"),
+        .local => @panic("local binding should have been beta-reduced already"),
     }
 
-    const function_term = try expand_global(
+    const function = try expandGlobal(
         appl.function,
         depth,
         decls,
         term_allocator,
-        context,
     );
 
-    const function_abstr = function_term.value.abstraction;
-
-    const result = try beta_reduce(
-        function_abstr.id,
-        function_abstr.body,
+    const product = try betaReduce(
+        function.body,
+        function.id,
         appl.argument,
         term_allocator,
-        decls,
-        context,
-    ) orelse function_abstr.body;
+    ) orelse function.body;
 
-    switch (result.value) {
-        .unresolved, .group => unreachable,
-        .local => @panic("local binding should have been beta-reduced already"),
+    switch (product.value) {
         .global, .abstraction, .application => {},
+        .group => @panic("group should have been flattened already"),
+        .unresolved => @panic("symbol should have been resolved already"),
+        .local => @panic("local binding should have been beta-reduced already"),
     }
 
     return resolve(
-        result,
+        product,
         depth + 1,
         decls,
         term_allocator,
-        context,
     );
 }
 
-fn expand_global(
+fn expandGlobal(
     initial_term: *const Term,
     depth: usize,
     decls: []const Decl,
     term_allocator: Allocator,
-    // debugging
-    context: *const Context,
-) ResolveError!*const Term {
-    const MAX_GLOBAL_EXPAND = 20;
-
-    // std.debug.print("-- expand?\n", .{});
-
+) ResolveError!*const Term.Abstr {
     var term = initial_term;
-
     for (0..MAX_GLOBAL_EXPAND) |_| {
-        // if (i > 0) {
-        //     std.debug.print("-- expand!\n", .{});
-        // }
-
         const product = try resolve(
             term,
             depth + 1,
             decls,
             term_allocator,
-            context,
         );
-        // std.debug.print("-- expansion => {s}\n", .{@tagName(product.value)});
-
         term = switch (product.value) {
-            .unresolved, .local, .application => unreachable,
+            .unresolved => @panic("symbol should have been resolved already"),
+            .local => @panic("local binding should have been beta-reduced already"),
+            .application => @panic("application should have been resolved already"),
             .global => |global| decls[global].term,
             .group => |inner| inner,
-            .abstraction => {
-                return product;
+            .abstraction => |abstr| {
+                return &abstr;
             },
         };
     }
-
     return error.MaxRecursion;
 }
 
 /// Returns `null` if no descendant term was substituted; no need to deep-copy.
-fn beta_reduce(
+fn betaReduce(
+    term: *Term,
     abstr_id: AbstrId,
-    substitution_body: *Term,
-    substitution_argument: *Term,
+    applied_argument: *Term,
     term_allocator: Allocator,
-    // debugging
-    decls: []const Decl,
-    context: *const Context,
 ) Allocator.Error!?*Term {
-    switch (substitution_body.value) {
-        .unresolved => unreachable,
+    // Use a placeholder span for constructed terms, since they do not refer to
+    // any part of the source text, even if their descendants may.
+    const DUMMY_SPAN = Span.new(0, 0);
+
+    switch (term.value) {
+        .unresolved => @panic("symbol should have been resolved already"),
         .global => return null,
         .local => |id| {
             if (id != abstr_id) {
                 return null;
             }
-            return try deepCopyTerm(substitution_argument, term_allocator);
+            return try deepCopyTerm(applied_argument, term_allocator);
         },
         .group => |inner| {
             // Flatten group
-            return try beta_reduce(
-                abstr_id,
+            return try betaReduce(
                 inner,
-                substitution_argument,
+                abstr_id,
+                applied_argument,
                 term_allocator,
-                decls,
-                context,
             );
         },
         .abstraction => |abstr| {
-            const body = try beta_reduce(
-                abstr_id,
+            const body = try betaReduce(
                 abstr.body,
-                substitution_argument,
+                abstr_id,
+                applied_argument,
                 term_allocator,
-                decls,
-                context,
             ) orelse {
                 return null;
             };
-            return try Term.create(Span.new(0, 0), .{
+            return try Term.create(DUMMY_SPAN, .{
                 .abstraction = .{
                     .id = abstr.id,
                     .parameter = abstr.parameter,
@@ -319,26 +309,22 @@ fn beta_reduce(
             }, term_allocator);
         },
         .application => |appl| {
-            const function = try beta_reduce(
-                abstr_id,
+            const function = try betaReduce(
                 appl.function,
-                substitution_argument,
-                term_allocator,
-                decls,
-                context,
-            );
-            const argument = try beta_reduce(
                 abstr_id,
-                appl.argument,
-                substitution_argument,
+                applied_argument,
                 term_allocator,
-                decls,
-                context,
+            );
+            const argument = try betaReduce(
+                appl.argument,
+                abstr_id,
+                applied_argument,
+                term_allocator,
             );
             if (function == null and argument == null) {
                 return null;
             }
-            return try Term.create(Span.new(0, 0), .{
+            return try Term.create(DUMMY_SPAN, .{
                 .application = .{
                     .function = function orelse appl.function,
                     .argument = argument orelse appl.argument,
@@ -349,27 +335,29 @@ fn beta_reduce(
 }
 
 /// *Deep-copy* term by allocating and copying children.
-/// Copy of `.local` refers to *original* abstraction definition.
-pub fn deepCopyTerm(self: *Term, allocator: Allocator) Allocator.Error!*Term {
-    const copy_value = switch (self.value) {
-        .unresolved, .global, .local => self.value,
+/// Does not copy non-parent terms (`global` and `local`), since they should be
+/// not be mutated by the caller.
+pub fn deepCopyTerm(term: *Term, allocator: Allocator) Allocator.Error!*Term {
+    const copy_value: Term.Kind = switch (term.value) {
+        .unresolved => @panic("symbol should have been resolved already"),
+        .global, .local => return term,
         .group => |inner| {
             // Flatten group
             return try deepCopyTerm(inner, allocator);
         },
-        .abstraction => |abstr| Term.Kind{
+        .abstraction => |abstr| .{
             .abstraction = .{
                 .id = abstr.id,
                 .parameter = abstr.parameter,
                 .body = try deepCopyTerm(abstr.body, allocator),
             },
         },
-        .application => |appl| Term.Kind{
+        .application => |appl| .{
             .application = .{
                 .function = try deepCopyTerm(appl.function, allocator),
                 .argument = try deepCopyTerm(appl.argument, allocator),
             },
         },
     };
-    return try Term.create(self.span, copy_value, allocator);
+    return try Term.create(term.span, copy_value, allocator);
 }
