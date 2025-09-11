@@ -49,18 +49,23 @@ fn getStatement(self: *const Self) Span {
     return self.token_buf.tokenizer.statement;
 }
 
+/// Allocate and initialize a `Term`.
+fn newTerm(term_allocator: Allocator, term: Term) Allocator.Error!*Term {
+    const ptr = try term_allocator.create(Term);
+    ptr.* = term;
+    return ptr;
+}
+
 pub fn tryQuery(self: *Self, term_allocator: Allocator) Allocator.Error!?Query {
     if (self.peekTokenIfKind(.Query) == null) {
         return SomeNull(Query);
     }
     _ = self.nextToken() orelse (return null) orelse unreachable;
 
-    const index = try self.expectTermGreedy(false, term_allocator) orelse
+    const term = try self.expectTermGreedy(false, term_allocator) orelse
         (return null) orelse return null;
 
-    return Query{
-        .term = index,
-    };
+    return Query{ .term = term };
 }
 
 pub fn tryDeclaration(self: *Self, term_allocator: Allocator) Allocator.Error!?Decl {
@@ -70,17 +75,14 @@ pub fn tryDeclaration(self: *Self, term_allocator: Allocator) Allocator.Error!?D
     _ = self.expectTokenKind(.Equals) orelse
         (return null) orelse return null;
 
-    const index = try self.expectTermGreedy(false, term_allocator) orelse
+    const term = try self.expectTermGreedy(false, term_allocator) orelse
         (return null) orelse return null;
 
     // Any trailing characters should have already been handled (including
     // unmatched right paren)
     assert(self.nextToken().? == null);
 
-    return Decl{
-        .name = name,
-        .term = index,
-    };
+    return Decl{ .name = name, .term = term };
 }
 
 fn expectTermGreedy(
@@ -90,8 +92,6 @@ fn expectTermGreedy(
 ) Allocator.Error!??*Term {
     const left = try self.tryTermSingle(false, in_group, term_allocator) orelse
         (return null) orelse return SomeNull(*Term);
-
-    const left_span = left.span;
 
     // Keep taking following terms until [end of group or statement]
     var parent = left;
@@ -119,17 +119,15 @@ fn expectTermGreedy(
                 break;
             };
 
-        const old_parent = parent;
-        parent = try term_allocator.create(Term);
-        parent.* = Term{
-            .span = left_span.join(right.span),
+        parent = try newTerm(term_allocator, Term{
+            .span = left.span.join(right.span),
             .value = .{
                 .application = .{
-                    .function = old_parent,
+                    .function = parent,
                     .argument = right,
                 },
             },
-        };
+        });
     }
     return parent;
 }
@@ -155,14 +153,12 @@ fn tryTermSingle(
 
     switch (left.kind) {
         .Ident => {
-            const term = try term_allocator.create(Term);
-            term.* = Term{
+            return try newTerm(term_allocator, Term{
                 .span = left.span,
                 .value = .{
                     .unresolved = {},
                 },
-            };
-            return term;
+            });
         },
 
         .Backslash => {
@@ -175,8 +171,7 @@ fn tryTermSingle(
             const right = try self.expectTermGreedy(in_group, term_allocator) orelse
                 (return null) orelse return SomeNull(*Term);
 
-            const term = try term_allocator.create(Term);
-            term.* = Term{
+            return try newTerm(term_allocator, Term{
                 .span = left.span.join(right.span),
                 .value = .{
                     .abstraction = .{
@@ -184,8 +179,7 @@ fn tryTermSingle(
                         .body = right,
                     },
                 },
-            };
-            return term;
+            });
         },
 
         .ParenLeft => {
@@ -195,14 +189,12 @@ fn tryTermSingle(
             const right_paren = self.expectTokenKind(.ParenRight) orelse
                 (return null) orelse return SomeNull(*Term);
 
-            const term = try term_allocator.create(Term);
-            term.* = Term{
+            return try newTerm(term_allocator, Term{
                 .span = left.span.join(right_paren),
                 .value = .{
                     .group = inner,
                 },
-            };
-            return term;
+            });
         },
 
         .ParenRight, .Equals, .Dot, .Query => {

@@ -44,9 +44,9 @@ fn printTerm(
             printLabel(depth, prefix, "UNRESOLVED");
             printSpan(term.span.in(context));
         },
-        .local => |index| {
+        .local => |ptr| {
             printLabel(depth, prefix, "local");
-            std.debug.print("{{0x{x:08}}} ", .{@intFromPtr(index)});
+            std.debug.print("{{0x{x:08}}} ", .{@intFromPtr(ptr)});
             printSpan(term.span.in(context));
         },
         .global => |index| {
