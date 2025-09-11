@@ -49,13 +49,6 @@ fn getStatement(self: *const Self) Span {
     return self.token_buf.tokenizer.statement;
 }
 
-/// Allocate and initialize a `Term`.
-fn newTerm(term_allocator: Allocator, term: Term) Allocator.Error!*Term {
-    const ptr = try term_allocator.create(Term);
-    ptr.* = term;
-    return ptr;
-}
-
 pub fn tryQuery(self: *Self, term_allocator: Allocator) Allocator.Error!?Query {
     if (self.peekTokenIfKind(.Query) == null) {
         return SomeNull(Query);
@@ -119,15 +112,14 @@ fn expectTermGreedy(
                 break;
             };
 
-        parent = try newTerm(term_allocator, Term{
-            .span = left.span.join(right.span),
-            .value = .{
-                .application = .{
-                    .function = parent,
-                    .argument = right,
-                },
-            },
-        });
+        parent = try Term.create(
+            left.span.join(right.span),
+            .{ .application = .{
+                .function = parent,
+                .argument = right,
+            } },
+            term_allocator,
+        );
     }
     return parent;
 }
@@ -153,12 +145,11 @@ fn tryTermSingle(
 
     switch (left.kind) {
         .Ident => {
-            return try newTerm(term_allocator, Term{
-                .span = left.span,
-                .value = .{
-                    .unresolved = {},
-                },
-            });
+            return try Term.create(
+                left.span,
+                .{ .unresolved = {} },
+                term_allocator,
+            );
         },
 
         .Backslash => {
@@ -171,15 +162,14 @@ fn tryTermSingle(
             const right = try self.expectTermGreedy(in_group, term_allocator) orelse
                 (return null) orelse return SomeNull(*Term);
 
-            return try newTerm(term_allocator, Term{
-                .span = left.span.join(right.span),
-                .value = .{
-                    .abstraction = .{
-                        .parameter = parameter,
-                        .body = right,
-                    },
-                },
-            });
+            return try Term.create(
+                left.span.join(right.span),
+                .{ .abstraction = .{
+                    .parameter = parameter,
+                    .body = right,
+                } },
+                term_allocator,
+            );
         },
 
         .ParenLeft => {
@@ -189,12 +179,11 @@ fn tryTermSingle(
             const right_paren = self.expectTokenKind(.ParenRight) orelse
                 (return null) orelse return SomeNull(*Term);
 
-            return try newTerm(term_allocator, Term{
-                .span = left.span.join(right_paren),
-                .value = .{
-                    .group = inner,
-                },
-            });
+            return try Term.create(
+                left.span.join(right_paren),
+                .{ .group = inner },
+                term_allocator,
+            );
         },
 
         .ParenRight, .Equals, .Dot, .Query => {
