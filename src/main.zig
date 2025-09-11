@@ -15,7 +15,6 @@ const Tokenizer = @import("parse/Tokenizer.zig");
 const model = @import("model.zig");
 const Decl = model.Decl;
 const Query = model.Query;
-const TermStore = model.TermStore;
 
 const symbols = @import("symbols.zig");
 const LocalStore = symbols.LocalStore;
@@ -65,16 +64,16 @@ pub fn main() Allocator.Error!void {
     var queries = ArrayList(Query).init(allocator);
     defer queries.deinit();
 
-    var terms = TermStore.init(allocator);
-    defer terms.deinit();
+    var term_allocator = std.heap.ArenaAllocator.init(gpa.allocator());
+    defer term_allocator.deinit();
 
     {
         var stmts = Statements.new(&context);
         while (stmts.next()) |stmt| {
             var parser = Parser.new(stmt, &context);
-            if (try parser.tryQuery(&terms)) |query| {
+            if (try parser.tryQuery(term_allocator.allocator())) |query| {
                 try queries.append(query);
-            } else if (try parser.tryDeclaration(&terms)) |decl| {
+            } else if (try parser.tryDeclaration(term_allocator.allocator())) |decl| {
                 try decls.append(decl);
             }
         }
@@ -97,7 +96,6 @@ pub fn main() Allocator.Error!void {
             try symbols.patchSymbols(
                 decl.term,
                 &context,
-                &terms,
                 &locals,
                 decls.items,
             );
@@ -114,7 +112,6 @@ pub fn main() Allocator.Error!void {
             try symbols.patchSymbols(
                 query.term,
                 &context,
-                &terms,
                 &locals,
                 decls.items,
             );
@@ -124,6 +121,6 @@ pub fn main() Allocator.Error!void {
 
     Reporter.checkFatal();
 
-    debug.printDeclarations(decls.items, &terms, &context);
-    debug.printQueries(queries.items, &terms, &context);
+    debug.printDeclarations(decls.items, &context);
+    debug.printQueries(queries.items, &context);
 }
