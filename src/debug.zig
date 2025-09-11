@@ -46,7 +46,7 @@ fn printTerm(
         },
         .local => |index| {
             printLabel(depth, prefix, "local");
-            std.debug.print("{{{}}} ", .{index});
+            std.debug.print("{{0x{x:08}}} ", .{@intFromPtr(index)});
             printSpan(term.span.in(context));
         },
         .global => |index| {
