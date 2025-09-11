@@ -119,12 +119,13 @@ fn expectTermGreedy(
                 break;
             };
 
+        const old_parent = parent;
         parent = try term_allocator.create(Term);
         parent.* = Term{
             .span = left_span.join(right.span),
             .value = .{
                 .application = .{
-                    .function = parent,
+                    .function = old_parent,
                     .argument = right,
                 },
             },
