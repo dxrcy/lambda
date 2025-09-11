@@ -37,6 +37,7 @@ pub const Layout = union(enum) {
         declaration: Span,
         reference: Span,
     },
+    query: Span,
 };
 
 // TODO(refactor): Rename
@@ -96,6 +97,9 @@ pub fn report(
         .symbol_reference => |value| {
             printSpan("initial declaration", value.declaration, context);
             printSpan("redeclaration", value.reference, context);
+        },
+        .query => |query| {
+            printSpan("query", query, context);
         },
     }
 }

@@ -130,27 +130,37 @@ pub fn main() Allocator.Error!void {
     // std.debug.print("\n", .{});
     {
         for (queries.items) |*query| {
-            const result = try resolve(
+            const result = resolve(
                 query.term,
                 0,
                 decls.items,
                 term_allocator.allocator(),
                 &context,
-            );
+            ) catch |err| switch (err) {
+                error.MaxRecursion => {
+                    Reporter.report(
+                        "recursion limit reached when expanding query",
+                        "check for any reference cycles in declarations",
+                        .{},
+                        .{ .query = query.term.span },
+                        &context,
+                    );
+                    continue;
+                },
+                else => |other_err| return other_err,
+            };
 
             std.debug.print(" ? ", .{});
-            // debug.printTermExpr(query.term, decls.items, &context);
             debug.printSpanInline(query.term.span.in(&context));
             std.debug.print("\n", .{});
             std.debug.print("-> ", .{});
             debug.printTermExpr(result, decls.items, &context);
             std.debug.print("\n", .{});
-            // std.debug.print("\n", .{});
         }
     }
 }
 
-const ResolveError = Allocator.Error;
+const ResolveError = Allocator.Error || error{MaxRecursion};
 
 fn resolve(
     term: *const Term,
@@ -160,13 +170,10 @@ fn resolve(
     // debugging
     context: *const Context,
 ) ResolveError!*const Term {
-    const MAX_RESOLVE_RECURSION = 50;
-
-    // std.debug.print("-- resolve\n", .{});
+    const MAX_RESOLVE_RECURSION = 20;
 
     if (depth >= MAX_RESOLVE_RECURSION) {
-        @panic("max recursion");
-        // return error.MaxRecursion;
+        return error.MaxRecursion;
     }
 
     const appl = switch (term.value) {
@@ -182,14 +189,10 @@ fn resolve(
         .application => |appl| appl,
     };
 
-    // debug.printTermAll("RESOLVE APPLICATION", term, decls, context);
-
     switch (appl.function.value) {
         .global, .abstraction, .application => {},
         else => unreachable,
     }
-
-    // debug.printTermAll("PRE EXPAND", appl.function, decls, context);
 
     const function_term = try expand_global(
         appl.function,
@@ -198,15 +201,6 @@ fn resolve(
         term_allocator,
         context,
     );
-
-    // const temp = Term{
-    //     .span = Span.new(0, 0),
-    //     .value = .{ .application = .{
-    //         .function = @constCast(function_term),
-    //         .argument = appl.argument,
-    //     } },
-    // };
-    // debug.printTermAll("POST EXPAND", &temp, decls, context);
 
     const function_abstr = function_term.value.abstraction;
 
@@ -218,8 +212,6 @@ fn resolve(
         decls,
         context,
     ) orelse function_abstr.body;
-
-    // debug.printTermAll("RESULT", result, decls, context);
 
     switch (result.value) {
         .unresolved, .group => unreachable,
@@ -244,7 +236,7 @@ fn expand_global(
     // debugging
     context: *const Context,
 ) ResolveError!*const Term {
-    const MAX_GLOBAL_EXPAND = 100;
+    const MAX_GLOBAL_EXPAND = 20;
 
     // std.debug.print("-- expand?\n", .{});
 
@@ -274,8 +266,7 @@ fn expand_global(
         };
     }
 
-    @panic("expansion limit reached. declaration reference cycle?");
-    // return error.MaxRecursion;
+    return error.MaxRecursion;
 }
 
 /// Returns `null` if no descendant term was substituted; no need to deep-copy.
@@ -288,10 +279,6 @@ fn beta_reduce(
     decls: []const Decl,
     context: *const Context,
 ) Allocator.Error!?*Term {
-    // std.debug.print("-- beta-reduce ", .{});
-    // debug.printTermExpr(substitution_body, decls, context);
-    // std.debug.print("\n", .{});
-
     switch (substitution_body.value) {
         .unresolved => unreachable,
         .global => return null,
@@ -299,10 +286,6 @@ fn beta_reduce(
             if (id != abstr_id) {
                 return null;
             }
-
-            // debug.printTermAll("SUBSTITUTION BODY", substitution_body, decls, context);
-            // debug.printTermAll("SUBSTITUTION ARGUMENT", substitution_argument, decls, context);
-
             return try deepCopyTerm(substitution_argument, term_allocator);
         },
         .group => |inner| {
