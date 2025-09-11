@@ -35,6 +35,10 @@ fn printTerm(
     comptime prefix: []const u8,
     context: *const Context,
 ) void {
+    if (depth > 30) {
+        @panic("max recursion depth reached");
+    }
+
     switch (term.value) {
         .unresolved => {
             printLabel(depth, prefix, "UNRESOLVED");
