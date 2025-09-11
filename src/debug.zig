@@ -42,33 +42,32 @@ pub fn printTerm(
     switch (term.value) {
         .unresolved => {
             printLabel(depth, prefix, "UNRESOLVED");
-            printSpan(term.span.in(context));
+            printSpan(term.span.in(context), null);
         },
         .local => |ptr| {
             printLabel(depth, prefix, "local");
-            std.debug.print("{{0x{x:08}}} ", .{@intFromPtr(ptr)});
-            printSpan(term.span.in(context));
+            printSpan(term.span.in(context), ptr);
         },
         .global => |index| {
             printLabel(depth, prefix, "global");
             std.debug.print("[{}] ", .{index});
-            printSpan(term.span.in(context));
+            printSpan(term.span.in(context), null);
         },
         .group => |inner| {
             printLabel(depth, prefix, "group");
-            printSpan(term.span.in(context));
+            printSpan(term.span.in(context), null);
             printTerm(inner, depth + 1, "", context);
         },
         .abstraction => |abstr| {
             printLabel(depth, prefix, "abstraction");
-            printSpan(term.span.in(context));
+            printSpan(term.span.in(context), null);
             printLabel(depth + 1, "parameter", "");
-            printSpan(abstr.parameter.in(context));
+            printSpan(abstr.parameter.in(context), term);
             printTerm(abstr.body, depth + 1, "body", context);
         },
         .application => |appl| {
             printLabel(depth, prefix, "application");
-            printSpan(term.span.in(context));
+            printSpan(term.span.in(context), null);
             printTerm(appl.function, depth + 1, "function", context);
             printTerm(appl.argument, depth + 1, "argument", context);
         },
@@ -92,7 +91,7 @@ fn printLabel(
     std.debug.print("{s}: ", .{label});
 }
 
-fn printSpan(value: []const u8) void {
+fn printSpan(value: []const u8, term_ptr: ?*const Term) void {
     std.debug.print("`", .{});
     var was_whitespace = true;
     for (value) |char| {
@@ -107,5 +106,10 @@ fn printSpan(value: []const u8) void {
         }
     }
     std.debug.print("`", .{});
+
+    if (term_ptr) |ptr| {
+        std.debug.print(" {{0x{x:08}}}", .{@intFromPtr(ptr)});
+    }
+
     std.debug.print("\n", .{});
 }
