@@ -3,5 +3,7 @@ F := \xf. \yf. yf
 
 | := \p. \q. p p q
 
+? | F F
 ? | F T
+? | T F
 ? | T F

@@ -91,32 +91,32 @@ pub fn printTerm(
     switch (term.value) {
         .unresolved => {
             printLabel(depth, prefix, "UNRESOLVED");
-            printSpan(term.span.in(context), null);
+            printSpanValue(term.span.in(context), null);
         },
         .local => |id| {
             printLabel(depth, prefix, "local");
-            printSpan(term.span.in(context), id);
+            printSpanValue(term.span.in(context), id);
         },
         .global => |index| {
             printLabel(depth, prefix, "global");
             std.debug.print("[{}] ", .{index});
-            printSpan(term.span.in(context), null);
+            printSpanValue(term.span.in(context), null);
         },
         .group => |inner| {
             printLabel(depth, prefix, "group");
-            printSpan(term.span.in(context), null);
+            printSpanValue(term.span.in(context), null);
             printTerm(inner, depth + 1, "", context);
         },
         .abstraction => |abstr| {
             printLabel(depth, prefix, "abstraction");
-            printSpan(term.span.in(context), null);
+            printSpanValue(term.span.in(context), null);
             printLabel(depth + 1, "parameter", "");
-            printSpan(abstr.parameter.in(context), abstr.id);
+            printSpanValue(abstr.parameter.in(context), abstr.id);
             printTerm(abstr.body, depth + 1, "body", context);
         },
         .application => |appl| {
             printLabel(depth, prefix, "application");
-            printSpan(term.span.in(context), null);
+            printSpanValue(term.span.in(context), null);
             printTerm(appl.function, depth + 1, "function", context);
             printTerm(appl.argument, depth + 1, "argument", context);
         },
@@ -140,23 +140,12 @@ fn printLabel(
     std.debug.print("{s}: ", .{label});
 }
 
-fn printSpan(value: []const u8, id: ?usize) void {
+fn printSpanValue(value: []const u8, id: ?usize) void {
     if (value.len == 0) {
         std.debug.print("-", .{});
     } else {
         std.debug.print("`", .{});
-        var was_whitespace = true;
-        for (value) |char| {
-            if (std.ascii.isWhitespace(char)) {
-                if (!was_whitespace) {
-                    std.debug.print(" ", .{});
-                    was_whitespace = true;
-                }
-            } else {
-                was_whitespace = false;
-                std.debug.print("{c}", .{char});
-            }
-        }
+        printSpanInline(value);
         std.debug.print("`", .{});
     }
 
@@ -165,4 +154,19 @@ fn printSpan(value: []const u8, id: ?usize) void {
     }
 
     std.debug.print("\n", .{});
+}
+
+pub fn printSpanInline(value: []const u8) void {
+    var was_whitespace = true;
+    for (value) |char| {
+        if (std.ascii.isWhitespace(char)) {
+            if (!was_whitespace) {
+                std.debug.print(" ", .{});
+                was_whitespace = true;
+            }
+        } else {
+            was_whitespace = false;
+            std.debug.print("{c}", .{char});
+        }
+    }
 }

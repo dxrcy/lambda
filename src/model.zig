@@ -24,7 +24,7 @@ pub const Term = struct {
     span: Span,
     value: Kind,
 
-    const Kind = union(enum) {
+    pub const Kind = union(enum) {
         unresolved: void,
         local: AbstrId,
         global: DeclIndex,
@@ -49,30 +49,5 @@ pub const Term = struct {
         const ptr = try allocator.create(Term);
         ptr.* = .{ .span = span, .value = value };
         return ptr;
-    }
-
-    /// *Deep-copy* self by allocating and copying children.
-    /// Copy of `.local` refers to *original* abstraction definition
-    pub fn clone(self: *Self, allocator: Allocator) Allocator.Error!*Term {
-        const copy_value = switch (self.value) {
-            .unresolved, .global, .local => self.value,
-            .group => |inner| Kind{
-                .group = try inner.clone(allocator),
-            },
-            .abstraction => |abstr| Kind{
-                .abstraction = .{
-                    .id = abstr.id,
-                    .parameter = abstr.parameter,
-                    .body = try abstr.body.clone(allocator),
-                },
-            },
-            .application => |appl| Kind{
-                .application = .{
-                    .function = try appl.function.clone(allocator),
-                    .argument = try appl.argument.clone(allocator),
-                },
-            },
-        };
-        return try Self.create(self.span, copy_value, allocator);
     }
 };
