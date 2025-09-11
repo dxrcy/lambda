@@ -93,9 +93,9 @@ pub fn printTerm(
             printLabel(depth, prefix, "UNRESOLVED");
             printSpan(term.span.in(context), null);
         },
-        .local => |ptr| {
+        .local => |id| {
             printLabel(depth, prefix, "local");
-            printSpan(term.span.in(context), ptr);
+            printSpan(term.span.in(context), id);
         },
         .global => |index| {
             printLabel(depth, prefix, "global");
@@ -111,7 +111,7 @@ pub fn printTerm(
             printLabel(depth, prefix, "abstraction");
             printSpan(term.span.in(context), null);
             printLabel(depth + 1, "parameter", "");
-            printSpan(abstr.parameter.in(context), term);
+            printSpan(abstr.parameter.in(context), abstr.id);
             printTerm(abstr.body, depth + 1, "body", context);
         },
         .application => |appl| {
@@ -140,7 +140,7 @@ fn printLabel(
     std.debug.print("{s}: ", .{label});
 }
 
-fn printSpan(value: []const u8, term_ptr: ?*const Term) void {
+fn printSpan(value: []const u8, id: ?usize) void {
     if (value.len == 0) {
         std.debug.print("-", .{});
     } else {
@@ -160,8 +160,8 @@ fn printSpan(value: []const u8, term_ptr: ?*const Term) void {
         std.debug.print("`", .{});
     }
 
-    if (term_ptr) |ptr| {
-        std.debug.print(" {{0x{x:08}}}", .{@intFromPtr(ptr)});
+    if (id) |id_value| {
+        std.debug.print(" {{0x{x:04}}}", .{id_value});
     }
 
     std.debug.print("\n", .{});

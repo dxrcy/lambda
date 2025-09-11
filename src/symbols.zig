@@ -7,6 +7,7 @@ const Reporter = @import("Reporter.zig");
 const Span = @import("Span.zig");
 
 const model = @import("model.zig");
+const AbstrId = model.AbstrId;
 const Decl = model.Decl;
 const DeclIndex = model.DeclIndex;
 const Term = model.Term;
@@ -111,10 +112,12 @@ fn resolveSymbol(
     context: *const Context,
 ) ?Term {
     const value = span.in(context);
-    if (resolveLocal(locals, value)) |index| {
+    if (resolveLocal(locals, value)) |term| {
+        // Assumes `term` is `abstraction`
+        const id = term.value.abstraction.id;
         return Term{
             .span = span,
-            .value = .{ .local = index },
+            .value = .{ .local = id },
         };
     }
     if (resolveGlobal(declarations, value, context)) |index| {
@@ -126,10 +129,13 @@ fn resolveSymbol(
     return null;
 }
 
-fn resolveLocal(locals: *const LocalStore, value: []const u8) ?*Term {
-    for (locals.entries.items) |item| {
-        if (std.mem.eql(u8, item.value, value)) {
-            return item.index;
+fn resolveLocal(
+    locals: *const LocalStore,
+    value: []const u8,
+) ?*Term {
+    for (locals.entries.items) |entry| {
+        if (std.mem.eql(u8, entry.value, value)) {
+            return entry.term;
         }
     }
     return null;
@@ -154,8 +160,8 @@ pub const LocalStore = struct {
 
     entries: ArrayList(Entry),
 
-    const Entry = struct {
-        index: *Term,
+    pub const Entry = struct {
+        term: *Term,
         value: []const u8,
     };
 
@@ -175,11 +181,11 @@ pub const LocalStore = struct {
 
     pub fn push(
         self: *Self,
-        index: *Term,
+        term: *Term,
         value: []const u8,
     ) Allocator.Error!void {
         try self.entries.append(.{
-            .index = index,
+            .term = term,
             .value = value,
         });
     }

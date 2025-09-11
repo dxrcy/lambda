@@ -13,6 +13,7 @@ const Statements = @import("parse/Statements.zig");
 const Tokenizer = @import("parse/Tokenizer.zig");
 
 const model = @import("model.zig");
+const AbstrId = model.AbstrId;
 const Decl = model.Decl;
 const Query = model.Query;
 const Term = model.Term;
@@ -201,7 +202,7 @@ fn resolve(
     const function_abstr = function_term.value.abstraction;
 
     const result = try beta_reduce(
-        function_term,
+        function_abstr.id,
         function_abstr.body,
         appl.argument,
         term_allocator,
@@ -268,9 +269,9 @@ fn expand_global(
     // return error.MaxRecursion;
 }
 
-/// Returns `null` if no decendant term was substituted; no need to deep-copy.
+/// Returns `null` if no descendant term was substituted; no need to deep-copy.
 fn beta_reduce(
-    abstr_def: *const Term,
+    abstr_id: AbstrId,
     substitution_body: *Term,
     substitution_argument: *Term,
     term_allocator: Allocator,
@@ -285,22 +286,21 @@ fn beta_reduce(
     switch (substitution_body.value) {
         .unresolved => unreachable,
         .global => return null,
-        .local => |ptr| {
-            if (ptr != abstr_def) {
+        .local => |id| {
+            if (id != abstr_id) {
                 return null;
             }
 
             debug.printTermAll("SUBSTITUTION BODY", substitution_body, decls, context);
             debug.printTermAll("SUBSTITUTION ARGUMENT", substitution_argument, decls, context);
 
-            // TODO: Is this clone necessary?
             return try substitution_argument.clone(term_allocator);
         },
         .group => |inner| {
             // Skip group and return inner term
             // Since this does not correspond to user text
             return try beta_reduce(
-                abstr_def,
+                abstr_id,
                 inner,
                 substitution_argument,
                 term_allocator,
@@ -310,7 +310,7 @@ fn beta_reduce(
         },
         .abstraction => |abstr| {
             const body = try beta_reduce(
-                abstr_def,
+                abstr_id,
                 abstr.body,
                 substitution_argument,
                 term_allocator,
@@ -321,6 +321,7 @@ fn beta_reduce(
             };
             return try Term.create(Span.new(0, 0), .{
                 .abstraction = .{
+                    .id = abstr.id,
                     .parameter = abstr.parameter,
                     .body = body,
                 },
@@ -328,7 +329,7 @@ fn beta_reduce(
         },
         .application => |appl| {
             const function = try beta_reduce(
-                abstr_def,
+                abstr_id,
                 appl.function,
                 substitution_argument,
                 term_allocator,
@@ -336,7 +337,7 @@ fn beta_reduce(
                 context,
             );
             const argument = try beta_reduce(
-                abstr_def,
+                abstr_id,
                 appl.argument,
                 substitution_argument,
                 term_allocator,

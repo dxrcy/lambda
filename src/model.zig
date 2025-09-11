@@ -7,6 +7,8 @@ const Span = @import("Span.zig");
 
 pub const DeclIndex = usize;
 
+pub const AbstrId = usize;
+
 pub const Decl = struct {
     name: Span,
     term: *Term,
@@ -24,7 +26,7 @@ pub const Term = struct {
 
     const Kind = union(enum) {
         unresolved: void,
-        local: *Term,
+        local: AbstrId,
         global: DeclIndex,
         group: *Term,
         abstraction: Abstr,
@@ -32,6 +34,7 @@ pub const Term = struct {
     };
 
     pub const Abstr = struct {
+        id: AbstrId,
         parameter: Span,
         body: *Term,
     };
@@ -58,6 +61,7 @@ pub const Term = struct {
             },
             .abstraction => |abstr| Kind{
                 .abstraction = .{
+                    .id = abstr.id,
                     .parameter = abstr.parameter,
                     .body = try abstr.body.clone(allocator),
                 },
