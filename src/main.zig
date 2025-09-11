@@ -15,6 +15,7 @@ const Tokenizer = @import("parse/Tokenizer.zig");
 const model = @import("model.zig");
 const Decl = model.Decl;
 const Query = model.Query;
+const Term = model.Term;
 
 const symbols = @import("symbols.zig");
 const LocalStore = symbols.LocalStore;
@@ -127,29 +128,27 @@ pub fn main() Allocator.Error!void {
     std.debug.print("Results:\n", .{});
     {
         for (queries.items) |*query| {
-            const result = resolve(query.term, 0, &terms, decls.items);
-            debug.printResult(&result, &terms, &context);
+            const result = resolve(query.term, 0, decls.items);
+            debug.printResult(&result, &context);
         }
     }
 }
 
-fn resolve(index: TermIndex, depth: usize, terms: *const TermStore, decls: []const Decl) !TermIndex {
+fn resolve(term: *const Term, depth: usize, decls: []const Decl) !*const Term {
     const MAX_RESOLVE_RECURSION = 100;
 
     if (depth >= MAX_RESOLVE_RECURSION) {
         return error.MaxRecursion;
     }
 
-    const term = terms.get(index);
-
     const appl = switch (term.value) {
         .unresolved, .local => unreachable,
-        .group => |inner| return resolve(inner, depth + 1, terms, decls),
+        .group => |inner| return resolve(inner, depth + 1, decls),
         .global, .abstraction => return term,
         .application => |appl| appl,
     };
 
-    const function = terms.get(appl.function).value;
+    const function = appl.function.value;
 
     const function_free = switch (function) {
         .global, .abstraction, .application => function,
