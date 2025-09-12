@@ -87,9 +87,7 @@ pub fn report(
     defer Output.flush();
 
     switch (layout) {
-        .stdin => {
-            // printLabel("bytes in input", null);
-        },
+        .stdin => {},
         .file => |context| {
             printLabel("bytes in file", null, context);
         },
@@ -157,9 +155,9 @@ fn printLabel(
     setStyle(.{ .FgWhite, .Dim });
     printIndent(1);
 
-    Output.print("({s}:", .{context.filepath orelse ""});
+    Output.print("({s}", .{context.filepath orelse ""});
     if (span) |span_unwrapped| {
-        Output.print("{}", .{Context.startingLineOf(span_unwrapped)});
+        Output.print(":{}", .{Context.startingLineOf(span_unwrapped)});
     }
     Output.print(") {s}\n", .{label});
 
