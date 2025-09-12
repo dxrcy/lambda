@@ -72,10 +72,16 @@ pub fn main() Allocator.Error!void {
         var stmts = Statements.new(&context);
         while (stmts.next()) |stmt| {
             var parser = Parser.new(stmt, &context);
-            if (try parser.tryQuery(term_allocator.allocator())) |query| {
-                try queries.append(query);
-            } else if (try parser.tryDeclaration(term_allocator.allocator())) |decl| {
-                try decls.append(decl);
+            const item = try parser.tryItem(term_allocator.allocator()) orelse {
+                continue;
+            };
+            switch (item) {
+                .declaration => |decl| {
+                    try decls.append(decl);
+                },
+                .query => |query| {
+                    try queries.append(query);
+                },
             }
         }
     }
