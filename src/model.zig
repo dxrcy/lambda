@@ -16,12 +16,6 @@ pub const Decl = struct {
     term: *Term,
 };
 
-// TODO: Remove
-pub const DeclEntry = struct {
-    decl: Decl,
-    context: *const Context,
-};
-
 pub const Query = struct {
     term: *Term,
 };

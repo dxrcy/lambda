@@ -1,11 +1,11 @@
 const std = @import("std");
 
 const model = @import("model.zig");
-const DeclEntry = model.DeclEntry;
+const Decl = model.Decl;
 const Query = model.Query;
 const Term = model.Term;
 
-pub fn printDeclarations(declarations: []const DeclEntry) void {
+pub fn printDeclarations(declarations: []const Decl) void {
     for (declarations, 0..) |*entry, i| {
         std.debug.print(
             "\n[{}] {s}\n",
@@ -27,7 +27,7 @@ pub fn printQueries(queries: []const Query) void {
 pub fn printTermAll(
     comptime label: []const u8,
     term: *const Term,
-    decls: []const DeclEntry,
+    decls: []const Decl,
 ) void {
     std.debug.print("\n:: " ++ label ++ " :: \n", .{});
     std.debug.print("[ ", .{});
@@ -37,7 +37,7 @@ pub fn printTermAll(
     std.debug.print("\n", .{});
 }
 
-pub fn printTermExpr(term: *const Term, decls: []const DeclEntry) void {
+pub fn printTermExpr(term: *const Term, decls: []const Decl) void {
     switch (term.value) {
         .unresolved => {
             std.debug.print("UNRESOLVED", .{});
@@ -46,8 +46,7 @@ pub fn printTermExpr(term: *const Term, decls: []const DeclEntry) void {
             std.debug.print("{s}", .{term.span.string()});
         },
         .global => |index| {
-            const entry = decls[index];
-            std.debug.print("{s}", .{entry.decl.name.string()});
+            std.debug.print("{s}", .{decls[index].name.string()});
         },
         .group => |inner| {
             std.debug.print("(", .{});

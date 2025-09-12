@@ -13,7 +13,7 @@ const Statements = @import("parse/Statements.zig");
 const Tokenizer = @import("parse/Tokenizer.zig");
 
 const model = @import("model.zig");
-const DeclEntry = model.DeclEntry;
+const Decl = model.Decl;
 const Query = model.Query;
 
 const symbols = @import("symbols.zig");
@@ -59,7 +59,7 @@ pub fn main() !void {
         Reporter.checkFatal();
     }
 
-    var decls = ArrayList(DeclEntry).init(allocator);
+    var decls = ArrayList(Decl).init(allocator);
     defer decls.deinit();
 
     var queries = ArrayList(Query).init(allocator);
@@ -82,10 +82,7 @@ pub fn main() !void {
             };
             switch (item) {
                 .declaration => |decl| {
-                    try decls.append(DeclEntry{
-                        .decl = decl,
-                        .context = &context,
-                    });
+                    try decls.append(decl);
                 },
                 .query => |query| {
                     try queries.append(query);
@@ -105,7 +102,7 @@ pub fn main() !void {
 
         for (decls.items) |*entry| {
             std.debug.assert(locals.isEmpty());
-            try symbols.patchSymbols(entry.decl.term, &locals, decls.items);
+            try symbols.patchSymbols(entry.term, &locals, decls.items);
         }
         std.debug.assert(locals.isEmpty());
     }

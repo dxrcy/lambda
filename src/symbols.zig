@@ -8,18 +8,18 @@ const Span = @import("Span.zig");
 const model = @import("model.zig");
 const AbstrId = model.AbstrId;
 const DeclIndex = model.DeclIndex;
-const DeclEntry = model.DeclEntry;
+const Decl = model.Decl;
 const Term = model.Term;
 
-pub fn checkDeclarationCollisions(declarations: []const DeclEntry) void {
+pub fn checkDeclarationCollisions(declarations: []const Decl) void {
     for (declarations, 0..) |current, i| {
         for (declarations[0..i], 0..) |prior, j| {
             if (i == j) {
                 continue;
             }
 
-            const current_value = current.decl.name.string();
-            const prior_value = prior.decl.name.string();
+            const current_value = current.name.string();
+            const prior_value = prior.name.string();
 
             if (std.mem.eql(u8, current_value, prior_value)) {
                 Reporter.report(
@@ -28,8 +28,8 @@ pub fn checkDeclarationCollisions(declarations: []const DeclEntry) void {
                     .{prior_value},
                     // FIXME: Include individual decl contexts
                     .{ .symbol_reference = .{
-                        .declaration = prior.decl.name,
-                        .reference = current.decl.name,
+                        .declaration = prior.name,
+                        .reference = current.name,
                     } },
                 );
             }
@@ -40,7 +40,7 @@ pub fn checkDeclarationCollisions(declarations: []const DeclEntry) void {
 pub fn patchSymbols(
     term: *Term,
     locals: *LocalStore,
-    declarations: []const DeclEntry,
+    declarations: []const Decl,
 ) Allocator.Error!void {
     switch (term.value) {
         .unresolved => {
@@ -81,7 +81,7 @@ pub fn patchSymbols(
                     "cannot shadow existing global declaration `{s}`",
                     .{abstr.parameter.string()},
                     .{ .symbol_reference = .{
-                        .declaration = declarations[global_index].decl.name,
+                        .declaration = declarations[global_index].name,
                         .reference = abstr.parameter,
                     } },
                 );
@@ -105,7 +105,7 @@ pub fn patchSymbols(
 fn resolveSymbol(
     span: Span,
     locals: *const LocalStore,
-    declarations: []const DeclEntry,
+    declarations: []const Decl,
 ) ?Term {
     const value = span.string();
     if (resolveLocal(locals, value)) |term| {
@@ -138,11 +138,11 @@ fn resolveLocal(
 }
 
 fn resolveGlobal(
-    declarations: []const DeclEntry,
+    declarations: []const Decl,
     value: []const u8,
 ) ?DeclIndex {
-    for (declarations, 0..) |*entry, i| {
-        const decl_value = entry.decl.name.string();
+    for (declarations, 0..) |*decl, i| {
+        const decl_value = decl.name.string();
         if (std.mem.eql(u8, decl_value, value)) {
             return i;
         }
