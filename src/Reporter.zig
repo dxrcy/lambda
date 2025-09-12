@@ -9,16 +9,19 @@ var accumulated_count: usize = 0;
 
 /// Call `flush` at the end of public functions.
 pub const Output = struct {
-    var stderr = io.bufferedWriter(io.getStdErr().writer());
+    const BUFFER_SIZE = 4096;
+
+    var writer = std.fs.File.stderr().writer(&buffer);
+    var buffer: [BUFFER_SIZE]u8 = undefined;
 
     fn print(comptime format: []const u8, args: anytype) void {
-        stderr.writer().print(format, args) catch |err| {
+        writer.interface.print(format, args) catch |err| {
             std.debug.panic("failed to write to buffered stderr: {}", .{err});
         };
     }
 
     pub fn flush() void {
-        stderr.flush() catch |err| {
+        writer.interface.flush() catch |err| {
             std.debug.panic("failed to flush buffered stderr: {}", .{err});
         };
     }

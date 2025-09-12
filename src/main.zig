@@ -1,7 +1,7 @@
 const std = @import("std");
 const fs = std.fs;
 const Allocator = std.mem.Allocator;
-const ArrayList = std.ArrayList;
+const ArrayList = std.array_list.Managed;
 
 const Context = @import("Context.zig");
 const Reporter = @import("Reporter.zig");
@@ -156,6 +156,7 @@ pub fn main() !void {
         }
     }
 
+    // TODO: Decrease buffer size
     const BUFFER_SIZE = 1024;
 
     // All repl lines are appended to this string
@@ -165,29 +166,31 @@ pub fn main() !void {
     var stdin_text = ArrayList(u8).init(allocator);
     defer stdin_text.deinit();
 
-    const stdin = std.io.getStdIn();
-    const reader = stdin.reader();
+    // TODO(opt): Buffer input properly
+    const stdin = std.fs.File.stdin();
     var buf: [BUFFER_SIZE]u8 = undefined;
+    var reader = stdin.reader(&buf);
 
     while (true) {
         Reporter.clearCount();
 
         std.debug.print("?- ", .{});
-        const line = reader.readUntilDelimiter(&buf, '\n') catch |err|
-            switch (err) {
-                error.StreamTooLong => {
-                    // TODO: Handle this
-                    @panic("line too long");
-                },
+
+        const text_line_start = stdin_text.items.len;
+
+        while (true) {
+            var buf2: [1]u8 = undefined;
+            const bytes_read = reader.read(&buf2) catch |err| switch (err) {
                 error.EndOfStream => {
                     break;
                 },
                 else => |other_err| return other_err,
             };
-
-        const text_line_start = stdin_text.items.len;
-
-        try stdin_text.appendSlice(line);
+            if (bytes_read == 0) {
+                break;
+            }
+            try stdin_text.append(buf2[0]);
+        }
         try stdin_text.append('\n');
 
         // Include '\n'
@@ -202,7 +205,7 @@ pub fn main() !void {
             .text = text_line,
         };
 
-        const line_span = Span.new(0, line.len, &line_context);
+        const line_span = Span.new(0, text_line.len, &line_context);
 
         // TODO: Validate encoding
 

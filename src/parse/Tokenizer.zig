@@ -2,7 +2,6 @@ const Self = @This();
 
 const std = @import("std");
 const assert = std.debug.assert;
-const ArrayList = std.ArrayList;
 const unicode = std.unicode;
 
 const Span = @import("../Span.zig");

@@ -1,7 +1,7 @@
 const std = @import("std");
 const fs = std.fs;
 const Allocator = std.mem.Allocator;
-const ArrayList = std.ArrayList;
+const ArrayList = std.array_list.Managed;
 
 const ReadFileError = fs.File.OpenError || fs.File.ReadError || Allocator.Error;
 
@@ -10,12 +10,12 @@ const BUFFER_SIZE = 1024;
 pub fn readFile(
     path: []const u8,
     allocator: Allocator,
-) ReadFileError!ArrayList(u8) {
+) !ArrayList(u8) {
     const file = try fs.cwd().openFile(path, .{});
     defer file.close();
 
-    const reader = file.reader();
     var buf: [BUFFER_SIZE]u8 = undefined;
+    var reader = file.reader(&buf);
 
     var string = ArrayList(u8).init(allocator);
     while (true) {
