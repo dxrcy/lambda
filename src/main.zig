@@ -183,7 +183,7 @@ pub fn main() !void {
     // TODO: Remove `?`. If statement isnt a decl, its a query
 
     while (true) {
-        std.debug.print("-- ", .{});
+        std.debug.print("?- ", .{});
         const line = reader.readUntilDelimiter(&buf, '\n') catch |err| switch (err) {
             error.StreamTooLong => {
                 unreachable;
@@ -202,7 +202,7 @@ pub fn main() !void {
         // Include '\n'
         const text_line = stdin_text.items[text_line_start..stdin_text.items.len];
 
-        std.debug.print("<{s}>\n", .{stdin_text.items});
+        // std.debug.print("<{s}>\n", .{stdin_text.items});
 
         // TODO: Use single context for all stdin
         const line_context = Context{
@@ -214,50 +214,56 @@ pub fn main() !void {
 
         // TODO: Validate encoding
 
-        std.debug.print("{s}\n", .{line_span.in(&line_context)});
+        // std.debug.print("{s}\n", .{line_span.in(&line_context)});
 
         var parser = Parser.new(line_span, &line_context);
 
-        if (try parser.tryQuery(term_allocator.allocator())) |query| {
-            try queries.append(query);
+        const item = try parser.tryItem(term_allocator.allocator()) orelse {
+            continue;
+        };
+        switch (item) {
+            .declaration => {
+                std.debug.print("unimplemented\n", .{});
+            },
+            .query => |query| {
+                try queries.append(query);
 
-            var locals = LocalStore.init(allocator);
-            defer locals.deinit();
+                var locals = LocalStore.init(allocator);
+                defer locals.deinit();
 
-            std.debug.assert(locals.isEmpty());
-            try symbols.patchSymbols(
-                query.term,
-                &line_context,
-                &locals,
-                decls.items,
-            );
+                std.debug.assert(locals.isEmpty());
+                try symbols.patchSymbols(
+                    query.term,
+                    &line_context,
+                    &locals,
+                    decls.items,
+                );
 
-            std.debug.assert(locals.isEmpty());
+                std.debug.assert(locals.isEmpty());
 
-            debug.printTermAll("Query", query.term, decls.items, &line_context);
+                debug.printTermAll("Query", query.term, decls.items, &line_context);
 
-            const result = resolve.resolveTerm(
-                query.term,
-                0,
-                decls.items,
-                term_allocator.allocator(),
-            ) catch |err| switch (err) {
-                error.MaxRecursion => {
-                    Reporter.report(
-                        "recursion limit reached when expanding query",
-                        "check for any reference cycles in declarations",
-                        .{},
-                        .{ .query = query.term.span },
-                        &context,
-                    );
-                    continue;
-                },
-                else => |other_err| return other_err,
-            };
+                const result = resolve.resolveTerm(
+                    query.term,
+                    0,
+                    decls.items,
+                    term_allocator.allocator(),
+                ) catch |err| switch (err) {
+                    error.MaxRecursion => {
+                        Reporter.report(
+                            "recursion limit reached when expanding query",
+                            "check for any reference cycles in declarations",
+                            .{},
+                            .{ .query = query.term.span },
+                            &context,
+                        );
+                        continue;
+                    },
+                    else => |other_err| return other_err,
+                };
 
-            debug.printTermAll("Result", result, decls.items, &line_context);
-        } else if (try parser.tryDeclaration(term_allocator.allocator())) |_| {
-            @panic("unimplemented");
+                debug.printTermAll("Result", result, decls.items, &line_context);
+            },
         }
 
         Reporter.clearCount();
