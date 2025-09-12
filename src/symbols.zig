@@ -44,14 +44,15 @@ pub fn patchSymbols(
 ) Allocator.Error!void {
     switch (term.value) {
         .unresolved => {
-            if (resolveSymbol(term.span, locals, declarations)) |resolved| {
+            const span = term.span.?;
+            if (resolveSymbol(span, locals, declarations)) |resolved| {
                 term.* = resolved;
             } else {
                 Reporter.report(
                     "unresolved symbol",
                     "`{s}` was not declared a global or a parameter in this scope",
-                    .{term.span.string()},
-                    .{ .token = term.span },
+                    .{span.string()},
+                    .{ .token = span },
                 );
             }
         },

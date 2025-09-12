@@ -25,7 +25,7 @@ pub const Query = struct {
 pub const Term = struct {
     const Self = @This();
 
-    span: Span,
+    span: ?Span,
     value: Kind,
 
     pub const Kind = union(enum) {
@@ -49,7 +49,11 @@ pub const Term = struct {
     };
 
     /// Allocate and initialize a `Term`.
-    pub fn create(span: Span, value: Kind, allocator: Allocator) Allocator.Error!*Term {
+    pub fn create(
+        span: ?Span,
+        value: Kind,
+        allocator: Allocator,
+    ) Allocator.Error!*Term {
         const ptr = try allocator.create(Term);
         ptr.* = .{ .span = span, .value = value };
         return ptr;

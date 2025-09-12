@@ -127,6 +127,8 @@ pub fn main() !void {
     // std.debug.print("\n", .{});
     {
         for (queries.items) |*query| {
+            const query_span = query.term.span.?;
+
             const result = resolve.resolveTerm(
                 query.term,
                 0,
@@ -138,7 +140,7 @@ pub fn main() !void {
                         "recursion limit reached when expanding query",
                         "check for any reference cycles in declarations",
                         .{},
-                        .{ .query = query.term.span },
+                        .{ .query = query_span },
                     );
                     continue;
                 },
@@ -146,7 +148,7 @@ pub fn main() !void {
             };
 
             std.debug.print("?- ", .{});
-            debug.printSpanInline(query.term.span.string());
+            debug.printSpanInline(query_span.string());
             std.debug.print("\n", .{});
             std.debug.print("-> ", .{});
             debug.printTermExpr(result, decls.items);
@@ -235,6 +237,8 @@ pub fn main() !void {
                 debug.printTermAll("Query", query.term, decls.items);
 
                 {
+                    const query_span = query.term.span.?;
+
                     const result = resolve.resolveTerm(
                         query.term,
                         0,
@@ -246,7 +250,7 @@ pub fn main() !void {
                                 "recursion limit reached when expanding query",
                                 "check for any reference cycles in declarations",
                                 .{},
-                                .{ .query = query.term.span },
+                                .{ .query = query_span },
                             );
                             continue;
                         },

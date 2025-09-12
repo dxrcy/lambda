@@ -118,11 +118,6 @@ fn betaReduce(
     applied_argument: *Term,
     term_allocator: Allocator,
 ) Allocator.Error!?*Term {
-    // Use a placeholder span for constructed terms, since they do not refer to
-    // any part of the source text, even if their descendants may.
-    // TODO: Use `null`
-    const DUMMY_SPAN = Span.new(0, 0, term.span.context);
-
     switch (term.value) {
         .unresolved => @panic("symbol should have been resolved already"),
         .global => return null,
@@ -150,7 +145,7 @@ fn betaReduce(
             ) orelse {
                 return null;
             };
-            return try Term.create(DUMMY_SPAN, .{
+            return try Term.create(null, .{
                 .abstraction = .{
                     .id = abstr.id,
                     .parameter = abstr.parameter,
@@ -174,7 +169,7 @@ fn betaReduce(
             if (function == null and argument == null) {
                 return null;
             }
-            return try Term.create(DUMMY_SPAN, .{
+            return try Term.create(null, .{
                 .application = .{
                     .function = function orelse appl.function,
                     .argument = argument orelse appl.argument,

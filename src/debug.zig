@@ -5,6 +5,8 @@ const Decl = model.Decl;
 const Query = model.Query;
 const Term = model.Term;
 
+const Span = @import("Span.zig");
+
 pub fn printDeclarations(declarations: []const Decl) void {
     for (declarations, 0..) |*entry, i| {
         std.debug.print(
@@ -43,7 +45,11 @@ pub fn printTermExpr(term: *const Term, decls: []const Decl) void {
             std.debug.print("UNRESOLVED", .{});
         },
         .local => {
-            std.debug.print("{s}", .{term.span.string()});
+            if (term.span) |span| {
+                std.debug.print("{s}", .{span.string()});
+            } else {
+                std.debug.print("MISSING", .{});
+            }
         },
         .global => |index| {
             std.debug.print("{s}", .{decls[index].name.string()});
@@ -80,32 +86,32 @@ pub fn printTerm(
     switch (term.value) {
         .unresolved => {
             printLabel(depth, prefix, "UNRESOLVED");
-            printSpanValue(term.span.string(), null);
+            printSpanValue(term.span, null);
         },
         .local => |id| {
             printLabel(depth, prefix, "local");
-            printSpanValue(term.span.string(), id);
+            printSpanValue(term.span, id);
         },
         .global => |index| {
             printLabel(depth, prefix, "global");
             std.debug.print("[{}] ", .{index});
-            printSpanValue(term.span.string(), null);
+            printSpanValue(term.span, null);
         },
         .group => |inner| {
             printLabel(depth, prefix, "group");
-            printSpanValue(term.span.string(), null);
+            printSpanValue(term.span, null);
             printTerm(inner, depth + 1, "");
         },
         .abstraction => |abstr| {
             printLabel(depth, prefix, "abstraction");
-            printSpanValue(term.span.string(), null);
+            printSpanValue(term.span, null);
             printLabel(depth + 1, "parameter", "");
-            printSpanValue(abstr.parameter.string(), abstr.id);
+            printSpanValue(abstr.parameter, abstr.id);
             printTerm(abstr.body, depth + 1, "body");
         },
         .application => |appl| {
             printLabel(depth, prefix, "application");
-            printSpanValue(term.span.string(), null);
+            printSpanValue(term.span, null);
             printTerm(appl.function, depth + 1, "function");
             printTerm(appl.argument, depth + 1, "argument");
         },
@@ -129,13 +135,13 @@ fn printLabel(
     std.debug.print("{s}: ", .{label});
 }
 
-fn printSpanValue(value: []const u8, id: ?usize) void {
-    if (value.len == 0) {
-        std.debug.print("-", .{});
+fn printSpanValue(span: ?Span, id: ?usize) void {
+    if (span) |span_unwrapped| {
+        std.debug.print("`", .{});
+        printSpanInline(span_unwrapped.string());
+        std.debug.print("`", .{});
     } else {
-        std.debug.print("`", .{});
-        printSpanInline(value);
-        std.debug.print("`", .{});
+        std.debug.print("CONSTRUCTED", .{});
     }
 
     if (id) |id_value| {

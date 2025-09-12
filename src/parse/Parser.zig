@@ -148,7 +148,7 @@ fn tryTermGreedy(
             };
 
         parent = try Term.create(
-            left.span.join(right.span),
+            left.span.?.join(right.span.?),
             .{ .application = .{
                 .function = parent,
                 .argument = right,
@@ -197,7 +197,7 @@ fn tryTermSingle(
                 (return null) orelse return SomeNull(*Term);
 
             return try Term.create(
-                left.span.join(right.span),
+                left.span.join(right.span.?),
                 .{ .abstraction = .{
                     .id = left.span.offset,
                     .parameter = parameter,
