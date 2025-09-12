@@ -41,20 +41,20 @@ B := A
 
 C := C
 
--- ? A B
-? C
+-- A B
+C
 
-? (|) F F
-? | F T
-? | T F
-? | T T
+(|) F F
+| F T
+| T F
+| T T
 
-? & F F
-? & F T
-? & T F
-? & T T
+& F F
+& F T
+& T F
+& T T
 
-? Is0 0
-? Is0 1
-? Is0 2
-? Is0 3
+Is0 0
+Is0 1
+Is0 2
+Is0 3

@@ -73,13 +73,19 @@ pub fn main() !void {
         var stmts = Statements.new(&context);
         while (stmts.next()) |stmt| {
             var parser = Parser.new(stmt, &context);
-            if (try parser.tryQuery(term_allocator.allocator())) |query| {
-                try queries.append(query);
-            } else if (try parser.tryDeclaration(term_allocator.allocator())) |decl| {
-                try decls.append(DeclEntry{
-                    .decl = decl,
-                    .context = &context,
-                });
+            const item = try parser.tryItem(term_allocator.allocator()) orelse {
+                continue;
+            };
+            switch (item) {
+                .declaration => |decl| {
+                    try decls.append(DeclEntry{
+                        .decl = decl,
+                        .context = &context,
+                    });
+                },
+                .query => |query| {
+                    try queries.append(query);
+                },
             }
         }
     }
@@ -152,7 +158,7 @@ pub fn main() !void {
                 else => |other_err| return other_err,
             };
 
-            std.debug.print(" ? ", .{});
+            std.debug.print("?- ", .{});
             debug.printSpanInline(query.term.span.in(&context));
             std.debug.print("\n", .{});
             std.debug.print("-> ", .{});

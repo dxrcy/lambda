@@ -49,36 +49,73 @@ fn getStatement(self: *const Self) Span {
     return self.token_buf.tokenizer.statement;
 }
 
-pub fn tryQuery(self: *Self, term_allocator: Allocator) Allocator.Error!?Query {
-    if (self.peekTokenIfKind(.Query) == null) {
-        return SomeNull(Query);
+pub const Statement = union(enum) {
+    declaration: Decl,
+    query: Query,
+};
+
+pub fn tryItem(self: *Self, term_allocator: Allocator) Allocator.Error!?Statement {
+    if (!self.peekIsAnyToken()) {
+        return null;
     }
-    _ = self.nextToken() orelse (return null) orelse unreachable;
 
-    const term = try self.expectTermGreedy(false, term_allocator) orelse
-        (return null) orelse return null;
+    if (self.peekIsDeclaration()) {
+        const decl = try self.expectDeclaration(term_allocator) orelse
+            return null;
+        return .{ .declaration = decl };
+    }
 
-    return Query{ .term = term };
+    const query = try self.expectQuery(term_allocator) orelse
+        return null;
+    return .{ .query = query };
 }
 
-pub fn tryDeclaration(self: *Self, term_allocator: Allocator) Allocator.Error!?Decl {
-    const name = self.expectIdentOrEnd() orelse
-        (return null) orelse return null;
+/// Returns `true` if the next token is present.
+fn peekIsAnyToken(self: *Self) bool {
+    return self.token_buf.peek() != null;
+}
 
-    _ = self.expectTokenKind(.Equals) orelse
-        (return null) orelse return null;
+/// Returns `true` if the second token is `.Equals` (it must be a declaration).
+fn peekIsDeclaration(self: *Self) bool {
+    const equals = self.token_buf.peekBy(2) orelse
+        return false;
+    return equals.kind == .Equals;
+}
 
-    const term = try self.expectTermGreedy(false, term_allocator) orelse
-        (return null) orelse return null;
+/// Assumes next token is present; caller must ensure this.
+/// Assumes second token is `.Equals`; caller must ensure this.
+fn expectDeclaration(self: *Self, term_allocator: Allocator) Allocator.Error!?Decl {
+    const name = self.expectIdent() orelse
+        return null;
 
-    // Any trailing characters should have already been handled (including
-    // unmatched right paren)
-    assert(self.nextToken().? == null);
+    assert(self.expectTokenKind(.Equals) != null);
+
+    const term = try self.expectItemTerm(term_allocator) orelse
+        return null;
 
     return Decl{ .name = name, .term = term };
 }
 
-fn expectTermGreedy(
+/// Assumes next token is present; caller must ensure this.
+fn expectQuery(self: *Self, term_allocator: Allocator) Allocator.Error!?Query {
+    const term = try self.expectItemTerm(term_allocator) orelse
+        return null;
+    return Query{ .term = term };
+}
+
+fn expectItemTerm(
+    self: *Self,
+    term_allocator: Allocator,
+) Allocator.Error!?*Term {
+    const term = try self.tryTermGreedy(false, term_allocator) orelse
+        (return null) orelse return null;
+    // Any trailing characters should have already been handled (including
+    // unmatched right paren)
+    assert(self.nextToken().? == null);
+    return term;
+}
+
+fn tryTermGreedy(
     self: *Self,
     comptime in_group: bool,
     term_allocator: Allocator,
@@ -159,7 +196,7 @@ fn tryTermSingle(
             _ = self.expectTokenKind(.Dot) orelse
                 (return null) orelse return SomeNull(*Term);
 
-            const right = try self.expectTermGreedy(in_group, term_allocator) orelse
+            const right = try self.tryTermGreedy(in_group, term_allocator) orelse
                 (return null) orelse return SomeNull(*Term);
 
             return try Term.create(
@@ -174,7 +211,7 @@ fn tryTermSingle(
         },
 
         .ParenLeft => {
-            const inner = try self.expectTermGreedy(true, term_allocator) orelse
+            const inner = try self.tryTermGreedy(true, term_allocator) orelse
                 (return null) orelse return SomeNull(*Term);
 
             const right_paren = self.expectTokenKind(.ParenRight) orelse
@@ -187,7 +224,7 @@ fn tryTermSingle(
             );
         },
 
-        .ParenRight, .Equals, .Dot, .Query => {
+        .ParenRight, .Equals, .Dot => {
             assert(!(in_group and left.kind == .ParenRight));
             Reporter.report(
                 "unexpected token",
@@ -207,9 +244,12 @@ fn tryTermSingle(
     }
 }
 
-fn expectIdentOrEnd(self: *Self) ??Span {
+/// Assumes next token is present; caller must ensure this.
+fn expectIdent(self: *Self) ?Span {
     const token = self.nextToken() orelse
-        (return null) orelse return SomeNull(Span);
+        (return null) orelse {
+        unreachable;
+    };
     if (token.kind != .Ident) {
         Reporter.report(
             "unexpected token",
@@ -254,17 +294,12 @@ fn expectTokenKind(self: *Self, kind: Token.Kind) ??Span {
 }
 
 fn peekTokenIfKind(self: *Self, kind: Token.Kind) ?Span {
-    if (self.peekToken()) |token| {
+    if (self.token_buf.peek()) |token| {
         if (token.kind == kind) {
             return token.span;
         }
     }
     return null;
-}
-
-fn peekToken(self: *Self) ?Token {
-    // Only validate token when actually consuming with `nextToken`
-    return self.token_buf.peek();
 }
 
 fn nextToken(self: *Self) ??Token {
