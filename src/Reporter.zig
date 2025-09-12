@@ -25,7 +25,7 @@ pub const Output = struct {
 };
 
 pub const Layout = union(enum) {
-    file: void,
+    file: *const Context,
     token: Span,
     statement: Span,
     statement_end: Span,
@@ -75,7 +75,6 @@ pub fn report(
     comptime description: []const u8,
     args: anytype,
     layout: Layout,
-    context: *const Context,
 ) void {
     accumulated_count += 1;
     printErrorHeading(kind);
@@ -84,7 +83,7 @@ pub fn report(
     defer Output.flush();
 
     switch (layout) {
-        .file => {
+        .file => |context| {
             printFileLabel("bytes in file", context);
         },
         .token => |token| {

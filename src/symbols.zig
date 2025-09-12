@@ -2,7 +2,6 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
-const Context = @import("Context.zig");
 const Reporter = @import("Reporter.zig");
 const Span = @import("Span.zig");
 
@@ -12,10 +11,7 @@ const DeclIndex = model.DeclIndex;
 const DeclEntry = model.DeclEntry;
 const Term = model.Term;
 
-pub fn checkDeclarationCollisions(
-    declarations: []const DeclEntry,
-    context: *const Context,
-) void {
+pub fn checkDeclarationCollisions(declarations: []const DeclEntry) void {
     for (declarations, 0..) |current, i| {
         for (declarations[0..i], 0..) |prior, j| {
             if (i == j) {
@@ -35,7 +31,6 @@ pub fn checkDeclarationCollisions(
                         .declaration = prior.decl.name,
                         .reference = current.decl.name,
                     } },
-                    context,
                 );
             }
         }
@@ -44,7 +39,6 @@ pub fn checkDeclarationCollisions(
 
 pub fn patchSymbols(
     term: *Term,
-    context: *const Context,
     locals: *LocalStore,
     declarations: []const DeclEntry,
 ) Allocator.Error!void {
@@ -58,12 +52,11 @@ pub fn patchSymbols(
                     "`{s}` was not declared a global or a parameter in this scope",
                     .{term.span.string()},
                     .{ .token = term.span },
-                    context,
                 );
             }
         },
         .group => |inner| {
-            try patchSymbols(inner, context, locals, declarations);
+            try patchSymbols(inner, locals, declarations);
         },
         .abstraction => |abstr| {
             const value = abstr.parameter.string();
@@ -80,7 +73,6 @@ pub fn patchSymbols(
                         .declaration = prior_param,
                         .reference = abstr.parameter,
                     } },
-                    context,
                 );
             }
             if (resolveGlobal(declarations, value)) |global_index| {
@@ -92,16 +84,15 @@ pub fn patchSymbols(
                         .declaration = declarations[global_index].decl.name,
                         .reference = abstr.parameter,
                     } },
-                    context,
                 );
             }
             try locals.push(term, value);
-            try patchSymbols(abstr.body, context, locals, declarations);
+            try patchSymbols(abstr.body, locals, declarations);
             locals.pop();
         },
         .application => |appl| {
-            try patchSymbols(appl.function, context, locals, declarations);
-            try patchSymbols(appl.argument, context, locals, declarations);
+            try patchSymbols(appl.function, locals, declarations);
+            try patchSymbols(appl.argument, locals, declarations);
         },
         // No symbols in this branch should be resolved yet
         .local => unreachable,

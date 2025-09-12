@@ -54,8 +54,7 @@ pub fn main() !void {
             "file contains invalid UTF-8 bytes",
             "",
             .{},
-            .{ .file = {} },
-            &context,
+            .{ .file = &context },
         );
         Reporter.checkFatal();
     }
@@ -98,10 +97,7 @@ pub fn main() !void {
     Reporter.checkFatal();
 
     {
-        symbols.checkDeclarationCollisions(
-            decls.items,
-            &context,
-        );
+        symbols.checkDeclarationCollisions(decls.items);
 
         // TODO(opt): Reuse all instances of local store in this function
         var locals = LocalStore.init(allocator);
@@ -109,12 +105,7 @@ pub fn main() !void {
 
         for (decls.items) |*entry| {
             std.debug.assert(locals.isEmpty());
-            try symbols.patchSymbols(
-                entry.decl.term,
-                &context,
-                &locals,
-                decls.items,
-            );
+            try symbols.patchSymbols(entry.decl.term, &locals, decls.items);
         }
         std.debug.assert(locals.isEmpty());
     }
@@ -125,12 +116,7 @@ pub fn main() !void {
 
         for (queries.items) |*query| {
             std.debug.assert(locals.isEmpty());
-            try symbols.patchSymbols(
-                query.term,
-                &context,
-                &locals,
-                decls.items,
-            );
+            try symbols.patchSymbols(query.term, &locals, decls.items);
         }
         std.debug.assert(locals.isEmpty());
     }
@@ -156,7 +142,6 @@ pub fn main() !void {
                         "check for any reference cycles in declarations",
                         .{},
                         .{ .query = query.term.span },
-                        &context,
                     );
                     continue;
                 },
@@ -242,12 +227,7 @@ pub fn main() !void {
                     defer locals.deinit();
 
                     std.debug.assert(locals.isEmpty());
-                    try symbols.patchSymbols(
-                        query.term,
-                        &line_context,
-                        &locals,
-                        decls.items,
-                    );
+                    try symbols.patchSymbols(query.term, &locals, decls.items);
 
                     std.debug.assert(locals.isEmpty());
                 }
@@ -271,7 +251,6 @@ pub fn main() !void {
                                 "check for any reference cycles in declarations",
                                 .{},
                                 .{ .query = query.term.span },
-                                &context,
                             );
                             continue;
                         },

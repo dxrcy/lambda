@@ -6,7 +6,6 @@ const assert = std.debug.assert;
 const unicode = std.unicode;
 
 const Span = @import("../Span.zig");
-const Context = @import("../Context.zig");
 const Reporter = @import("../Reporter.zig");
 
 const model = @import("../model.zig");
@@ -42,9 +41,6 @@ pub fn new(stmt: Span) Self {
     return .{ .token_buf = TokenBuf.new(Tokenizer.new(stmt)) };
 }
 
-fn getContext(self: *const Self) *const Context {
-    return self.token_buf.tokenizer.statement.context;
-}
 fn getStatement(self: *const Self) Span {
     return self.token_buf.tokenizer.statement;
 }
@@ -136,7 +132,6 @@ fn tryTermGreedy(
                         .statement = self.getStatement(),
                         .token = right_paren,
                     } },
-                    self.getContext(),
                 );
                 return null;
             }
@@ -174,7 +169,6 @@ fn tryTermSingle(
                 "expected term",
                 .{},
                 .{ .statement_end = self.getStatement() },
-                self.getContext(),
             );
         }
         return SomeNull(*Term);
@@ -237,7 +231,6 @@ fn tryTermSingle(
                     .statement = self.getStatement(),
                     .token = left.span,
                 } },
-                self.getContext(),
             );
             return null;
         },
@@ -259,7 +252,6 @@ fn expectIdent(self: *Self) ?Span {
                 .statement = self.getStatement(),
                 .token = token.span,
             } },
-            self.getContext(),
         );
         return null;
     }
@@ -273,7 +265,6 @@ fn expectTokenKind(self: *Self, kind: Token.Kind) ??Span {
             "expected {s}",
             .{kind.display()},
             .{ .statement_end = self.getStatement() },
-            self.getContext(),
         );
         return null;
     };
@@ -286,7 +277,6 @@ fn expectTokenKind(self: *Self, kind: Token.Kind) ??Span {
                 .statement = self.getStatement(),
                 .token = token.span,
             } },
-            self.getContext(),
         );
         return null;
     }
@@ -306,14 +296,14 @@ fn nextToken(self: *Self) ??Token {
     const token = self.token_buf.next() orelse {
         return SomeNull(Token);
     };
-    if (!self.validateToken(token)) {
+    if (!validateToken(token)) {
         return null;
     }
     return token;
 }
 
 /// Does not check for invalid UTF-8, this should already be checked.
-fn validateToken(self: *const Self, token: Token) bool {
+fn validateToken(token: Token) bool {
     const value = token.span.string();
 
     if (findDisallowedCharacter(value)) |codepoint| {
@@ -326,7 +316,6 @@ fn validateToken(self: *const Self, token: Token) bool {
             "character not allowed `{s}` (0x{x})",
             .{ slice, codepoint },
             .{ .token = token.span },
-            self.getContext(),
         );
         return false;
     }

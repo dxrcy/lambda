@@ -5,6 +5,8 @@ const assert = std.debug.assert;
 
 const Context = @import("Context.zig");
 
+// TODO: Rename `Span`... `Source` ?
+
 offset: usize,
 length: usize,
 context: *const Context,
