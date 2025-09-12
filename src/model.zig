@@ -1,14 +1,10 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const ArrayList = std.ArrayList;
-const assert = std.debug.assert;
 
 const Span = @import("Span.zig");
-
 const Context = @import("Context.zig");
 
 pub const DeclIndex = usize;
-
 pub const AbstrId = usize;
 
 pub const Decl = struct {
@@ -16,15 +12,22 @@ pub const Decl = struct {
     term: *Term,
 };
 
+// TODO: Remove, and simply use `*Term`
 pub const Query = struct {
     term: *Term,
 };
 
-// TODO: Include `Context` for each `Span` in each term...
-
+/// Not very type-safe, since this type is used in many different contexts,
+/// each with their own assumptions about what `Kind` is valid or if `span` may
+/// be `null`.
+/// `Term` could be specialized for different stages, but this would get tricky
+/// with how terms are allocated, since specialized types would have different
+/// layouts and sizes.
 pub const Term = struct {
     const Self = @This();
 
+    /// `null` represents a constructed term, which does not correspond to a
+    /// string slice in a source text.
     span: ?Span,
     value: Kind,
 
@@ -38,7 +41,10 @@ pub const Term = struct {
     };
 
     pub const Abstr = struct {
+        // FIXME: Ids are not unique between terms of different contexts
         id: AbstrId,
+        /// Should only be used to display a parameter name.
+        /// For resolution or reduction use `id`.
         parameter: Span,
         body: *Term,
     };
