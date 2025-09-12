@@ -193,7 +193,16 @@ pub fn main() !void {
 
         const line_span = Span.new(text_line_start, text_line.len, &stdin_context);
 
-        // TODO: Validate encoding
+        if (!std.unicode.utf8ValidateSlice(text_line)) {
+            // To include context filepath
+            Reporter.report(
+                "input contains invalid UTF-8 bytes",
+                "",
+                .{},
+                .{ .stdin = {} },
+            );
+            continue;
+        }
 
         var parser = Parser.new(line_span);
 

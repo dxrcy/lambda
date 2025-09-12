@@ -29,6 +29,7 @@ pub const Output = struct {
 
 pub const Layout = union(enum) {
     file: *const Context,
+    stdin: void,
     token: Span,
     statement: Span,
     statement_end: Span,
@@ -86,6 +87,9 @@ pub fn report(
     defer Output.flush();
 
     switch (layout) {
+        .stdin => {
+            // printLabel("bytes in input", null);
+        },
         .file => |context| {
             printLabel("bytes in file", null, context);
         },
@@ -143,7 +147,13 @@ fn printIndent(comptime depth: usize) void {
     Output.print(INDENT ** depth, .{});
 }
 
-fn printLabel(comptime label: []const u8, span: ?Span, context: *const Context) void {
+fn printLabel(
+    comptime label: []const u8,
+    span: ?Span,
+    context: *const Context,
+) void {
+    assert(span != null or context.filepath != null);
+
     setStyle(.{ .FgWhite, .Dim });
     printIndent(1);
 
