@@ -66,6 +66,11 @@ pub fn main() !void {
     var queries = ArrayList(Query).init(allocator);
     defer queries.deinit();
 
+    // TODO: Separate term storage into
+    // - terms in declarations
+    // - temporary terms (file queries, repl queries)
+    // And destroy temporaries after their use
+
     var term_allocator = std.heap.ArenaAllocator.init(gpa.allocator());
     defer term_allocator.deinit();
 
@@ -172,27 +177,30 @@ pub fn main() !void {
 
     const BUFFER_SIZE = 1024;
 
+    // All repl lines are appended to this string
+    // TODO(opt): Don't append temporary query lines
+    // Use a separate temporary string
+    // This is not important at this stage
     var stdin_text = ArrayList(u8).init(allocator);
     defer stdin_text.deinit();
 
     const stdin = std.io.getStdIn();
-
     const reader = stdin.reader();
     var buf: [BUFFER_SIZE]u8 = undefined;
 
-    // TODO: Remove `?`. If statement isnt a decl, its a query
-
     while (true) {
         std.debug.print("?- ", .{});
-        const line = reader.readUntilDelimiter(&buf, '\n') catch |err| switch (err) {
-            error.StreamTooLong => {
-                unreachable;
-            },
-            error.EndOfStream => {
-                break;
-            },
-            else => |other_err| return other_err,
-        };
+        const line = reader.readUntilDelimiter(&buf, '\n') catch |err|
+            switch (err) {
+                error.StreamTooLong => {
+                    // TODO: Handle this
+                    @panic("line too long");
+                },
+                error.EndOfStream => {
+                    break;
+                },
+                else => |other_err| return other_err,
+            };
 
         const text_line_start = stdin_text.items.len;
 
@@ -205,8 +213,9 @@ pub fn main() !void {
         // std.debug.print("<{s}>\n", .{stdin_text.items});
 
         // TODO: Use single context for all stdin
+        // TODO: Add stdin case to `Context`, don't use filepath
         const line_context = Context{
-            .filepath = "",
+            .filepath = "-",
             .text = text_line,
         };
 
@@ -228,18 +237,20 @@ pub fn main() !void {
             .query => |query| {
                 try queries.append(query);
 
-                var locals = LocalStore.init(allocator);
-                defer locals.deinit();
+                {
+                    var locals = LocalStore.init(allocator);
+                    defer locals.deinit();
 
-                std.debug.assert(locals.isEmpty());
-                try symbols.patchSymbols(
-                    query.term,
-                    &line_context,
-                    &locals,
-                    decls.items,
-                );
+                    std.debug.assert(locals.isEmpty());
+                    try symbols.patchSymbols(
+                        query.term,
+                        &line_context,
+                        &locals,
+                        decls.items,
+                    );
 
-                std.debug.assert(locals.isEmpty());
+                    std.debug.assert(locals.isEmpty());
+                }
 
                 if (Reporter.getCount() > 0) {
                     continue;
@@ -247,26 +258,28 @@ pub fn main() !void {
 
                 debug.printTermAll("Query", query.term, decls.items, &line_context);
 
-                const result = resolve.resolveTerm(
-                    query.term,
-                    0,
-                    decls.items,
-                    term_allocator.allocator(),
-                ) catch |err| switch (err) {
-                    error.MaxRecursion => {
-                        Reporter.report(
-                            "recursion limit reached when expanding query",
-                            "check for any reference cycles in declarations",
-                            .{},
-                            .{ .query = query.term.span },
-                            &context,
-                        );
-                        continue;
-                    },
-                    else => |other_err| return other_err,
-                };
+                {
+                    const result = resolve.resolveTerm(
+                        query.term,
+                        0,
+                        decls.items,
+                        term_allocator.allocator(),
+                    ) catch |err| switch (err) {
+                        error.MaxRecursion => {
+                            Reporter.report(
+                                "recursion limit reached when expanding query",
+                                "check for any reference cycles in declarations",
+                                .{},
+                                .{ .query = query.term.span },
+                                &context,
+                            );
+                            continue;
+                        },
+                        else => |other_err| return other_err,
+                    };
 
-                debug.printTermAll("Result", result, decls.items, &line_context);
+                    debug.printTermAll("Result", result, decls.items, &line_context);
+                }
             },
         }
 
