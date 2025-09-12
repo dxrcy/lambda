@@ -98,12 +98,8 @@ fn expectDeclaration(self: *Self, term_allocator: Allocator) Allocator.Error!?De
 
 /// Assumes next token is present; caller must ensure this.
 fn expectQuery(self: *Self, term_allocator: Allocator) Allocator.Error!?Query {
-    _ = self.expectTokenKind(.Query) orelse
-        (return null) orelse return null;
-
     const term = try self.expectItemTerm(term_allocator) orelse
         return null;
-
     return Query{ .term = term };
 }
 
@@ -228,7 +224,7 @@ fn tryTermSingle(
             );
         },
 
-        .ParenRight, .Equals, .Dot, .Query => {
+        .ParenRight, .Equals, .Dot => {
             assert(!(in_group and left.kind == .ParenRight));
             Reporter.report(
                 "unexpected token",

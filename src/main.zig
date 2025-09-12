@@ -154,7 +154,7 @@ pub fn main() Allocator.Error!void {
                 else => |other_err| return other_err,
             };
 
-            std.debug.print(" ? ", .{});
+            std.debug.print("?- ", .{});
             debug.printSpanInline(query.term.span.in(&context));
             std.debug.print("\n", .{});
             std.debug.print("-> ", .{});
