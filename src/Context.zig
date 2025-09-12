@@ -10,15 +10,15 @@ filepath: []const u8,
 text: []const u8,
 
 /// Assumes valid UTF-8.
-pub fn charCount(self: *const Self, span: Span) usize {
-    return unicode.utf8CountCodepoints(span.in(self)) catch unreachable;
+pub fn charCount(span: Span) usize {
+    return unicode.utf8CountCodepoints(span.string()) catch unreachable;
 }
 
-pub fn startingLineOf(self: *const Self, span: Span) usize {
-    assert(span.end() < self.text.len);
+pub fn startingLineOf(span: Span) usize {
+    assert(span.end() < span.context.text.len);
 
     var line: usize = 1;
-    for (self.text, 0..) |char, i| {
+    for (span.context.text, 0..) |char, i| {
         if (char == '\n') {
             line += 1;
         }
@@ -29,10 +29,10 @@ pub fn startingLineOf(self: *const Self, span: Span) usize {
     return line;
 }
 
-pub fn isMultiline(self: *const Self, span: Span) bool {
-    assert(span.end() < self.text.len);
+pub fn isMultiline(span: Span) bool {
+    assert(span.end() < span.context.text.len);
     for (span.offset..span.end()) |i| {
-        if (self.text[i] == '\n') {
+        if (span.context.text[i] == '\n') {
             return true;
         }
     }
@@ -58,7 +58,7 @@ pub fn getLeftCharacters(self: *const Self, index: usize) Span {
         }
     }
 
-    return Span.fromBounds(start, index);
+    return Span.fromBounds(start, index, self);
 }
 
 pub fn getRightCharacters(self: *const Self, index: usize) Span {
@@ -76,5 +76,5 @@ pub fn getRightCharacters(self: *const Self, index: usize) Span {
         }
     }
 
-    return Span.fromBounds(index, end);
+    return Span.fromBounds(index, end, self);
 }

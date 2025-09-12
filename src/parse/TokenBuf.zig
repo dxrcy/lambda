@@ -3,9 +3,6 @@ const Self = @This();
 const std = @import("std");
 const assert = std.debug.assert;
 
-const Context = @import("../Context.zig");
-const Span = @import("../Span.zig");
-
 const Tokenizer = @import("Tokenizer.zig");
 const Token = @import("Token.zig");
 

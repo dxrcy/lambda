@@ -16,7 +16,7 @@ pub const Decl = struct {
     term: *Term,
 };
 
-// TODO: Move?
+// TODO: Remove
 pub const DeclEntry = struct {
     decl: Decl,
     context: *const Context,

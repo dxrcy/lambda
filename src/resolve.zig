@@ -121,7 +121,8 @@ fn betaReduce(
 ) Allocator.Error!?*Term {
     // Use a placeholder span for constructed terms, since they do not refer to
     // any part of the source text, even if their descendants may.
-    const DUMMY_SPAN = Span.new(0, 0);
+    // TODO: Use `null`
+    const DUMMY_SPAN = Span.new(0, 0, term.span.context);
 
     switch (term.value) {
         .unresolved => @panic("symbol should have been resolved already"),

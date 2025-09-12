@@ -88,25 +88,25 @@ pub fn report(
             printFileLabel("bytes in file", context);
         },
         .token => |token| {
-            printSpan("token", token, context);
+            printSpan("token", token);
         },
         .statement => |stmt| {
-            printSpan("statement", stmt, context);
+            printSpan("statement", stmt);
         },
         .statement_end => |stmt| {
-            printSpan("end of statement", Span.new(stmt.end(), 0), context);
-            printSpan("statement", stmt, context);
+            printSpan("end of statement", Span.new(stmt.end(), 0, stmt.context));
+            printSpan("statement", stmt);
         },
         .statement_token => |value| {
-            printSpan("token", value.token, context);
-            printSpan("statement", value.statement, context);
+            printSpan("token", value.token);
+            printSpan("statement", value.statement);
         },
         .symbol_reference => |value| {
-            printSpan("initial declaration", value.declaration, context);
-            printSpan("redeclaration", value.reference, context);
+            printSpan("initial declaration", value.declaration);
+            printSpan("redeclaration", value.reference);
         },
         .query => |query| {
-            printSpan("query", query, context);
+            printSpan("query", query);
         },
     }
 }
@@ -158,59 +158,59 @@ fn printFileLabel(comptime label: []const u8, context: *const Context) void {
 fn printSpan(
     comptime label: []const u8,
     span: Span,
-    context: *const Context,
 ) void {
     printLabel("({s}:{}) {s}:\n", .{
-        context.filepath,
-        context.startingLineOf(span),
+        span.context.filepath,
+        Context.startingLineOf(span),
         label,
     });
 
     if (span.length == 0) {
-        const line = context.getSingleLine(span.offset);
-        printLineParts(line, Span.new(line.end(), 0), context);
-        printLineHighlight(line, Span.new(line.end(), 1), context);
-    } else if (!context.isMultiline(span)) {
-        const left = context.getLeftCharacters(span.offset);
-        const right = context.getRightCharacters(span.end());
-        printLineParts(left, right, context);
-        printLineHighlight(left, span, context);
+        const line = span.context.getSingleLine(span.offset);
+        printLineParts(line, Span.new(line.end(), 0, line.context));
+        printLineHighlight(line, Span.new(line.end(), 1, line.context));
+    } else if (!Context.isMultiline(span)) {
+        const left = span.context.getLeftCharacters(span.offset);
+        const right = span.context.getRightCharacters(span.end());
+        printLineParts(left, right);
+        printLineHighlight(left, span);
     } else {
         // TODO(feat): Properly handle multi line tokens/statements
         const border_length = 20;
         setStyle(.{ .Dim, .FgWhite });
         Output.print("~" ** border_length ++ "\n", .{});
         setStyle(.{ .Reset, .FgYellow });
-        Output.print("{s}\n", .{span.in(context)});
+        Output.print("{s}\n", .{span.string()});
         setStyle(.{ .Dim, .FgWhite });
         Output.print("~" ** border_length ++ "\n\n", .{});
         setStyle(.{.Reset});
     }
 }
 
-fn printLineParts(left: Span, right: Span, context: *const Context) void {
+fn printLineParts(left: Span, right: Span) void {
+    assert(left.context == right.context);
     assert(left.end() <= right.offset);
 
     printIndent(2);
     setStyle(.{.FgYellow});
-    Output.print("{s}", .{left.in(context)});
+    Output.print("{s}", .{left.string()});
     setStyle(.{.Bold});
-    Output.print("{s}", .{Span.between(left, right).in(context)});
+    Output.print("{s}", .{Span.between(left, right).string()});
     setStyle(.{ .Reset, .FgYellow });
-    Output.print("{s}", .{right.in(context)});
+    Output.print("{s}", .{right.string()});
     setStyle(.{.Reset});
     Output.print("\n", .{});
 }
 
-fn printLineHighlight(left: Span, span: Span, context: *const Context) void {
+fn printLineHighlight(left: Span, span: Span) void {
     assert(left.end() <= span.offset);
 
     setStyle(.{ .Reset, .FgRed });
     printIndent(2);
-    for (0..context.charCount(left)) |_| {
+    for (0..Context.charCount(left)) |_| {
         Output.print(" ", .{});
     }
-    for (0..context.charCount(span)) |_| {
+    for (0..Context.charCount(span)) |_| {
         Output.print("^", .{});
     }
     Output.print("\n", .{});

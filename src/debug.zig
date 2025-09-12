@@ -1,33 +1,25 @@
 const std = @import("std");
 
-const Context = @import("Context.zig");
-
 const model = @import("model.zig");
 const DeclEntry = model.DeclEntry;
 const Query = model.Query;
 const Term = model.Term;
 
-pub fn printDeclarations(
-    declarations: []const DeclEntry,
-    context: *const Context,
-) void {
+pub fn printDeclarations(declarations: []const DeclEntry) void {
     for (declarations, 0..) |*entry, i| {
         std.debug.print(
             "\n[{}] {s}\n",
-            .{ i, entry.decl.name.in(entry.context) },
+            .{ i, entry.decl.name.string() },
         );
-        printTerm(entry.decl.term, 0, "", context);
+        printTerm(entry.decl.term, 0, "");
         std.debug.print("\n", .{});
     }
 }
 
-pub fn printQueries(
-    queries: []const Query,
-    context: *const Context,
-) void {
+pub fn printQueries(queries: []const Query) void {
     for (queries, 0..) |*query, i| {
         std.debug.print("\n<{}>\n", .{i});
-        printTerm(query.term, 0, "", context);
+        printTerm(query.term, 0, "");
         std.debug.print("\n", .{});
     }
 }
@@ -36,47 +28,42 @@ pub fn printTermAll(
     comptime label: []const u8,
     term: *const Term,
     decls: []const DeclEntry,
-    context: *const Context,
 ) void {
     std.debug.print("\n:: " ++ label ++ " :: \n", .{});
     std.debug.print("[ ", .{});
-    printTermExpr(term, decls, context);
+    printTermExpr(term, decls);
     std.debug.print(" ]\n", .{});
-    printTerm(term, 0, "", context);
+    printTerm(term, 0, "");
     std.debug.print("\n", .{});
 }
 
-pub fn printTermExpr(
-    term: *const Term,
-    decls: []const DeclEntry,
-    context: *const Context,
-) void {
+pub fn printTermExpr(term: *const Term, decls: []const DeclEntry) void {
     switch (term.value) {
         .unresolved => {
             std.debug.print("UNRESOLVED", .{});
         },
         .local => {
-            std.debug.print("{s}", .{term.span.in(context)});
+            std.debug.print("{s}", .{term.span.string()});
         },
         .global => |index| {
             const entry = decls[index];
-            std.debug.print("{s}", .{entry.decl.name.in(entry.context)});
+            std.debug.print("{s}", .{entry.decl.name.string()});
         },
         .group => |inner| {
             std.debug.print("(", .{});
-            printTermExpr(inner, decls, context);
+            printTermExpr(inner, decls);
             std.debug.print(")", .{});
         },
         .abstraction => |abstr| {
-            std.debug.print("(\\{s}. ", .{abstr.parameter.in(context)});
-            printTermExpr(abstr.body, decls, context);
+            std.debug.print("(\\{s}. ", .{abstr.parameter.string()});
+            printTermExpr(abstr.body, decls);
             std.debug.print(")", .{});
         },
         .application => |appl| {
             std.debug.print("(", .{});
-            printTermExpr(appl.function, decls, context);
+            printTermExpr(appl.function, decls);
             std.debug.print(" ", .{});
-            printTermExpr(appl.argument, decls, context);
+            printTermExpr(appl.argument, decls);
             std.debug.print(")", .{});
         },
     }
@@ -86,7 +73,6 @@ pub fn printTerm(
     term: *const Term,
     depth: usize,
     comptime prefix: []const u8,
-    context: *const Context,
 ) void {
     if (depth > 30) {
         @panic("max recursion depth reached");
@@ -95,34 +81,34 @@ pub fn printTerm(
     switch (term.value) {
         .unresolved => {
             printLabel(depth, prefix, "UNRESOLVED");
-            printSpanValue(term.span.in(context), null);
+            printSpanValue(term.span.string(), null);
         },
         .local => |id| {
             printLabel(depth, prefix, "local");
-            printSpanValue(term.span.in(context), id);
+            printSpanValue(term.span.string(), id);
         },
         .global => |index| {
             printLabel(depth, prefix, "global");
             std.debug.print("[{}] ", .{index});
-            printSpanValue(term.span.in(context), null);
+            printSpanValue(term.span.string(), null);
         },
         .group => |inner| {
             printLabel(depth, prefix, "group");
-            printSpanValue(term.span.in(context), null);
-            printTerm(inner, depth + 1, "", context);
+            printSpanValue(term.span.string(), null);
+            printTerm(inner, depth + 1, "");
         },
         .abstraction => |abstr| {
             printLabel(depth, prefix, "abstraction");
-            printSpanValue(term.span.in(context), null);
+            printSpanValue(term.span.string(), null);
             printLabel(depth + 1, "parameter", "");
-            printSpanValue(abstr.parameter.in(context), abstr.id);
-            printTerm(abstr.body, depth + 1, "body", context);
+            printSpanValue(abstr.parameter.string(), abstr.id);
+            printTerm(abstr.body, depth + 1, "body");
         },
         .application => |appl| {
             printLabel(depth, prefix, "application");
-            printSpanValue(term.span.in(context), null);
-            printTerm(appl.function, depth + 1, "function", context);
-            printTerm(appl.argument, depth + 1, "argument", context);
+            printSpanValue(term.span.string(), null);
+            printTerm(appl.function, depth + 1, "function");
+            printTerm(appl.argument, depth + 1, "argument");
         },
     }
 }

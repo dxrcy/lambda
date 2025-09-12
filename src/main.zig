@@ -77,7 +77,7 @@ pub fn main() !void {
     {
         var stmts = Statements.new(&context);
         while (stmts.next()) |stmt| {
-            var parser = Parser.new(stmt, &context);
+            var parser = Parser.new(stmt);
             const item = try parser.tryItem(term_allocator.allocator()) orelse {
                 continue;
             };
@@ -164,10 +164,10 @@ pub fn main() !void {
             };
 
             std.debug.print("?- ", .{});
-            debug.printSpanInline(query.term.span.in(&context));
+            debug.printSpanInline(query.term.span.string());
             std.debug.print("\n", .{});
             std.debug.print("-> ", .{});
-            debug.printTermExpr(result, decls.items, &context);
+            debug.printTermExpr(result, decls.items);
             std.debug.print("\n", .{});
         }
     }
@@ -219,13 +219,13 @@ pub fn main() !void {
             .text = text_line,
         };
 
-        const line_span = Span.new(0, line.len);
+        const line_span = Span.new(0, line.len, &line_context);
 
         // TODO: Validate encoding
 
         // std.debug.print("{s}\n", .{line_span.in(&line_context)});
 
-        var parser = Parser.new(line_span, &line_context);
+        var parser = Parser.new(line_span);
 
         const item = try parser.tryItem(term_allocator.allocator()) orelse {
             continue;
@@ -256,7 +256,7 @@ pub fn main() !void {
                     continue;
                 }
 
-                debug.printTermAll("Query", query.term, decls.items, &line_context);
+                debug.printTermAll("Query", query.term, decls.items);
 
                 {
                     const result = resolve.resolveTerm(
@@ -278,7 +278,7 @@ pub fn main() !void {
                         else => |other_err| return other_err,
                     };
 
-                    debug.printTermAll("Result", result, decls.items, &line_context);
+                    debug.printTermAll("Result", result, decls.items);
                 }
             },
         }

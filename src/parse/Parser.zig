@@ -38,12 +38,12 @@ fn SomeNull(comptime T: type) ?T {
 }
 
 /// Assumes valid UTF-8.
-pub fn new(stmt: Span, context: *const Context) Self {
-    return .{ .token_buf = TokenBuf.new(Tokenizer.new(stmt, context)) };
+pub fn new(stmt: Span) Self {
+    return .{ .token_buf = TokenBuf.new(Tokenizer.new(stmt)) };
 }
 
 fn getContext(self: *const Self) *const Context {
-    return self.token_buf.tokenizer.context;
+    return self.token_buf.tokenizer.statement.context;
 }
 fn getStatement(self: *const Self) Span {
     return self.token_buf.tokenizer.statement;
@@ -314,7 +314,7 @@ fn nextToken(self: *Self) ??Token {
 
 /// Does not check for invalid UTF-8, this should already be checked.
 fn validateToken(self: *const Self, token: Token) bool {
-    const value = token.span.in(self.getContext());
+    const value = token.span.string();
 
     if (findDisallowedCharacter(value)) |codepoint| {
         var buffer: [4]u8 = undefined;

@@ -22,8 +22,8 @@ pub fn checkDeclarationCollisions(
                 continue;
             }
 
-            const current_value = current.decl.name.in(current.context);
-            const prior_value = prior.decl.name.in(prior.context);
+            const current_value = current.decl.name.string();
+            const prior_value = prior.decl.name.string();
 
             if (std.mem.eql(u8, current_value, prior_value)) {
                 Reporter.report(
@@ -50,13 +50,13 @@ pub fn patchSymbols(
 ) Allocator.Error!void {
     switch (term.value) {
         .unresolved => {
-            if (resolveSymbol(term.span, locals, declarations, context)) |resolved| {
+            if (resolveSymbol(term.span, locals, declarations)) |resolved| {
                 term.* = resolved;
             } else {
                 Reporter.report(
                     "unresolved symbol",
                     "`{s}` was not declared a global or a parameter in this scope",
-                    .{term.span.in(context)},
+                    .{term.span.string()},
                     .{ .token = term.span },
                     context,
                 );
@@ -66,7 +66,7 @@ pub fn patchSymbols(
             try patchSymbols(inner, context, locals, declarations);
         },
         .abstraction => |abstr| {
-            const value = abstr.parameter.in(context);
+            const value = abstr.parameter.string();
             if (resolveLocal(locals, value)) |prior_term| {
                 const prior_param = switch (prior_term.value) {
                     .abstraction => |prior_abstr| prior_abstr.parameter,
@@ -75,7 +75,7 @@ pub fn patchSymbols(
                 Reporter.report(
                     "parameter already declared as a variable in this scope",
                     "cannot shadow existing variable `{s}`",
-                    .{abstr.parameter.in(context)},
+                    .{abstr.parameter.string()},
                     .{ .symbol_reference = .{
                         .declaration = prior_param,
                         .reference = abstr.parameter,
@@ -87,7 +87,7 @@ pub fn patchSymbols(
                 Reporter.report(
                     "parameter already declared as a global",
                     "cannot shadow existing global declaration `{s}`",
-                    .{abstr.parameter.in(context)},
+                    .{abstr.parameter.string()},
                     .{ .symbol_reference = .{
                         .declaration = declarations[global_index].decl.name,
                         .reference = abstr.parameter,
@@ -115,9 +115,8 @@ fn resolveSymbol(
     span: Span,
     locals: *const LocalStore,
     declarations: []const DeclEntry,
-    context: *const Context,
 ) ?Term {
-    const value = span.in(context);
+    const value = span.string();
     if (resolveLocal(locals, value)) |term| {
         // Assumes `term` is `abstraction`
         const id = term.value.abstraction.id;
@@ -152,7 +151,7 @@ fn resolveGlobal(
     value: []const u8,
 ) ?DeclIndex {
     for (declarations, 0..) |*entry, i| {
-        const decl_value = entry.decl.name.in(entry.context);
+        const decl_value = entry.decl.name.string();
         if (std.mem.eql(u8, decl_value, value)) {
             return i;
         }

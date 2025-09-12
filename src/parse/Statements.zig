@@ -44,7 +44,7 @@ pub fn next(self: *Self) ?Span {
     }
     assert(end > 0);
 
-    return Span.fromBounds(start, end);
+    return Span.fromBounds(start, end, self.context);
 }
 
 fn peekChar(self: *const Self) ?u8 {
