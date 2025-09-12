@@ -241,6 +241,10 @@ pub fn main() !void {
 
                 std.debug.assert(locals.isEmpty());
 
+                if (Reporter.getCount() > 0) {
+                    continue;
+                }
+
                 debug.printTermAll("Query", query.term, decls.items, &line_context);
 
                 const result = resolve.resolveTerm(

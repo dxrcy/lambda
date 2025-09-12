@@ -109,6 +109,8 @@ pub fn patchSymbols(
     }
 }
 
+// TODO: Rename `resolve*` to avoid confusion with `resolve.zig`
+
 fn resolveSymbol(
     span: Span,
     locals: *const LocalStore,
