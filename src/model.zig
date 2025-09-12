@@ -5,6 +5,8 @@ const assert = std.debug.assert;
 
 const Span = @import("Span.zig");
 
+const Context = @import("Context.zig");
+
 pub const DeclIndex = usize;
 
 pub const AbstrId = usize;
@@ -14,9 +16,17 @@ pub const Decl = struct {
     term: *Term,
 };
 
+// TODO: Move?
+pub const DeclEntry = struct {
+    decl: Decl,
+    context: *const Context,
+};
+
 pub const Query = struct {
     term: *Term,
 };
+
+// TODO: Include `Context` for each `Span` in each term...
 
 pub const Term = struct {
     const Self = @This();

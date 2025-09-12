@@ -52,6 +52,13 @@ pub fn checkFatal() void {
     );
 }
 
+pub fn getCount() usize {
+    return accumulated_count;
+}
+pub fn clearCount() void {
+    accumulated_count = 0;
+}
+
 pub fn reportFatal(
     comptime kind: []const u8,
     comptime description: []const u8,

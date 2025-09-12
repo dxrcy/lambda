@@ -8,12 +8,12 @@ const Span = @import("Span.zig");
 
 const model = @import("model.zig");
 const AbstrId = model.AbstrId;
-const Decl = model.Decl;
 const DeclIndex = model.DeclIndex;
+const DeclEntry = model.DeclEntry;
 const Term = model.Term;
 
 pub fn checkDeclarationCollisions(
-    declarations: []const Decl,
+    declarations: []const DeclEntry,
     context: *const Context,
 ) void {
     for (declarations, 0..) |current, i| {
@@ -21,15 +21,19 @@ pub fn checkDeclarationCollisions(
             if (i == j) {
                 continue;
             }
-            const prior_value = prior.name.in(context);
-            if (std.mem.eql(u8, current.name.in(context), prior_value)) {
+
+            const current_value = current.decl.name.in(current.context);
+            const prior_value = prior.decl.name.in(prior.context);
+
+            if (std.mem.eql(u8, current_value, prior_value)) {
                 Reporter.report(
                     "global already declared",
                     "cannot redeclare `{s}` as a global",
                     .{prior_value},
+                    // FIXME: Include individual decl contexts
                     .{ .symbol_reference = .{
-                        .declaration = prior.name,
-                        .reference = current.name,
+                        .declaration = prior.decl.name,
+                        .reference = current.decl.name,
                     } },
                     context,
                 );
@@ -42,7 +46,7 @@ pub fn patchSymbols(
     term: *Term,
     context: *const Context,
     locals: *LocalStore,
-    declarations: []const Decl,
+    declarations: []const DeclEntry,
 ) Allocator.Error!void {
     switch (term.value) {
         .unresolved => {
@@ -79,13 +83,13 @@ pub fn patchSymbols(
                     context,
                 );
             }
-            if (resolveGlobal(declarations, value, context)) |global_index| {
+            if (resolveGlobal(declarations, value)) |global_index| {
                 Reporter.report(
                     "parameter already declared as a global",
                     "cannot shadow existing global declaration `{s}`",
                     .{abstr.parameter.in(context)},
                     .{ .symbol_reference = .{
-                        .declaration = declarations[global_index].name,
+                        .declaration = declarations[global_index].decl.name,
                         .reference = abstr.parameter,
                     } },
                     context,
@@ -108,7 +112,7 @@ pub fn patchSymbols(
 fn resolveSymbol(
     span: Span,
     locals: *const LocalStore,
-    declarations: []const Decl,
+    declarations: []const DeclEntry,
     context: *const Context,
 ) ?Term {
     const value = span.in(context);
@@ -120,7 +124,7 @@ fn resolveSymbol(
             .value = .{ .local = id },
         };
     }
-    if (resolveGlobal(declarations, value, context)) |index| {
+    if (resolveGlobal(declarations, value)) |index| {
         return Term{
             .span = span,
             .value = .{ .global = index },
@@ -142,12 +146,12 @@ fn resolveLocal(
 }
 
 fn resolveGlobal(
-    declarations: []const Decl,
+    declarations: []const DeclEntry,
     value: []const u8,
-    context: *const Context,
 ) ?DeclIndex {
-    for (declarations, 0..) |*decl, i| {
-        if (std.mem.eql(u8, decl.name.in(context), value)) {
+    for (declarations, 0..) |*entry, i| {
+        const decl_value = entry.decl.name.in(entry.context);
+        if (std.mem.eql(u8, decl_value, value)) {
             return i;
         }
     }

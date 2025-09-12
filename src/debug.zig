@@ -3,17 +3,20 @@ const std = @import("std");
 const Context = @import("Context.zig");
 
 const model = @import("model.zig");
-const Decl = model.Decl;
+const DeclEntry = model.DeclEntry;
 const Query = model.Query;
 const Term = model.Term;
 
 pub fn printDeclarations(
-    declarations: []const Decl,
+    declarations: []const DeclEntry,
     context: *const Context,
 ) void {
-    for (declarations, 0..) |*decl, i| {
-        std.debug.print("\n[{}] {s}\n", .{ i, decl.name.in(context) });
-        printTerm(decl.term, 0, "", context);
+    for (declarations, 0..) |*entry, i| {
+        std.debug.print(
+            "\n[{}] {s}\n",
+            .{ i, entry.decl.name.in(entry.context) },
+        );
+        printTerm(entry.decl.term, 0, "", context);
         std.debug.print("\n", .{});
     }
 }
@@ -32,7 +35,7 @@ pub fn printQueries(
 pub fn printTermAll(
     comptime label: []const u8,
     term: *const Term,
-    decls: []const Decl,
+    decls: []const DeclEntry,
     context: *const Context,
 ) void {
     std.debug.print("\n:: " ++ label ++ " :: \n", .{});
@@ -45,7 +48,7 @@ pub fn printTermAll(
 
 pub fn printTermExpr(
     term: *const Term,
-    decls: []const Decl,
+    decls: []const DeclEntry,
     context: *const Context,
 ) void {
     switch (term.value) {
@@ -56,7 +59,8 @@ pub fn printTermExpr(
             std.debug.print("{s}", .{term.span.in(context)});
         },
         .global => |index| {
-            std.debug.print("{s}", .{decls[index].name.in(context)});
+            const entry = decls[index];
+            std.debug.print("{s}", .{entry.decl.name.in(entry.context)});
         },
         .group => |inner| {
             std.debug.print("(", .{});

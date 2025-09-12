@@ -4,6 +4,7 @@ const Allocator = std.mem.Allocator;
 const model = @import("model.zig");
 const AbstrId = model.AbstrId;
 const Decl = model.Decl;
+const DeclEntry = model.DeclEntry;
 const Term = model.Term;
 
 const Span = @import("Span.zig");
@@ -16,7 +17,7 @@ const ResolveError = Allocator.Error || error{MaxRecursion};
 pub fn resolveTerm(
     term: *const Term,
     depth: usize,
-    decls: []const Decl,
+    decls: []const DeclEntry,
     term_allocator: Allocator,
 ) ResolveError!*const Term {
     if (depth >= MAX_RESOLVE_RECURSION) {
@@ -45,7 +46,7 @@ pub fn resolveTerm(
 fn resolveApplication(
     appl: *const Term.Appl,
     depth: usize,
-    decls: []const Decl,
+    decls: []const DeclEntry,
     term_allocator: Allocator,
 ) ResolveError!*const Term {
     switch (appl.function.value) {
@@ -86,7 +87,7 @@ fn resolveApplication(
 fn expandGlobal(
     initial_term: *const Term,
     depth: usize,
-    decls: []const Decl,
+    decls: []const DeclEntry,
     term_allocator: Allocator,
 ) ResolveError!*const Term.Abstr {
     var term = initial_term;
@@ -101,7 +102,7 @@ fn expandGlobal(
             .unresolved => @panic("symbol should have been resolved already"),
             .local => @panic("local binding should have been beta-reduced already"),
             .application => @panic("application should have been resolved already"),
-            .global => |global| decls[global].term,
+            .global => |global| decls[global].decl.term,
             .group => |inner| inner,
             .abstraction => |abstr| {
                 return &abstr;
