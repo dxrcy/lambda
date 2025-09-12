@@ -153,6 +153,7 @@ pub fn main() !void {
             std.debug.print("-> ", .{});
             debug.printTermExpr(result, decls.items);
             std.debug.print("\n", .{});
+            std.debug.print("\n", .{});
         }
     }
 
@@ -173,7 +174,7 @@ pub fn main() !void {
 
     // TODO: Add stdin case to `Context`, don't use filepath
     var stdin_context = Context{
-        .filepath = "-",
+        .filepath = null,
         .text = stdin_text.items,
     };
 
@@ -183,10 +184,9 @@ pub fn main() !void {
         std.debug.print("?- ", .{});
 
         const text_line_start = stdin_text.items.len;
-        const text_line_len = try readLineAndAppend(&reader, &stdin_text) orelse {
+        const text_line = try readLineAndAppend(&reader, &stdin_text) orelse {
             break;
         };
-        const text_line = stdin_text.items[text_line_start..text_line_len];
 
         // Reassign pointer and length in case of resize or relocation
         stdin_context.text = stdin_text.items;
@@ -194,8 +194,6 @@ pub fn main() !void {
         const line_span = Span.new(text_line_start, text_line.len, &stdin_context);
 
         // TODO: Validate encoding
-
-        // std.debug.print("{s}\n", .{line_span.in(&line_context)});
 
         var parser = Parser.new(line_span);
 
@@ -207,8 +205,6 @@ pub fn main() !void {
                 std.debug.print("unimplemented\n", .{});
             },
             .query => |query| {
-                try queries.append(query);
-
                 {
                     var locals = LocalStore.init(allocator);
                     defer locals.deinit();
@@ -223,7 +219,7 @@ pub fn main() !void {
                     continue;
                 }
 
-                debug.printTermAll("Query", query.term, decls.items);
+                // debug.printTermAll("Query", query.term, decls.items);
 
                 {
                     const query_span = query.term.span.?;
@@ -246,7 +242,11 @@ pub fn main() !void {
                         else => |other_err| return other_err,
                     };
 
-                    debug.printTermAll("Result", result, decls.items);
+                    std.debug.print("-> ", .{});
+                    debug.printTermExpr(result, decls.items);
+                    std.debug.print("\n", .{});
+                    std.debug.print("\n", .{});
+                    // debug.printTermAll("Result", result, decls.items);
                 }
             },
         }
@@ -255,20 +255,26 @@ pub fn main() !void {
     std.debug.print("end.\n", .{});
 }
 
-fn readLineAndAppend(reader: *fs.File.Reader, text: *ArrayList(u8)) !?usize {
+fn readLineAndAppend(
+    reader: *fs.File.Reader,
+    text: *ArrayList(u8),
+) !?[]const u8 {
+    const start = text.items.len;
 
-    // FIXME: Why is there an initial zero-byte read ?
+    // TODO: Why is there an initial zero-byte read ? Remove if possible
     while (true) {
         const byte = try readSingleByte(reader) orelse
             return null;
-
-        try text.append(byte);
         if (byte == '\n') {
             break;
         }
+        try text.append(byte);
     }
 
-    return text.items.len;
+    if (start != text.items.len) {
+        try text.append('\n');
+    }
+    return text.items[start..text.items.len];
 }
 
 fn readSingleByte(reader: *fs.File.Reader) !?u8 {

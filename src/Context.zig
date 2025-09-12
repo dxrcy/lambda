@@ -6,7 +6,7 @@ const unicode = std.unicode;
 
 const Span = @import("Span.zig");
 
-filepath: []const u8,
+filepath: ?[]const u8,
 text: []const u8,
 
 /// Assumes valid UTF-8.

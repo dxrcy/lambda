@@ -87,7 +87,7 @@ pub fn report(
 
     switch (layout) {
         .file => |context| {
-            printFileLabel("bytes in file", context);
+            printLabel("bytes in file", null, context);
         },
         .token => |token| {
             printSpan("token", token);
@@ -143,29 +143,21 @@ fn printIndent(comptime depth: usize) void {
     Output.print(INDENT ** depth, .{});
 }
 
-fn printLabel(comptime format: []const u8, args: anytype) void {
+fn printLabel(comptime label: []const u8, span: ?Span, context: *const Context) void {
     setStyle(.{ .FgWhite, .Dim });
     printIndent(1);
-    Output.print(format, args);
+
+    Output.print("({s}:", .{context.filepath orelse ""});
+    if (span) |span_unwrapped| {
+        Output.print("{}", .{Context.startingLineOf(span_unwrapped)});
+    }
+    Output.print(") {s}\n", .{label});
+
     setStyle(.{.Reset});
 }
 
-fn printFileLabel(comptime label: []const u8, context: *const Context) void {
-    printLabel("({s}) {s}\n", .{
-        context.filepath,
-        label,
-    });
-}
-
-fn printSpan(
-    comptime label: []const u8,
-    span: Span,
-) void {
-    printLabel("({s}:{}) {s}:\n", .{
-        span.context.filepath,
-        Context.startingLineOf(span),
-        label,
-    });
+fn printSpan(comptime label: []const u8, span: Span) void {
+    printLabel(label, span, span.context);
 
     if (span.length == 0) {
         const line = span.context.getSingleLine(span.offset);
