@@ -154,9 +154,6 @@ pub fn main() !void {
         }
     }
 
-    // Continue even if queries reported errors
-    Reporter.clearCount();
-
     const BUFFER_SIZE = 1024;
 
     // All repl lines are appended to this string
@@ -171,6 +168,8 @@ pub fn main() !void {
     var buf: [BUFFER_SIZE]u8 = undefined;
 
     while (true) {
+        Reporter.clearCount();
+
         std.debug.print("?- ", .{});
         const line = reader.readUntilDelimiter(&buf, '\n') catch |err|
             switch (err) {
@@ -258,8 +257,6 @@ pub fn main() !void {
                 }
             },
         }
-
-        Reporter.clearCount();
     }
 
     std.debug.print("end.\n", .{});
