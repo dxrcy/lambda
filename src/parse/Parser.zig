@@ -50,7 +50,10 @@ pub const Statement = union(enum) {
     query: Query,
 };
 
-pub fn tryItem(self: *Self, term_allocator: Allocator) Allocator.Error!?Statement {
+pub fn tryStatement(
+    self: *Self,
+    term_allocator: Allocator,
+) Allocator.Error!?Statement {
     if (!self.peekIsAnyToken()) {
         return null;
     }
@@ -86,7 +89,7 @@ fn expectDeclaration(self: *Self, term_allocator: Allocator) Allocator.Error!?De
 
     assert(self.expectTokenKind(.Equals) != null);
 
-    const term = try self.expectItemTerm(term_allocator) orelse
+    const term = try self.expectStatementTerm(term_allocator) orelse
         return null;
 
     return Decl{ .name = name, .term = term };
@@ -94,12 +97,12 @@ fn expectDeclaration(self: *Self, term_allocator: Allocator) Allocator.Error!?De
 
 /// Assumes next token is present; caller must ensure this.
 fn expectQuery(self: *Self, term_allocator: Allocator) Allocator.Error!?Query {
-    const term = try self.expectItemTerm(term_allocator) orelse
+    const term = try self.expectStatementTerm(term_allocator) orelse
         return null;
     return Query{ .term = term };
 }
 
-fn expectItemTerm(
+fn expectStatementTerm(
     self: *Self,
     term_allocator: Allocator,
 ) Allocator.Error!?*Term {

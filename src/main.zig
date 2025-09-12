@@ -74,13 +74,13 @@ pub fn main() !void {
     defer term_allocator.deinit();
 
     {
-        var stmts = Statements.new(&context);
-        while (stmts.next()) |stmt| {
-            var parser = Parser.new(stmt);
-            const item = try parser.tryItem(term_allocator.allocator()) orelse {
+        var statements = Statements.new(&context);
+        while (statements.next()) |span| {
+            var parser = Parser.new(span);
+            const stmt = try parser.tryStatement(term_allocator.allocator()) orelse {
                 continue;
             };
-            switch (item) {
+            switch (stmt) {
                 .declaration => |decl| {
                     try decls.append(decl);
                 },
@@ -208,10 +208,10 @@ pub fn main() !void {
 
         var parser = Parser.new(line_span);
 
-        const item = try parser.tryItem(term_allocator.allocator()) orelse {
+        const stmt = try parser.tryStatement(term_allocator.allocator()) orelse {
             continue;
         };
-        switch (item) {
+        switch (stmt) {
             .declaration => {
                 std.debug.print("unimplemented\n", .{});
             },
