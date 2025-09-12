@@ -156,20 +156,26 @@ pub fn main() !void {
         }
     }
 
-    // TODO: Decrease buffer size
-    const BUFFER_SIZE = 1024;
-
-    // All repl lines are appended to this string
     // TODO(opt): Don't append temporary query lines
     // Use a separate temporary string
     // This is not important at this stage
+
+    // Storage for all stdin text (including non-persistant statements)
     var stdin_text = ArrayList(u8).init(allocator);
     defer stdin_text.deinit();
 
-    // TODO(opt): Buffer input properly
+    const BUFFER_SIZE = 4;
+
     const stdin = std.fs.File.stdin();
-    var buf: [BUFFER_SIZE]u8 = undefined;
-    var reader = stdin.reader(&buf);
+
+    var buffer: [BUFFER_SIZE]u8 = undefined;
+    var reader = stdin.reader(&buffer);
+
+    // TODO: Add stdin case to `Context`, don't use filepath
+    var stdin_context = Context{
+        .filepath = "-",
+        .text = stdin_text.items,
+    };
 
     while (true) {
         Reporter.clearCount();
@@ -177,35 +183,15 @@ pub fn main() !void {
         std.debug.print("?- ", .{});
 
         const text_line_start = stdin_text.items.len;
-
-        while (true) {
-            var buf2: [1]u8 = undefined;
-            const bytes_read = reader.read(&buf2) catch |err| switch (err) {
-                error.EndOfStream => {
-                    break;
-                },
-                else => |other_err| return other_err,
-            };
-            if (bytes_read == 0) {
-                break;
-            }
-            try stdin_text.append(buf2[0]);
-        }
-        try stdin_text.append('\n');
-
-        // Include '\n'
-        const text_line = stdin_text.items[text_line_start..stdin_text.items.len];
-
-        // std.debug.print("<{s}>\n", .{stdin_text.items});
-
-        // TODO: Use single context for all stdin
-        // TODO: Add stdin case to `Context`, don't use filepath
-        const line_context = Context{
-            .filepath = "-",
-            .text = text_line,
+        const text_line_len = try readLineAndAppend(&reader, &stdin_text) orelse {
+            break;
         };
+        const text_line = stdin_text.items[text_line_start..text_line_len];
 
-        const line_span = Span.new(0, text_line.len, &line_context);
+        // Reassign pointer and length in case of resize or relocation
+        stdin_context.text = stdin_text.items;
+
+        const line_span = Span.new(text_line_start, text_line.len, &stdin_context);
 
         // TODO: Validate encoding
 
@@ -267,4 +253,39 @@ pub fn main() !void {
     }
 
     std.debug.print("end.\n", .{});
+}
+
+fn readLineAndAppend(reader: *fs.File.Reader, text: *ArrayList(u8)) !?usize {
+
+    // FIXME: Why is there an initial zero-byte read ?
+    while (true) {
+        const byte = try readSingleByte(reader) orelse
+            return null;
+
+        try text.append(byte);
+        if (byte == '\n') {
+            break;
+        }
+    }
+
+    return text.items.len;
+}
+
+fn readSingleByte(reader: *fs.File.Reader) !?u8 {
+    var bytes: [1]u8 = undefined;
+
+    while (true) {
+        const bytes_read = reader.read(&bytes) catch |err| switch (err) {
+            error.EndOfStream => {
+                return null;
+            },
+            else => |other_err| {
+                return other_err;
+            },
+        };
+
+        if (bytes_read > 0) {
+            return bytes[0];
+        }
+    }
 }
