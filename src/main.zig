@@ -99,6 +99,10 @@ pub fn main() !u8 {
                 .query => |query| {
                     try queries.append(allocator, query);
                 },
+                .inspect => |term| {
+                    _ = term;
+                    std.debug.print("unimplemented\n", .{});
+                },
             }
         }
     }
@@ -268,6 +272,10 @@ pub fn main() !u8 {
                     std.debug.print("\n", .{});
                     // debug.printTermAll("Result", result, decls.items);
                 }
+            },
+            .inspect => |term| {
+                _ = term;
+                std.debug.print("unimplemented\n", .{});
             },
         }
     }

@@ -48,6 +48,7 @@ fn getStatement(self: *const Self) Span {
 pub const Statement = union(enum) {
     declaration: Decl,
     query: Query,
+    inspect: *Term,
 };
 
 pub fn tryStatement(
@@ -56,6 +57,12 @@ pub fn tryStatement(
 ) Allocator.Error!?Statement {
     if (!self.peekIsAnyToken()) {
         return null;
+    }
+
+    if (self.peekIsInspect()) {
+        const term = try self.expectInspect(term_allocator) orelse
+            return null;
+        return .{ .inspect = term };
     }
 
     if (self.peekIsDeclaration()) {
@@ -74,11 +81,25 @@ fn peekIsAnyToken(self: *Self) bool {
     return self.token_buf.peek() != null;
 }
 
+/// Returns `true` if the first token is `.Inspect` (it must be an inspect).
+fn peekIsInspect(self: *Self) bool {
+    const equals = self.token_buf.peek() orelse
+        return false;
+    return equals.kind == .Inspect;
+}
+
 /// Returns `true` if the second token is `.Equals` (it must be a declaration).
 fn peekIsDeclaration(self: *Self) bool {
     const equals = self.token_buf.peekBy(2) orelse
         return false;
     return equals.kind == .Equals;
+}
+
+/// Assumes next token is present; caller must ensure this.
+/// Assumes first token is `.Inspect`; caller must ensure this.
+fn expectInspect(self: *Self, term_allocator: Allocator) Allocator.Error!?*Term {
+    assert(self.expectTokenKind(.Inspect) != null);
+    return try self.expectStatementTerm(term_allocator);
 }
 
 /// Assumes next token is present; caller must ensure this.
@@ -221,7 +242,7 @@ fn tryTermSingle(
             );
         },
 
-        .ParenRight, .Equals, .Dot => {
+        .ParenRight, .Equals, .Dot, .Inspect => {
             assert(!(in_group and left.kind == .ParenRight));
             Reporter.report(
                 "unexpected token",

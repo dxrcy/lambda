@@ -14,9 +14,11 @@ pub fn new(span: Span) Self {
 }
 
 pub const Kind = enum {
+    // TODO: Rename variants
     Backslash,
     Dot,
     Equals,
+    Inspect,
     ParenLeft,
     ParenRight,
     Ident,
@@ -27,6 +29,7 @@ pub const Kind = enum {
             .{ "\\", .Backslash },
             .{ ".", .Dot },
             .{ ":=", .Equals },
+            .{ ":", .Inspect },
             .{ "(", .ParenLeft },
             .{ ")", .ParenRight },
         };
@@ -43,6 +46,7 @@ pub const Kind = enum {
             .Backslash => "`\\`",
             .Dot => "`.`",
             .Equals => "`:=`",
+            .Inspect => "`:`",
             .ParenLeft => "`(`",
             .ParenRight => "`)`",
             .Ident => "<identifier>",
