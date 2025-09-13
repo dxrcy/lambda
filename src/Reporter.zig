@@ -5,6 +5,10 @@ const assert = std.debug.assert;
 const Context = @import("Context.zig");
 const Span = @import("Span.zig");
 
+const ExitCode = u8;
+
+const PROGRAM_EXIT_CODE = 1;
+
 var accumulated_count: usize = 0;
 
 /// Call `flush` at the end of public functions.
@@ -52,27 +56,26 @@ pub fn clearCount() void {
 }
 
 // TODO: Rename
-pub fn checkFatal() bool {
+pub fn checkFatal() ?ExitCode {
     if (accumulated_count == 0) {
-        return false;
+        return null;
     }
-    reportFatal(
+    return reportFatal(
         "unable to continue",
         "{} errors occurred",
         .{accumulated_count},
     );
-    return true;
 }
 
-// TODO: Return error instead of calling `exit`
 pub fn reportFatal(
     comptime kind: []const u8,
     comptime description: []const u8,
     args: anytype,
-) void {
+) ExitCode {
     printErrorHeading(kind);
     printErrorDescription(description, args);
     Output.flush();
+    return PROGRAM_EXIT_CODE;
 }
 
 pub fn report(

@@ -22,8 +22,6 @@ const LocalStore = symbols.LocalStore;
 const resolve = @import("resolve.zig");
 const debug = @import("debug.zig");
 
-const PROGRAM_ERROR_CODE = 1;
-
 pub fn main() !u8 {
     // pub fn main() Allocator.Error!void {
     var gpa = std.heap.DebugAllocator(.{}){};
@@ -36,14 +34,20 @@ pub fn main() !u8 {
     defer Reporter.Output.flush();
 
     const filepath = args.next() orelse {
-        Reporter.reportFatal("no filepath argument was provided", "", .{});
-        return PROGRAM_ERROR_CODE;
+        return Reporter.reportFatal(
+            "no filepath argument was provided",
+            "",
+            .{},
+        );
     };
 
     // TODO: Include filepath in report
     var text = utils.readFile(filepath, allocator) catch |err| {
-        Reporter.reportFatal("failed to read file", "{}", .{err});
-        return PROGRAM_ERROR_CODE;
+        return Reporter.reportFatal(
+            "failed to read file",
+            "{}",
+            .{err},
+        );
     };
     defer text.deinit(allocator);
 
@@ -61,7 +65,8 @@ pub fn main() !u8 {
             .{},
             .{ .file = &context },
         );
-        if (Reporter.checkFatal()) return PROGRAM_ERROR_CODE;
+        if (Reporter.checkFatal()) |code|
+            return code;
     }
 
     var decls = ArrayList(Decl).empty;
@@ -96,7 +101,8 @@ pub fn main() !u8 {
         }
     }
 
-    if (Reporter.checkFatal()) return PROGRAM_ERROR_CODE;
+    if (Reporter.checkFatal()) |code|
+        return code;
 
     {
         symbols.checkDeclarationCollisions(decls.items);
@@ -123,7 +129,8 @@ pub fn main() !u8 {
         std.debug.assert(locals.isEmpty());
     }
 
-    if (Reporter.checkFatal()) return PROGRAM_ERROR_CODE;
+    if (Reporter.checkFatal()) |code|
+        return code;
 
     // debug.printDeclarations(decls.items, &context);
     // debug.printQueries(queries.items, &context);
