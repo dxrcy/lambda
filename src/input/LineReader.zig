@@ -40,8 +40,7 @@ pub fn new() !Self {
 /// Returns slice of underlying buffer, which may be overridden on next
 /// read call.
 pub fn getLine(self: *const Self) []const u8 {
-    // TODO: Trim whitespace
-    return self.view.get();
+    return std.mem.trim(u8, self.view.get(), " ");
 }
 
 /// Returns `false` iff **EOF** (iff `self.eof`).
