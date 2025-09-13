@@ -71,9 +71,15 @@ pub const LineReader = struct {
                 return false;
             },
             // Backspace, delete
+            // FIXME: `Delete` key inserts `~`
             0x08, 0x7f => {
                 self.line.remove();
                 return false;
+            },
+            // ^D (EOT/EOF)
+            0x04 => {
+                self.reader.setUserEof();
+                return true;
             },
             // ESC
             0x1b => {
@@ -176,7 +182,7 @@ const StdinReader = struct {
 
     /// Returns `null` and sets `self.eof` iff **EOF**.
     /// If `self.eof` is `true`, no read calls will be made.
-    fn readSingleByte(self: *Self) !?u8 {
+    pub fn readSingleByte(self: *Self) !?u8 {
         if (self.eof) {
             return null;
         }
@@ -197,6 +203,11 @@ const StdinReader = struct {
                 return bytes[0];
             }
         }
+    }
+
+    /// Set `self.eof` as if a true **EOF** was reached.
+    pub fn setUserEof(self: *Self) void {
+        self.eof = true;
     }
 };
 
