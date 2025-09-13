@@ -183,29 +183,39 @@ pub fn main() !u8 {
     const stdin = std.fs.File.stdin();
 
     var buffer: [BUFFER_SIZE]u8 = undefined;
-    var reader = stdin.reader(&buffer);
+    const reader = stdin.reader(&buffer);
 
     var stdin_context = Context{
         .filepath = null,
         .text = stdin_text.items,
     };
 
-    var terminal = try StdinTerminal.get();
+    const terminal = try StdinTerminal.get();
+
+    // TODO: Create `new` method
+    var line_reader = LineReader{
+        .buffer = undefined,
+        .length = 0,
+        .cursor = 0,
+
+        .eof = false,
+
+        .reader = reader,
+        .terminal = terminal,
+    };
 
     while (true) {
         Reporter.clearCount();
 
-        std.debug.print("?- ", .{});
+        if (!try line_reader.readLine()) {
+            break; // EOF
+        }
 
         const text_line_start = stdin_text.items.len;
-        const text_line = try readLineAndAppend(
-            &reader,
-            &terminal,
-            &stdin_text,
-            allocator,
-        ) orelse {
-            break;
-        };
+        try stdin_text.appendSlice(allocator, line_reader.getLine());
+
+        const text_line = stdin_text.items[text_line_start..stdin_text.items.len];
+        try stdin_text.append(allocator, '\n');
 
         // Reassign pointer and length in case of resize or relocation
         stdin_context.text = stdin_text.items;
@@ -300,6 +310,7 @@ const StdinTerminal = struct {
         return Self{ .termios = termios };
     }
 
+    /// Disable buffering and echo.
     pub fn enableInputMode(self: *Self) !void {
         if (self.termios) |*termios| {
             termios.lflag.ICANON = false;
@@ -308,6 +319,7 @@ const StdinTerminal = struct {
         }
     }
 
+    /// Reverses `enableInputMode`.
     pub fn disableInputMode(self: *Self) !void {
         if (self.termios) |*termios| {
             termios.lflag.ICANON = true;
@@ -316,12 +328,135 @@ const StdinTerminal = struct {
         }
     }
 
-    // Assumes `termios` is a terminal; does not catch `error.NotATerminal`.
+    /// Assumes `termios` is a terminal; does not catch `error.NotATerminal`.
     fn setAttr(termios: *posix.termios) !void {
         posix.tcsetattr(FILENO, .NOW, termios.*) catch |err| switch (err) {
             error.NotATerminal => unreachable,
             else => |other_err| return other_err,
         };
+    }
+};
+
+const LineReader = struct {
+    const Self = @This();
+    const BUFFER_SIZE = 1024;
+
+    reader: fs.File.Reader,
+    terminal: StdinTerminal,
+
+    buffer: [BUFFER_SIZE]u8,
+    length: usize,
+    cursor: usize,
+
+    /// Should *not* be unset, once set.
+    eof: bool,
+
+    /// Returns slice of underlying buffer, which may be overridden on next
+    /// read call.
+    pub fn getLine(self: *Self) []const u8 {
+        return self.buffer[0..self.length];
+    }
+
+    /// Returns `false` iff **EOF** (iff `self.eof`).
+    pub fn readLine(self: *Self) !bool {
+        if (self.eof) {
+            return false;
+        }
+        try self.terminal.enableInputMode();
+        try self.readLineInner();
+        try self.terminal.disableInputMode();
+        return true;
+    }
+
+    // Assumes `self.terminal` has input mode enabled.
+    // Assumes `self.eof` is `false`.
+    fn readLineInner(self: *Self) !void {
+        self.length = 0;
+        self.cursor = 0;
+
+        while (true) {
+            {
+                std.debug.print("\r\x1b[K", .{});
+                std.debug.print("?- ", .{});
+                std.debug.print("{s}", .{self.getLine()});
+            }
+
+            const byte = try self.readSingleByte() orelse
+                break;
+
+            switch (byte) {
+                '\n' => {
+                    break;
+                },
+                // Normal character
+                0x20...0x7e => {
+                    if (self.cursor < self.length) {
+                        // TODO: Insert byte at cursor position
+                        // Allow succeeding bytes to be cut off if length>size
+                        continue;
+                    }
+                    if (self.cursor < BUFFER_SIZE) {
+                        self.buffer[self.cursor] = byte;
+                        self.length += 1;
+                        self.cursor += 1;
+                    }
+                },
+                // Backspace, delete
+                0x08, 0x7f => {
+                    // TODO: Delete at cursor position
+                    if (self.length > 0 and self.cursor > 0) {
+                        self.length -= 1;
+                        self.cursor -= 1;
+                    }
+                },
+                // ESC
+                0x1b => {
+                    if (try self.readSingleByte() != '[') {
+                        continue;
+                    }
+                    switch (try self.readSingleByte() orelse continue) {
+                        'A' => {
+                            // TODO: Go up in history
+                        },
+                        'B' => {
+                            // TODO: Go down in history
+                        },
+                        'C' => {
+                            // TODO: Move right in line
+                        },
+                        'D' => {
+                            // TODO: Move left in line
+                        },
+                        else => {},
+                    }
+                },
+                else => {},
+            }
+        }
+
+        std.debug.print("\n", .{});
+    }
+
+    /// Returns `null` and sets `self.eof` iff **EOF**.
+    fn readSingleByte(self: *Self) !?u8 {
+        var bytes: [1]u8 = undefined;
+
+        while (true) {
+            const bytes_read = self.reader.read(&bytes) catch |err|
+                switch (err) {
+                    error.EndOfStream => {
+                        self.eof = true;
+                        return null;
+                    },
+                    else => |other_err| {
+                        return other_err;
+                    },
+                };
+
+            if (bytes_read > 0) {
+                return bytes[0];
+            }
+        }
     }
 };
 
