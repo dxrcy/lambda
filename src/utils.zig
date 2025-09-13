@@ -1,7 +1,7 @@
 const std = @import("std");
 const fs = std.fs;
 const Allocator = std.mem.Allocator;
-const ArrayList = std.array_list.Managed;
+const ArrayList = std.ArrayList;
 
 const ReadFileError =
     fs.File.OpenError || std.Io.Reader.Error || Allocator.Error;
@@ -18,7 +18,9 @@ pub fn readFile(
     var buffer: [BUFFER_SIZE]u8 = undefined;
     var reader = file.reader(&buffer);
 
-    var string = ArrayList(u8).init(allocator);
+    var string = ArrayList(u8).empty;
+    // FIXME: errdefer deinit
+
     while (true) {
         var bytes: [1]u8 = undefined;
         const bytes_read = reader.read(&bytes) catch |err| switch (err) {
@@ -28,7 +30,9 @@ pub fn readFile(
         if (bytes_read == 0) {
             break;
         }
-        try string.append(bytes[0]);
+
+        try string.append(allocator, bytes[0]);
     }
+
     return string;
 }

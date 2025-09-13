@@ -1,6 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const ArrayList = std.array_list.Managed;
+const ArrayList = std.ArrayList;
 
 const Reporter = @import("Reporter.zig");
 const Span = @import("Span.zig");
@@ -156,6 +156,7 @@ pub const LocalStore = struct {
     const Self = @This();
 
     entries: ArrayList(Entry),
+    allocator: Allocator,
 
     pub const Entry = struct {
         term: *Term,
@@ -164,12 +165,13 @@ pub const LocalStore = struct {
 
     pub fn init(allocator: Allocator) Self {
         return .{
-            .entries = ArrayList(Entry).init(allocator),
+            .entries = ArrayList(Entry).empty,
+            .allocator = allocator,
         };
     }
 
-    pub fn deinit(self: *const Self) void {
-        self.entries.deinit();
+    pub fn deinit(self: *Self) void {
+        self.entries.deinit(self.allocator);
     }
 
     pub fn isEmpty(self: *const Self) bool {
@@ -181,7 +183,7 @@ pub const LocalStore = struct {
         term: *Term,
         value: []const u8,
     ) Allocator.Error!void {
-        try self.entries.append(.{
+        try self.entries.append(self.allocator, .{
             .term = term,
             .value = value,
         });

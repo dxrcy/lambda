@@ -1,7 +1,7 @@
 const std = @import("std");
 const fs = std.fs;
 const Allocator = std.mem.Allocator;
-const ArrayList = std.array_list.Managed;
+const ArrayList = std.ArrayList;
 
 const Context = @import("Context.zig");
 const Reporter = @import("Reporter.zig");
@@ -38,10 +38,10 @@ pub fn main() !void {
     };
 
     // TODO(feat): Include filepath in report
-    const text = utils.readFile(filepath, allocator) catch |err| {
+    var text = utils.readFile(filepath, allocator) catch |err| {
         Reporter.reportFatal("failed to read file", "{}", .{err});
     };
-    defer text.deinit();
+    defer text.deinit(allocator);
 
     const context = Context{
         .filepath = filepath,
@@ -59,11 +59,11 @@ pub fn main() !void {
         Reporter.checkFatal();
     }
 
-    var decls = ArrayList(Decl).init(allocator);
-    defer decls.deinit();
+    var decls = ArrayList(Decl).empty;
+    defer decls.deinit(allocator);
 
-    var queries = ArrayList(Query).init(allocator);
-    defer queries.deinit();
+    var queries = ArrayList(Query).empty;
+    defer queries.deinit(allocator);
 
     // TODO: Separate term storage into
     // - terms in declarations
@@ -82,10 +82,10 @@ pub fn main() !void {
             };
             switch (stmt) {
                 .declaration => |decl| {
-                    try decls.append(decl);
+                    try decls.append(allocator, decl);
                 },
                 .query => |query| {
-                    try queries.append(query);
+                    try queries.append(allocator, query);
                 },
             }
         }
@@ -162,8 +162,8 @@ pub fn main() !void {
     // This is not important at this stage
 
     // Storage for all stdin text (including non-persistant statements)
-    var stdin_text = ArrayList(u8).init(allocator);
-    defer stdin_text.deinit();
+    var stdin_text = ArrayList(u8).empty;
+    defer stdin_text.deinit(allocator);
 
     const BUFFER_SIZE = 4;
 
@@ -184,7 +184,7 @@ pub fn main() !void {
         std.debug.print("?- ", .{});
 
         const text_line_start = stdin_text.items.len;
-        const text_line = try readLineAndAppend(&reader, &stdin_text) orelse {
+        const text_line = try readLineAndAppend(&reader, &stdin_text, allocator) orelse {
             break;
         };
 
@@ -267,6 +267,7 @@ pub fn main() !void {
 fn readLineAndAppend(
     reader: *fs.File.Reader,
     text: *ArrayList(u8),
+    allocator: Allocator,
 ) !?[]const u8 {
     const start = text.items.len;
 
@@ -277,11 +278,11 @@ fn readLineAndAppend(
         if (byte == '\n') {
             break;
         }
-        try text.append(byte);
+        try text.append(allocator, byte);
     }
 
     if (start != text.items.len) {
-        try text.append('\n');
+        try text.append(allocator, '\n');
     }
     return text.items[start..text.items.len];
 }
