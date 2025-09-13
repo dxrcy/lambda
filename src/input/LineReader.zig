@@ -40,6 +40,7 @@ pub fn new() !Self {
 /// Returns slice of underlying buffer, which may be overridden on next
 /// read call.
 pub fn getLine(self: *const Self) []const u8 {
+    // TODO: Trim whitespace
     return self.view.get();
 }
 
@@ -54,11 +55,17 @@ pub fn readLine(self: *Self) !bool {
     return true;
 }
 
+/// Use persistant `Span` to keep valid reference after buffer is overwritten.
 pub fn appendHistory(self: *Self, span: Span) void {
-    // TODO: Check if previous item is identical
-    if (span.string().len > 0) {
-        self.history.append(span);
+    if (span.string().len == 0) {
+        return;
     }
+    if (self.history.getLatest()) |latest| {
+        if (std.mem.eql(u8, latest, span.string())) {
+            return;
+        }
+    }
+    self.history.append(span);
 }
 
 // Assumes `self.terminal` has input mode enabled.

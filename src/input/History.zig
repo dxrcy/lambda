@@ -41,3 +41,11 @@ pub fn getActive(self: *const Self) []const u8 {
     assert(self.length <= HISTORY_SIZE);
     return self.items[self.index].string();
 }
+
+pub fn getLatest(self: *const Self) ?[]const u8 {
+    assert(self.length <= HISTORY_SIZE);
+    if (self.length == 0) {
+        return null;
+    }
+    return self.items[self.length - 1].string();
+}
