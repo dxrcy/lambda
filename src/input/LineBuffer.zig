@@ -44,4 +44,17 @@ pub fn remove(self: *Self) void {
     }
 }
 
-// TODO: Move cursor left/right
+pub fn seek(self: *Self, direction: enum { left, right }) void {
+    switch (direction) {
+        .left => {
+            if (self.cursor > 0) {
+                self.cursor -= 1;
+            }
+        },
+        .right => {
+            if (self.cursor < self.length) {
+                self.cursor += 1;
+            }
+        },
+    }
+}

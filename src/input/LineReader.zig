@@ -7,6 +7,7 @@ const StdinTerminal = @import("StdinTerminal.zig");
 const LineBuffer = @import("LineBuffer.zig");
 
 const MAX_LINE_LENGTH = 1024;
+const PROMPT = "?- ";
 
 reader: StdinReader,
 terminal: StdinTerminal,
@@ -45,15 +46,23 @@ fn readLineInner(self: *Self) !void {
     // TODO: Use stdin
 
     while (true) {
-        std.debug.print("\r\x1b[K", .{});
-        std.debug.print("?- ", .{});
-        std.debug.print("{s}", .{self.line.get()});
-
+        self.printPrompt();
         if (try self.readNextSequence()) {
             break;
         }
     }
 
+    self.printEnd();
+}
+
+fn printPrompt(self: *const Self) void {
+    std.debug.print("\r\x1b[K", .{});
+    std.debug.print(PROMPT, .{});
+    std.debug.print("{s}", .{self.line.get()});
+    std.debug.print("\x1b[{}G", .{self.line.cursor + PROMPT.len + 1});
+}
+
+fn printEnd(_: *const Self) void {
     std.debug.print("\n", .{});
 }
 
@@ -98,10 +107,10 @@ fn readNextSequence(self: *Self) !bool {
                     // TODO: Go down in history
                 },
                 'C' => {
-                    // TODO: Move right in line
+                    self.line.seek(.right);
                 },
                 'D' => {
-                    // TODO: Move left in line
+                    self.line.seek(.left);
                 },
                 else => {},
             }
