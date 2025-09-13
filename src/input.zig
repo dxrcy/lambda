@@ -4,16 +4,12 @@ const posix = std.posix;
 
 pub const LineReader = struct {
     const Self = @This();
-    const FILE_BUFFER_SIZE = 1024;
-    const LINE_BUFFER_SIZE = 1024;
+    const MAX_LINE_LENGTH = 1024;
 
-    stdin: fs.File,
-    stdin_buffer: [FILE_BUFFER_SIZE]u8,
-    reader: fs.File.Reader,
-
+    reader: StdinReader,
     terminal: StdinTerminal,
 
-    line_buffer: [LINE_BUFFER_SIZE]u8,
+    buffer: [MAX_LINE_LENGTH]u8,
     length: usize,
     cursor: usize,
 
@@ -21,27 +17,22 @@ pub const LineReader = struct {
     eof: bool,
 
     pub fn new() !Self {
-        var self = Self{
-            .stdin = fs.File.stdin(),
-            .reader = undefined,
-            .stdin_buffer = undefined,
-
+        return Self{
+            .reader = StdinReader.new(),
             .terminal = try StdinTerminal.get(),
 
-            .line_buffer = undefined,
+            .buffer = undefined,
             .length = 0,
             .cursor = 0,
 
             .eof = false,
         };
-        self.reader = self.stdin.reader(&self.stdin_buffer);
-        return self;
     }
 
     /// Returns slice of underlying buffer, which may be overridden on next
     /// read call.
     pub fn getLine(self: *Self) []const u8 {
-        return self.line_buffer[0..self.length];
+        return self.buffer[0..self.length];
     }
 
     /// Returns `false` iff **EOF** (iff `self.eof`).
@@ -82,8 +73,8 @@ pub const LineReader = struct {
                         // Allow succeeding bytes to be cut off if length>size
                         continue;
                     }
-                    if (self.cursor < LINE_BUFFER_SIZE) {
-                        self.line_buffer[self.cursor] = byte;
+                    if (self.cursor < MAX_LINE_LENGTH) {
+                        self.buffer[self.cursor] = byte;
                         self.length += 1;
                         self.cursor += 1;
                     }
@@ -126,13 +117,39 @@ pub const LineReader = struct {
 
     /// Returns `null` and sets `self.eof` iff **EOF**.
     fn readSingleByte(self: *Self) !?u8 {
+        return try self.reader.readSingleByte() orelse {
+            self.eof = true;
+            return null;
+        };
+    }
+};
+
+const StdinReader = struct {
+    const Self = @This();
+    const BUFFER_SIZE = 1024;
+
+    stdin: fs.File,
+    reader: fs.File.Reader,
+    buffer: [BUFFER_SIZE]u8,
+
+    pub fn new() Self {
+        var self = Self{
+            .stdin = fs.File.stdin(),
+            .reader = undefined,
+            .buffer = undefined,
+        };
+        self.reader = self.stdin.reader(&self.buffer);
+        return self;
+    }
+
+    /// Returns `null` iff **EOF**.
+    fn readSingleByte(self: *Self) !?u8 {
         var bytes: [1]u8 = undefined;
 
         while (true) {
             const bytes_read = self.reader.read(&bytes) catch |err|
                 switch (err) {
                     error.EndOfStream => {
-                        self.eof = true;
                         return null;
                     },
                     else => |other_err| {
