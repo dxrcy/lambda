@@ -60,16 +60,12 @@ pub const LineReader = struct {
     reader: StdinReader,
     terminal: StdinTerminal,
     line: LineBuffer,
-    /// Should *not* be unset, once set.
-    // TODO: Move to another struct?
-    eof: bool,
 
     pub fn new() !Self {
         return Self{
             .reader = StdinReader.new(),
             .terminal = try StdinTerminal.get(),
             .line = LineBuffer.new(),
-            .eof = false,
         };
     }
 
@@ -81,7 +77,7 @@ pub const LineReader = struct {
 
     /// Returns `false` iff **EOF** (iff `self.eof`).
     pub fn readLine(self: *Self) !bool {
-        if (self.eof) {
+        if (self.reader.eof) {
             return false;
         }
         try self.terminal.enableInputMode();
@@ -111,7 +107,7 @@ pub const LineReader = struct {
     /// Returns `true` if **EOF** *or* **EOL**, or `false` if there are still
     /// characters to read in the current line.
     fn readNextSequence(self: *Self) !bool {
-        const byte = try self.readSingleByte() orelse
+        const byte = try self.reader.readSingleByte() orelse
             return true;
 
         switch (byte) {
@@ -130,10 +126,10 @@ pub const LineReader = struct {
             },
             // ESC
             0x1b => {
-                if (try self.readSingleByte() != '[') {
+                if (try self.reader.readSingleByte() != '[') {
                     return true;
                 }
-                const command = try self.readSingleByte() orelse
+                const command = try self.reader.readSingleByte() orelse
                     return true;
                 switch (command) {
                     'A' => {
@@ -155,14 +151,6 @@ pub const LineReader = struct {
             else => return false,
         }
     }
-
-    /// Returns `null` and sets `self.eof` iff **EOF**.
-    fn readSingleByte(self: *Self) !?u8 {
-        return try self.reader.readSingleByte() orelse {
-            self.eof = true;
-            return null;
-        };
-    }
 };
 
 const StdinReader = struct {
@@ -172,25 +160,32 @@ const StdinReader = struct {
     stdin: fs.File,
     reader: fs.File.Reader,
     buffer: [BUFFER_SIZE]u8,
+    /// Should *not* be unset, once set.
+    eof: bool,
 
     pub fn new() Self {
         var self = Self{
             .stdin = fs.File.stdin(),
             .reader = undefined,
             .buffer = undefined,
+            .eof = false,
         };
         self.reader = self.stdin.reader(&self.buffer);
         return self;
     }
 
-    /// Returns `null` iff **EOF**.
+    /// Returns `null` and sets `self.eof` iff **EOF**.
+    /// If `self.eof` is `true`, no read calls will be made.
     fn readSingleByte(self: *Self) !?u8 {
-        var bytes: [1]u8 = undefined;
-
+        if (self.eof) {
+            return null;
+        }
         while (true) {
+            var bytes: [1]u8 = undefined;
             const bytes_read = self.reader.read(&bytes) catch |err|
                 switch (err) {
                     error.EndOfStream => {
+                        self.eof = true;
                         return null;
                     },
                     else => |other_err| {
