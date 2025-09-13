@@ -178,31 +178,12 @@ pub fn main() !u8 {
     var stdin_text = ArrayList(u8).empty;
     defer stdin_text.deinit(allocator);
 
-    const BUFFER_SIZE = 4;
-
-    const stdin = std.fs.File.stdin();
-
-    var buffer: [BUFFER_SIZE]u8 = undefined;
-    const reader = stdin.reader(&buffer);
-
     var stdin_context = Context{
         .filepath = null,
         .text = stdin_text.items,
     };
 
-    const terminal = try StdinTerminal.get();
-
-    // TODO: Create `new` method
-    var line_reader = LineReader{
-        .buffer = undefined,
-        .length = 0,
-        .cursor = 0,
-
-        .eof = false,
-
-        .reader = reader,
-        .terminal = terminal,
-    };
+    var line_reader = try LineReader.new();
 
     while (true) {
         Reporter.clearCount();
@@ -339,22 +320,44 @@ const StdinTerminal = struct {
 
 const LineReader = struct {
     const Self = @This();
-    const BUFFER_SIZE = 1024;
+    const FILE_BUFFER_SIZE = 1024;
+    const LINE_BUFFER_SIZE = 1024;
 
+    stdin: fs.File,
+    stdin_buffer: [FILE_BUFFER_SIZE]u8,
     reader: fs.File.Reader,
+
     terminal: StdinTerminal,
 
-    buffer: [BUFFER_SIZE]u8,
+    line_buffer: [LINE_BUFFER_SIZE]u8,
     length: usize,
     cursor: usize,
 
     /// Should *not* be unset, once set.
     eof: bool,
 
+    pub fn new() !Self {
+        var self = Self{
+            .stdin = fs.File.stdin(),
+            .reader = undefined,
+            .stdin_buffer = undefined,
+
+            .terminal = try StdinTerminal.get(),
+
+            .line_buffer = undefined,
+            .length = 0,
+            .cursor = 0,
+
+            .eof = false,
+        };
+        self.reader = self.stdin.reader(&self.stdin_buffer);
+        return self;
+    }
+
     /// Returns slice of underlying buffer, which may be overridden on next
     /// read call.
     pub fn getLine(self: *Self) []const u8 {
-        return self.buffer[0..self.length];
+        return self.line_buffer[0..self.length];
     }
 
     /// Returns `false` iff **EOF** (iff `self.eof`).
@@ -395,8 +398,8 @@ const LineReader = struct {
                         // Allow succeeding bytes to be cut off if length>size
                         continue;
                     }
-                    if (self.cursor < BUFFER_SIZE) {
-                        self.buffer[self.cursor] = byte;
+                    if (self.cursor < LINE_BUFFER_SIZE) {
+                        self.line_buffer[self.cursor] = byte;
                         self.length += 1;
                         self.cursor += 1;
                     }
@@ -459,82 +462,3 @@ const LineReader = struct {
         }
     }
 };
-
-fn readLineAndAppend(
-    reader: *fs.File.Reader,
-    terminal: *StdinTerminal,
-    text: *ArrayList(u8),
-    allocator: Allocator,
-) !?[]const u8 {
-    const start = text.items.len;
-    try terminal.enableInputMode();
-
-    // TODO: Why is there an initial zero-byte read ? Remove if possible.
-    // Not breaking anything though...
-
-    while (true) {
-        const byte = try readSingleByte(reader) orelse
-            return null;
-
-        switch (byte) {
-            '\n' => {
-                break;
-            },
-            0x20...0x7e => {
-                std.debug.print("{c}", .{byte});
-                try text.append(allocator, byte);
-            },
-            0x08, 0x7f => {
-                // TODO: Delete character
-            },
-            0x1b => {
-                if (try readSingleByte(reader) != '[') {
-                    continue;
-                }
-                switch (try readSingleByte(reader) orelse continue) {
-                    'A' => {
-                        // TODO: Go up in history
-                    },
-                    'B' => {
-                        // TODO: Go down in history
-                    },
-                    'C' => {
-                        // TODO: Move right in line
-                    },
-                    'D' => {
-                        // TODO: Move left in line
-                    },
-                    else => {},
-                }
-            },
-            else => {},
-        }
-    }
-
-    try terminal.disableInputMode();
-    std.debug.print("\n", .{});
-
-    if (start != text.items.len) {
-        try text.append(allocator, '\n');
-    }
-    return text.items[start..text.items.len];
-}
-
-fn readSingleByte(reader: *fs.File.Reader) !?u8 {
-    var bytes: [1]u8 = undefined;
-
-    while (true) {
-        const bytes_read = reader.read(&bytes) catch |err| switch (err) {
-            error.EndOfStream => {
-                return null;
-            },
-            else => |other_err| {
-                return other_err;
-            },
-        };
-
-        if (bytes_read > 0) {
-            return bytes[0];
-        }
-    }
-}
