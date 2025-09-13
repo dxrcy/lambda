@@ -1,5 +1,6 @@
 const std = @import("std");
 const fs = std.fs;
+const posix = std.posix;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
@@ -189,13 +190,20 @@ pub fn main() !u8 {
         .text = stdin_text.items,
     };
 
+    var terminal = try StdinTerminal.get();
+
     while (true) {
         Reporter.clearCount();
 
         std.debug.print("?- ", .{});
 
         const text_line_start = stdin_text.items.len;
-        const text_line = try readLineAndAppend(&reader, &stdin_text, allocator) orelse {
+        const text_line = try readLineAndAppend(
+            &reader,
+            &terminal,
+            &stdin_text,
+            allocator,
+        ) orelse {
             break;
         };
 
@@ -276,12 +284,39 @@ pub fn main() !u8 {
     return 0;
 }
 
+const StdinTerminal = struct {
+    const Self = @This();
+    const FILENO = posix.STDIN_FILENO;
+
+    termios: posix.termios,
+
+    pub fn get() !Self {
+        // TODO: Fallback to line buffered if not a terminal
+        const termios = try posix.tcgetattr(FILENO);
+        return Self{ .termios = termios };
+    }
+
+    pub fn enableInputMode(self: *Self) !void {
+        self.termios.lflag.ICANON = false;
+        self.termios.lflag.ECHO = false;
+        try posix.tcsetattr(FILENO, .NOW, self.termios);
+    }
+
+    pub fn disableInputMode(self: *Self) !void {
+        self.termios.lflag.ICANON = true;
+        self.termios.lflag.ECHO = true;
+        try posix.tcsetattr(FILENO, .NOW, self.termios);
+    }
+};
+
 fn readLineAndAppend(
     reader: *fs.File.Reader,
+    terminal: *StdinTerminal,
     text: *ArrayList(u8),
     allocator: Allocator,
 ) !?[]const u8 {
     const start = text.items.len;
+    try terminal.enableInputMode();
 
     // TODO: Why is there an initial zero-byte read ? Remove if possible.
     // Not breaking anything though...
@@ -289,11 +324,44 @@ fn readLineAndAppend(
     while (true) {
         const byte = try readSingleByte(reader) orelse
             return null;
-        if (byte == '\n') {
-            break;
+
+        switch (byte) {
+            '\n' => {
+                break;
+            },
+            0x20...0x7e => {
+                std.debug.print("{c}", .{byte});
+                try text.append(allocator, byte);
+            },
+            0x08, 0x7f => {
+                // TODO: Delete character
+            },
+            0x1b => {
+                if (try readSingleByte(reader) != '[') {
+                    continue;
+                }
+                switch (try readSingleByte(reader) orelse continue) {
+                    'A' => {
+                        // TODO: Go up in history
+                    },
+                    'B' => {
+                        // TODO: Go down in history
+                    },
+                    'C' => {
+                        // TODO: Move right in line
+                    },
+                    'D' => {
+                        // TODO: Move left in line
+                    },
+                    else => {},
+                }
+            },
+            else => {},
         }
-        try text.append(allocator, byte);
     }
+
+    try terminal.disableInputMode();
+    std.debug.print("\n", .{});
 
     if (start != text.items.len) {
         try text.append(allocator, '\n');
