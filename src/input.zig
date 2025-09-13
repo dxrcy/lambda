@@ -2,37 +2,79 @@ const std = @import("std");
 const fs = std.fs;
 const posix = std.posix;
 
+const LineBuffer = struct {
+    const Self = @This();
+    const MAX_LENGTH = 1024;
+
+    buffer: [MAX_LENGTH]u8,
+    length: usize,
+    cursor: usize,
+
+    pub fn new() Self {
+        return Self{
+            .buffer = undefined,
+            .length = 0,
+            .cursor = 0,
+        };
+    }
+
+    pub fn get(self: *const Self) []const u8 {
+        return self.buffer[0..self.length];
+    }
+
+    pub fn clear(self: *Self) void {
+        self.length = 0;
+        self.cursor = 0;
+    }
+
+    pub fn insert(self: *Self, byte: u8) void {
+        if (self.cursor < self.length) {
+            // TODO: Insert byte at cursor position
+            // Allow succeeding bytes to be cut off if length>size
+            return;
+        }
+        if (self.cursor < MAX_LENGTH) {
+            self.buffer[self.cursor] = byte;
+            self.length += 1;
+            self.cursor += 1;
+        }
+    }
+
+    pub fn remove(self: *Self) void {
+        // TODO: Delete at cursor position
+        if (self.length > 0 and self.cursor > 0) {
+            self.length -= 1;
+            self.cursor -= 1;
+        }
+    }
+
+    // TODO: Move cursor left/right
+};
+
 pub const LineReader = struct {
     const Self = @This();
     const MAX_LINE_LENGTH = 1024;
 
     reader: StdinReader,
     terminal: StdinTerminal,
-
-    buffer: [MAX_LINE_LENGTH]u8,
-    length: usize,
-    cursor: usize,
-
+    line: LineBuffer,
     /// Should *not* be unset, once set.
+    // TODO: Move to another struct?
     eof: bool,
 
     pub fn new() !Self {
         return Self{
             .reader = StdinReader.new(),
             .terminal = try StdinTerminal.get(),
-
-            .buffer = undefined,
-            .length = 0,
-            .cursor = 0,
-
+            .line = LineBuffer.new(),
             .eof = false,
         };
     }
 
     /// Returns slice of underlying buffer, which may be overridden on next
     /// read call.
-    pub fn getLine(self: *Self) []const u8 {
-        return self.buffer[0..self.length];
+    pub fn getLine(self: *const Self) []const u8 {
+        return self.line.get();
     }
 
     /// Returns `false` iff **EOF** (iff `self.eof`).
@@ -49,14 +91,14 @@ pub const LineReader = struct {
     // Assumes `self.terminal` has input mode enabled.
     // Assumes `self.eof` is `false`.
     fn readLineInner(self: *Self) !void {
-        self.length = 0;
-        self.cursor = 0;
+        self.line.clear();
 
         while (true) {
             {
+                // TODO: Extract as method
                 std.debug.print("\r\x1b[K", .{});
                 std.debug.print("?- ", .{});
-                std.debug.print("{s}", .{self.getLine()});
+                std.debug.print("{s}", .{self.line.get()});
             }
 
             const byte = try self.readSingleByte() orelse
@@ -68,24 +110,11 @@ pub const LineReader = struct {
                 },
                 // Normal character
                 0x20...0x7e => {
-                    if (self.cursor < self.length) {
-                        // TODO: Insert byte at cursor position
-                        // Allow succeeding bytes to be cut off if length>size
-                        continue;
-                    }
-                    if (self.cursor < MAX_LINE_LENGTH) {
-                        self.buffer[self.cursor] = byte;
-                        self.length += 1;
-                        self.cursor += 1;
-                    }
+                    self.line.insert(byte);
                 },
                 // Backspace, delete
                 0x08, 0x7f => {
-                    // TODO: Delete at cursor position
-                    if (self.length > 0 and self.cursor > 0) {
-                        self.length -= 1;
-                        self.cursor -= 1;
-                    }
+                    self.line.remove();
                 },
                 // ESC
                 0x1b => {
