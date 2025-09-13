@@ -1,8 +1,6 @@
 const Self = @This();
 
 const std = @import("std");
-const Allocator = std.mem.Allocator;
-const ArrayList = std.ArrayList;
 const assert = std.debug.assert;
 
 const History = @import("History.zig");
@@ -25,7 +23,7 @@ view: LineView,
 /// `history.index` is irrelevant if `view.isBuffer()`.
 history: History,
 
-pub fn new(allocator: Allocator) !Self {
+pub fn new() !Self {
     var self = Self{
         .reader = StdinReader.new(),
         .terminal = try StdinTerminal.get(),
@@ -33,7 +31,7 @@ pub fn new(allocator: Allocator) !Self {
         .line = LineBuffer.new(),
         .view = undefined,
 
-        .history = History.new(allocator),
+        .history = History.new(),
     };
     self.view = LineView.fromBuffer(&self.line);
     return self;
@@ -56,10 +54,10 @@ pub fn readLine(self: *Self) !bool {
     return true;
 }
 
-pub fn appendHistory(self: *Self, span: Span) Allocator.Error!void {
+pub fn appendHistory(self: *Self, span: Span) void {
     // TODO: Check if previous item is identical
     if (span.string().len > 0) {
-        try self.history.append(span);
+        self.history.append(span);
     }
 }
 
@@ -153,7 +151,7 @@ fn readNextSequence(self: *Self) !bool {
 fn previousHistory(self: *Self) void {
     self.history.index =
         if (self.view.isBuffer())
-            self.history.items.items.len -| 1
+            self.history.length -| 1
         else
             self.history.index -| 1;
 
@@ -166,7 +164,7 @@ fn nextHistory(self: *Self) void {
     }
 
     // Last item, switch to buffer
-    if (self.history.index + 1 >= self.history.items.items.len) {
+    if (self.history.index + 1 >= self.history.length) {
         self.view = LineView.fromBuffer(&self.line);
         return;
     }

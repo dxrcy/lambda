@@ -163,7 +163,7 @@ pub fn main() !u8 {
         .text = stdin_text.items,
     };
 
-    var line_reader = try LineReader.new(allocator);
+    var line_reader = try LineReader.new();
 
     while (true) {
         Reporter.clearCount();
@@ -183,7 +183,7 @@ pub fn main() !u8 {
 
         const line_span = Span.new(text_line_start, text_line.len, &stdin_context);
 
-        try line_reader.appendHistory(line_span);
+        line_reader.appendHistory(line_span);
 
         if (!std.unicode.utf8ValidateSlice(text_line)) {
             // To include context filepath

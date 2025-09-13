@@ -3,30 +3,36 @@ const Self = @This();
 const std = @import("std");
 const assert = std.debug.assert;
 
-const Allocator = std.mem.Allocator;
-const ArrayList = std.ArrayList;
-
 const Span = @import("../Span.zig");
 
-// TODO: Used fixed array
-items: ArrayList(Span),
-index: usize,
-allocator: Allocator,
+// TODO: Increase history size
+const HISTORY_SIZE = 4;
 
-pub fn new(allocator: Allocator) Self {
+items: [HISTORY_SIZE]Span,
+index: usize,
+length: usize,
+
+pub fn new() Self {
     return Self{
-        .items = ArrayList(Span).empty,
+        .items = undefined,
         .index = 0,
-        .allocator = allocator,
+        .length = 0,
     };
 }
 
-pub fn append(self: *Self, span: Span) Allocator.Error!void {
-    try self.items.append(self.allocator, span);
+pub fn append(self: *Self, span: Span) void {
+    // TODO: Shift items back when array full
+    assert(self.length < HISTORY_SIZE);
+
+    self.items[self.length] = span;
+    self.index = self.length;
+    self.length += 1;
+    // `index` is irrelevant here, it should be reassigned before next use
 }
 
 /// Assumes `self.index` is valid.
 pub fn getActive(self: *const Self) []const u8 {
-    assert(self.index < self.items.items.len);
-    return self.items.items[self.index].string();
+    assert(self.index < self.length);
+    assert(self.length <= HISTORY_SIZE);
+    return self.items[self.index].string();
 }
