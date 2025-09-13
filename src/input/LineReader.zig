@@ -5,6 +5,7 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const assert = std.debug.assert;
 
+const History = @import("History.zig");
 const StdinReader = @import("StdinReader.zig");
 const StdinTerminal = @import("StdinTerminal.zig");
 const LineBuffer = @import("LineBuffer.zig");
@@ -21,12 +22,8 @@ terminal: StdinTerminal,
 line: LineBuffer,
 view: LineView,
 
-// TODO: Used fixed array
-history_items: ArrayList(Span),
-/// Value is irrelevant if `view.isBuffer()`.
-history_index: usize,
-
-allocator: Allocator,
+/// `history.index` is irrelevant if `view.isBuffer()`.
+history: History,
 
 pub fn new(allocator: Allocator) !Self {
     var self = Self{
@@ -36,9 +33,7 @@ pub fn new(allocator: Allocator) !Self {
         .line = LineBuffer.new(),
         .view = undefined,
 
-        .history_items = ArrayList(Span).empty,
-        .history_index = 0,
-        .allocator = allocator,
+        .history = History.new(allocator),
     };
     self.view = LineView.fromBuffer(&self.line);
     return self;
@@ -64,7 +59,7 @@ pub fn readLine(self: *Self) !bool {
 pub fn appendHistory(self: *Self, span: Span) Allocator.Error!void {
     // TODO: Check if previous item is identical
     if (span.string().len > 0) {
-        try self.history_items.append(self.allocator, span);
+        try self.history.append(span);
     }
 }
 
@@ -156,13 +151,13 @@ fn readNextSequence(self: *Self) !bool {
 }
 
 fn previousHistory(self: *Self) void {
-    self.history_index =
+    self.history.index =
         if (self.view.isBuffer())
-            self.history_items.items.len -| 1
+            self.history.items.items.len -| 1
         else
-            self.history_index -| 1;
+            self.history.index -| 1;
 
-    self.view = LineView.fromSlice(self.getHistoryItem());
+    self.view = LineView.fromSlice(self.history.getActive());
 }
 
 fn nextHistory(self: *Self) void {
@@ -171,13 +166,13 @@ fn nextHistory(self: *Self) void {
     }
 
     // Last item, switch to buffer
-    if (self.history_index + 1 >= self.history_items.items.len) {
+    if (self.history.index + 1 >= self.history.items.items.len) {
         self.view = LineView.fromBuffer(&self.line);
         return;
     }
 
-    self.history_index += 1;
-    self.view = LineView.fromSlice(self.getHistoryItem());
+    self.history.index += 1;
+    self.view = LineView.fromSlice(self.history.getActive());
     self.resetCursor();
 }
 
@@ -187,14 +182,8 @@ fn ensureNonhistoric(self: *Self) void {
         return;
     }
 
-    self.line.copyFrom(self.getHistoryItem());
+    self.line.copyFrom(self.history.getActive());
     self.view = LineView.fromBuffer(&self.line);
-}
-
-/// Assumes index is valid.
-fn getHistoryItem(self: *const Self) []const u8 {
-    assert(self.history_index < self.history_items.items.len);
-    return self.history_items.items[self.history_index].string();
 }
 
 fn resetCursor(self: *Self) void {
