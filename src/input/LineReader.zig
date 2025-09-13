@@ -1,30 +1,53 @@
 const Self = @This();
 
 const std = @import("std");
+const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayList;
+const assert = std.debug.assert;
 
 const StdinReader = @import("StdinReader.zig");
 const StdinTerminal = @import("StdinTerminal.zig");
 const LineBuffer = @import("LineBuffer.zig");
+const LineView = @import("LineView.zig");
+
+const Span = @import("../Span.zig");
 
 const MAX_LINE_LENGTH = 1024;
 const PROMPT = "?- ";
 
 reader: StdinReader,
 terminal: StdinTerminal,
-line: LineBuffer,
 
-pub fn new() !Self {
-    return Self{
+line: LineBuffer,
+view: LineView,
+
+// TODO: Used fixed array
+history_items: ArrayList(Span),
+/// Value is irrelevant if `view.isBuffer()`.
+history_index: usize,
+
+allocator: Allocator,
+
+pub fn new(allocator: Allocator) !Self {
+    var self = Self{
         .reader = StdinReader.new(),
         .terminal = try StdinTerminal.get(),
+
         .line = LineBuffer.new(),
+        .view = undefined,
+
+        .history_items = ArrayList(Span).empty,
+        .history_index = 0,
+        .allocator = allocator,
     };
+    self.view = LineView.fromBuffer(&self.line);
+    return self;
 }
 
 /// Returns slice of underlying buffer, which may be overridden on next
 /// read call.
 pub fn getLine(self: *const Self) []const u8 {
-    return self.line.get();
+    return self.view.get();
 }
 
 /// Returns `false` iff **EOF** (iff `self.eof`).
@@ -38,12 +61,20 @@ pub fn readLine(self: *Self) !bool {
     return true;
 }
 
+pub fn appendHistory(self: *Self, span: Span) Allocator.Error!void {
+    // TODO: Check if previous item is identical
+    if (span.string().len > 0) {
+        try self.history_items.append(self.allocator, span);
+    }
+}
+
 // Assumes `self.terminal` has input mode enabled.
 // Assumes `self.eof` is `false`.
 fn readLineInner(self: *Self) !void {
-    self.line.clear();
+    self.ensureNonhistoric();
+    self.view.clear();
 
-    // TODO: Use stdin
+    // TODO: Use stdout
 
     while (true) {
         self.printPrompt();
@@ -58,8 +89,8 @@ fn readLineInner(self: *Self) !void {
 fn printPrompt(self: *const Self) void {
     std.debug.print("\r\x1b[K", .{});
     std.debug.print(PROMPT, .{});
-    std.debug.print("{s}", .{self.line.get()});
-    std.debug.print("\x1b[{}G", .{self.line.cursor + PROMPT.len + 1});
+    std.debug.print("{s}", .{self.view.get()});
+    std.debug.print("\x1b[{}G", .{self.view.cursor + PROMPT.len + 1});
 }
 
 fn printEnd(_: *const Self) void {
@@ -74,21 +105,25 @@ fn readNextSequence(self: *Self) !bool {
 
     switch (byte) {
         '\n' => {
+            self.ensureNonhistoric();
             return true;
         },
         // Normal character
         0x20...0x7e => {
-            self.line.insert(byte);
+            self.ensureNonhistoric();
+            self.view.insert(byte);
             return false;
         },
         // Backspace, delete
         // FIXME: `Delete` key inserts `~`
         0x08, 0x7f => {
-            self.line.remove();
+            self.ensureNonhistoric();
+            self.view.remove();
             return false;
         },
         // ^D (EOT/EOF)
         0x04 => {
+            self.ensureNonhistoric();
             self.reader.setUserEof();
             return true;
         },
@@ -101,16 +136,16 @@ fn readNextSequence(self: *Self) !bool {
                 return true;
             switch (command) {
                 'A' => {
-                    // TODO: Go up in history
+                    self.previousHistory();
                 },
                 'B' => {
-                    // TODO: Go down in history
+                    self.nextHistory();
                 },
                 'C' => {
-                    self.line.seek(.right);
+                    self.view.seek(.right);
                 },
                 'D' => {
-                    self.line.seek(.left);
+                    self.view.seek(.left);
                 },
                 else => {},
             }
@@ -118,4 +153,50 @@ fn readNextSequence(self: *Self) !bool {
         },
         else => return false,
     }
+}
+
+fn previousHistory(self: *Self) void {
+    self.history_index =
+        if (self.view.isBuffer())
+            self.history_items.items.len -| 1
+        else
+            self.history_index -| 1;
+
+    self.view = LineView.fromSlice(self.getHistoryItem());
+}
+
+fn nextHistory(self: *Self) void {
+    if (self.view.isBuffer()) {
+        return;
+    }
+
+    // Last item, switch to buffer
+    if (self.history_index + 1 >= self.history_items.items.len) {
+        self.view = LineView.fromBuffer(&self.line);
+        return;
+    }
+
+    self.history_index += 1;
+    self.view = LineView.fromSlice(self.getHistoryItem());
+    self.resetCursor();
+}
+
+/// If historic item is focused, copy string into current line and update view.
+fn ensureNonhistoric(self: *Self) void {
+    if (self.view.isBuffer()) {
+        return;
+    }
+
+    self.line.copyFrom(self.getHistoryItem());
+    self.view = LineView.fromBuffer(&self.line);
+}
+
+/// Assumes index is valid.
+fn getHistoryItem(self: *const Self) []const u8 {
+    assert(self.history_index < self.history_items.items.len);
+    return self.history_items.items[self.history_index].string();
+}
+
+fn resetCursor(self: *Self) void {
+    self.view.seekTo(self.getLine().len);
 }
