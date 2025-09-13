@@ -172,6 +172,10 @@ pub fn main() !u8 {
             break; // EOF
         }
 
+        if (line_reader.getLine().len == 0) {
+            continue;
+        }
+
         const text_line_start = stdin_text.items.len;
         try stdin_text.appendSlice(allocator, line_reader.getLine());
 
