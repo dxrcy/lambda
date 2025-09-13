@@ -19,7 +19,7 @@ pub fn readFile(
     var reader = file.reader(&buffer);
 
     var string = ArrayList(u8).empty;
-    // FIXME: errdefer deinit
+    errdefer string.deinit(allocator);
 
     while (true) {
         var bytes: [1]u8 = undefined;

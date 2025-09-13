@@ -63,6 +63,7 @@ pub fn clearCount() void {
     accumulated_count = 0;
 }
 
+// TODO: Return error instead of calling `exit`
 pub fn reportFatal(
     comptime kind: []const u8,
     comptime description: []const u8,
