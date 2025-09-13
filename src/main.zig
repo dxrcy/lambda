@@ -37,7 +37,7 @@ pub fn main() !void {
         Reporter.reportFatal("no filepath argument was provided", "", .{});
     };
 
-    // TODO(feat): Include filepath in report
+    // TODO: Include filepath in report
     var text = utils.readFile(filepath, allocator) catch |err| {
         Reporter.reportFatal("failed to read file", "{}", .{err});
     };
@@ -96,7 +96,7 @@ pub fn main() !void {
     {
         symbols.checkDeclarationCollisions(decls.items);
 
-        // TODO(opt): Reuse all instances of local store in this function
+        // PERF: Reuse all instances of local store in this function
         var locals = LocalStore.init(allocator);
         defer locals.deinit();
 
@@ -157,7 +157,7 @@ pub fn main() !void {
         }
     }
 
-    // TODO(opt): Don't append temporary query lines
+    // PERF: Don't append temporary query lines
     // Use a separate temporary string
     // This is not important at this stage
 
@@ -172,7 +172,6 @@ pub fn main() !void {
     var buffer: [BUFFER_SIZE]u8 = undefined;
     var reader = stdin.reader(&buffer);
 
-    // TODO: Add stdin case to `Context`, don't use filepath
     var stdin_context = Context{
         .filepath = null,
         .text = stdin_text.items,
@@ -271,7 +270,9 @@ fn readLineAndAppend(
 ) !?[]const u8 {
     const start = text.items.len;
 
-    // TODO: Why is there an initial zero-byte read ? Remove if possible
+    // TODO: Why is there an initial zero-byte read ? Remove if possible.
+    // Not breaking anything though...
+
     while (true) {
         const byte = try readSingleByte(reader) orelse
             return null;

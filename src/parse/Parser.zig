@@ -325,7 +325,7 @@ fn validateToken(token: Token) bool {
     return true;
 }
 
-// TODO(feat): Support more characters
+// TODO: Support more characters
 fn findDisallowedCharacter(value: []const u8) ?u21 {
     const view = unicode.Utf8View.init(value) catch unreachable;
     var iter = view.iterator();

@@ -44,7 +44,7 @@ pub const Layout = union(enum) {
     query: Span,
 };
 
-// TODO(refactor): Rename
+// TODO: Rename
 pub fn checkFatal() void {
     if (accumulated_count == 0) {
         return;
@@ -177,7 +177,7 @@ fn printSpan(comptime label: []const u8, span: Span) void {
         printLineParts(left, right);
         printLineHighlight(left, span);
     } else {
-        // TODO(feat): Properly handle multi line tokens/statements
+        // TODO: Properly handle multi line tokens/statements
         const border_length = 20;
         setStyle(.{ .Dim, .FgWhite });
         Output.print("~" ** border_length ++ "\n", .{});

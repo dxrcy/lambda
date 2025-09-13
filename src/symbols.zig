@@ -26,7 +26,6 @@ pub fn checkDeclarationCollisions(declarations: []const Decl) void {
                     "global already declared",
                     "cannot redeclare `{s}` as a global",
                     .{prior_value},
-                    // FIXME: Include individual decl contexts
                     .{ .symbol_reference = .{
                         .declaration = prior.name,
                         .reference = current.name,
