@@ -110,29 +110,16 @@ pub fn main() !u8 {
     if (Reporter.checkFatal()) |code|
         return code;
 
-    {
-        symbols.checkDeclarationCollisions(decls.items);
+    // Reusable by any operation which patches symbols
+    var locals = LocalStore.init(allocator);
+    defer locals.deinit();
 
-        // PERF: Reuse all instances of local store in this function
-        var locals = LocalStore.init(allocator);
-        defer locals.deinit();
-
-        for (decls.items) |*entry| {
-            std.debug.assert(locals.isEmpty());
-            try symbols.patchSymbols(entry.term, &locals, decls.items);
-        }
-        std.debug.assert(locals.isEmpty());
+    symbols.checkDeclarationCollisions(decls.items);
+    for (decls.items) |*entry| {
+        try symbols.patchSymbols(entry.term, &locals, decls.items);
     }
-
-    {
-        var locals = LocalStore.init(allocator);
-        defer locals.deinit();
-
-        for (queries.items) |*query| {
-            std.debug.assert(locals.isEmpty());
-            try symbols.patchSymbols(query.term, &locals, decls.items);
-        }
-        std.debug.assert(locals.isEmpty());
+    for (queries.items) |*query| {
+        try symbols.patchSymbols(query.term, &locals, decls.items);
     }
 
     if (Reporter.checkFatal()) |code|
@@ -229,15 +216,7 @@ pub fn main() !u8 {
                 std.debug.print("unimplemented\n", .{});
             },
             .query => |query| {
-                {
-                    var locals = LocalStore.init(allocator);
-                    defer locals.deinit();
-
-                    std.debug.assert(locals.isEmpty());
-                    try symbols.patchSymbols(query.term, &locals, decls.items);
-
-                    std.debug.assert(locals.isEmpty());
-                }
+                try symbols.patchSymbols(query.term, &locals, decls.items);
 
                 if (Reporter.getCount() > 0) {
                     continue;

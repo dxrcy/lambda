@@ -41,6 +41,16 @@ pub fn patchSymbols(
     locals: *LocalStore,
     declarations: []const Decl,
 ) Allocator.Error!void {
+    std.debug.assert(locals.isEmpty());
+    try patchSymbolsInner(term, locals, declarations);
+    std.debug.assert(locals.isEmpty());
+}
+
+fn patchSymbolsInner(
+    term: *Term,
+    locals: *LocalStore,
+    declarations: []const Decl,
+) Allocator.Error!void {
     switch (term.value) {
         .unresolved => {
             const span = term.span.?;
@@ -56,7 +66,7 @@ pub fn patchSymbols(
             }
         },
         .group => |inner| {
-            try patchSymbols(inner, locals, declarations);
+            try patchSymbolsInner(inner, locals, declarations);
         },
         .abstraction => |abstr| {
             const value = abstr.parameter.string();
@@ -87,12 +97,12 @@ pub fn patchSymbols(
                 );
             }
             try locals.push(term, value);
-            try patchSymbols(abstr.body, locals, declarations);
+            try patchSymbolsInner(abstr.body, locals, declarations);
             locals.pop();
         },
         .application => |appl| {
-            try patchSymbols(appl.function, locals, declarations);
-            try patchSymbols(appl.argument, locals, declarations);
+            try patchSymbolsInner(appl.function, locals, declarations);
+            try patchSymbolsInner(appl.argument, locals, declarations);
         },
         // No symbols in this branch should be resolved yet
         .local => unreachable,
