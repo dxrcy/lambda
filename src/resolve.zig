@@ -1,11 +1,13 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const assert = std.debug.assert;
 
 const model = @import("model.zig");
 const AbstrId = model.AbstrId;
 const Decl = model.Decl;
 const Term = model.Term;
 
+const Reporter = @import("Reporter.zig");
 const Span = @import("Span.zig");
 
 const MAX_RESOLVE_RECURSION = 2_000;
@@ -13,7 +15,31 @@ const MAX_GLOBAL_EXPAND = 200;
 
 const ResolveError = Allocator.Error || error{MaxRecursion};
 
+/// Returns `null` if recursion limit was reached.
 pub fn resolveTerm(
+    term: *const Term,
+    decls: []const Decl,
+    term_allocator: Allocator,
+) Allocator.Error!?*const Term {
+    assert(term.span != null);
+    const span = term.span orelse unreachable;
+
+    return resolveTermInner(term, 0, decls, term_allocator) catch |err|
+        switch (err) {
+            error.MaxRecursion => {
+                Reporter.report(
+                    "recursion limit reached when expanding query",
+                    "check for any reference cycles in declarations",
+                    .{},
+                    .{ .query = span },
+                );
+                return null;
+            },
+            else => |other_err| return other_err,
+        };
+}
+
+fn resolveTermInner(
     term: *const Term,
     depth: usize,
     decls: []const Decl,
@@ -25,7 +51,7 @@ pub fn resolveTerm(
     return switch (term.value) {
         .global, .abstraction => term,
         // Flatten group
-        .group => |inner| try resolveTerm(
+        .group => |inner| try resolveTermInner(
             inner,
             depth + 1,
             decls,
@@ -75,7 +101,7 @@ fn resolveApplication(
         .local => @panic("local binding should have been beta-reduced already"),
     }
 
-    return resolveTerm(
+    return resolveTermInner(
         product,
         depth + 1,
         decls,
@@ -105,7 +131,7 @@ fn expandGlobal(
 ) ResolveError!*const Term.Abstr {
     var term = initial_term;
     for (0..MAX_GLOBAL_EXPAND) |_| {
-        const product = try resolveTerm(
+        const product = try resolveTermInner(
             term,
             depth + 1,
             decls,

@@ -134,23 +134,11 @@ pub fn main() !u8 {
         for (queries.items) |*query| {
             const query_span = query.term.span.?;
 
-            const result = resolve.resolveTerm(
+            const result = try resolve.resolveTerm(
                 query.term,
-                0,
                 decls.items,
                 term_allocator.allocator(),
-            ) catch |err| switch (err) {
-                error.MaxRecursion => {
-                    Reporter.report(
-                        "recursion limit reached when expanding query",
-                        "check for any reference cycles in declarations",
-                        .{},
-                        .{ .query = query_span },
-                    );
-                    continue;
-                },
-                else => |other_err| return other_err,
-            };
+            ) orelse continue;
 
             std.debug.print("?- ", .{});
             debug.printSpanInline(query_span.string());
@@ -225,25 +213,11 @@ pub fn main() !u8 {
                 // debug.printTermAll("Query", query.term, decls.items);
 
                 {
-                    const query_span = query.term.span.?;
-
-                    const result = resolve.resolveTerm(
+                    const result = try resolve.resolveTerm(
                         query.term,
-                        0,
                         decls.items,
                         term_allocator.allocator(),
-                    ) catch |err| switch (err) {
-                        error.MaxRecursion => {
-                            Reporter.report(
-                                "recursion limit reached when expanding query",
-                                "check for any reference cycles in declarations",
-                                .{},
-                                .{ .query = query_span },
-                            );
-                            continue;
-                        },
-                        else => |other_err| return other_err,
-                    };
+                    ) orelse continue;
 
                     std.debug.print("-> ", .{});
                     debug.printTermExpr(result, decls.items);
@@ -253,31 +227,15 @@ pub fn main() !u8 {
                 }
             },
             .inspect => |term| {
-                // TODO: Resolve term before printing
-
                 try symbols.patchSymbols(term, &locals, decls.items);
                 const expanded = resolve.expandGlobalOnce(term, decls.items);
 
-                const term_span = term.span.?;
-
                 // Resolve *expanded* term. This is different to queries
-                const result = resolve.resolveTerm(
+                const result = try resolve.resolveTerm(
                     expanded,
-                    0,
                     decls.items,
                     term_allocator.allocator(),
-                ) catch |err| switch (err) {
-                    error.MaxRecursion => {
-                        Reporter.report(
-                            "recursion limit reached when expanding query",
-                            "check for any reference cycles in declarations",
-                            .{},
-                            .{ .query = term_span },
-                        );
-                        continue;
-                    },
-                    else => |other_err| return other_err,
-                };
+                ) orelse continue;
 
                 std.debug.print("* term....... ", .{});
                 debug.printTermExpr(term, decls.items);
