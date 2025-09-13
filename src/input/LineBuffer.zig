@@ -1,6 +1,6 @@
 const Self = @This();
 
-const MAX_LENGTH = 1024;
+const MAX_LENGTH = 256;
 
 buffer: [MAX_LENGTH]u8,
 length: usize,
@@ -24,24 +24,40 @@ pub fn clear(self: *Self) void {
 }
 
 pub fn insert(self: *Self, byte: u8) void {
-    if (self.cursor < self.length) {
-        // TODO: Insert byte at cursor position
-        // Allow succeeding bytes to be cut off if length>size
+    if (self.cursor >= MAX_LENGTH) {
         return;
     }
-    if (self.cursor < MAX_LENGTH) {
-        self.buffer[self.cursor] = byte;
+
+    // Shift characters up
+    if (self.length > 0) {
+        var i: usize = self.length - 1;
+        while (i > self.cursor) : (i -= 1) {
+            self.buffer[i] = self.buffer[i - 1];
+        }
+    }
+
+    self.buffer[self.cursor] = byte;
+    self.cursor += 1;
+    // Cut off any overflowing characters
+    if (self.length + 1 <= MAX_LENGTH) {
         self.length += 1;
-        self.cursor += 1;
     }
 }
 
 pub fn remove(self: *Self) void {
-    // TODO: Delete at cursor position
-    if (self.length > 0 and self.cursor > 0) {
-        self.length -= 1;
-        self.cursor -= 1;
+    if (self.length == 0 or self.cursor == 0) {
+        return;
     }
+
+    // Shift characters down
+    if (self.cursor < self.length) {
+        for (self.cursor..self.length) |i| {
+            self.buffer[i - 1] = self.buffer[i];
+        }
+    }
+
+    self.length -= 1;
+    self.cursor -= 1;
 }
 
 pub fn seek(self: *Self, direction: enum { left, right }) void {
