@@ -274,8 +274,9 @@ pub fn main() !u8 {
                 }
             },
             .inspect => |term| {
-                _ = term;
-                std.debug.print("unimplemented\n", .{});
+                // TODO: Resolve term before printing
+                // If term is global, expand then resolve
+                debug.printTermAll("inspect term", term, decls.items);
             },
         }
     }
