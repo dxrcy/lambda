@@ -22,7 +22,7 @@ const LocalStore = symbols.LocalStore;
 const resolve = @import("resolve.zig");
 const debug = @import("debug.zig");
 
-const LineReader = @import("input.zig").LineReader;
+const LineReader = @import("input/LineReader.zig");
 
 pub fn main() !u8 {
     // pub fn main() Allocator.Error!void {
