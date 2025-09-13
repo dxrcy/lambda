@@ -83,6 +83,20 @@ fn resolveApplication(
     );
 }
 
+pub fn expandGlobalOnce(
+    term: *const Term,
+    decls: []const Decl,
+) *const Term {
+    return switch (term.value) {
+        .unresolved => @panic("symbol should have been resolved already"),
+        .local => @panic("local binding should have been beta-reduced already"),
+        .global => |global| decls[global].term,
+        // Flatten group
+        .group => |inner| inner,
+        .abstraction, .application => term,
+    };
+}
+
 fn expandGlobal(
     initial_term: *const Term,
     depth: usize,
@@ -182,7 +196,7 @@ fn betaReduce(
 /// *Deep-copy* term by allocating and copying children.
 /// Does not copy non-parent terms (`global` and `local`), since they should be
 /// not be mutated by the caller.
-pub fn deepCopyTerm(term: *Term, allocator: Allocator) Allocator.Error!*Term {
+fn deepCopyTerm(term: *Term, allocator: Allocator) Allocator.Error!*Term {
     const copy_value: Term.Kind = switch (term.value) {
         .unresolved => @panic("symbol should have been resolved already"),
         .global, .local => return term,

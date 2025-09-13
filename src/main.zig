@@ -254,8 +254,43 @@ pub fn main() !u8 {
             },
             .inspect => |term| {
                 // TODO: Resolve term before printing
-                // If term is global, expand then resolve
-                debug.printTermAll("inspect term", term, decls.items);
+
+                try symbols.patchSymbols(term, &locals, decls.items);
+                const expanded = resolve.expandGlobalOnce(term, decls.items);
+
+                const term_span = term.span.?;
+
+                // Resolve *expanded* term. This is different to queries
+                const result = resolve.resolveTerm(
+                    expanded,
+                    0,
+                    decls.items,
+                    term_allocator.allocator(),
+                ) catch |err| switch (err) {
+                    error.MaxRecursion => {
+                        Reporter.report(
+                            "recursion limit reached when expanding query",
+                            "check for any reference cycles in declarations",
+                            .{},
+                            .{ .query = term_span },
+                        );
+                        continue;
+                    },
+                    else => |other_err| return other_err,
+                };
+
+                std.debug.print("* term....... ", .{});
+                debug.printTermExpr(term, decls.items);
+                std.debug.print("\n", .{});
+
+                std.debug.print("* expanded... ", .{});
+                debug.printTermExpr(expanded, decls.items);
+                std.debug.print("\n", .{});
+
+                std.debug.print("* resolved... ", .{});
+                debug.printTermExpr(result, decls.items);
+                std.debug.print("\n", .{});
+                std.debug.print("\n", .{});
             },
         }
     }
