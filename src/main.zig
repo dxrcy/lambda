@@ -288,24 +288,40 @@ const StdinTerminal = struct {
     const Self = @This();
     const FILENO = posix.STDIN_FILENO;
 
-    termios: posix.termios,
+    /// `null` if stdin is not a terminal.
+    /// If `null`, all member functions are no-ops.
+    termios: ?posix.termios,
 
     pub fn get() !Self {
-        // TODO: Fallback to line buffered if not a terminal
-        const termios = try posix.tcgetattr(FILENO);
+        const termios = posix.tcgetattr(FILENO) catch |err| switch (err) {
+            error.NotATerminal => null,
+            else => |other_err| return other_err,
+        };
         return Self{ .termios = termios };
     }
 
     pub fn enableInputMode(self: *Self) !void {
-        self.termios.lflag.ICANON = false;
-        self.termios.lflag.ECHO = false;
-        try posix.tcsetattr(FILENO, .NOW, self.termios);
+        if (self.termios) |*termios| {
+            termios.lflag.ICANON = false;
+            termios.lflag.ECHO = false;
+            try setAttr(termios);
+        }
     }
 
     pub fn disableInputMode(self: *Self) !void {
-        self.termios.lflag.ICANON = true;
-        self.termios.lflag.ECHO = true;
-        try posix.tcsetattr(FILENO, .NOW, self.termios);
+        if (self.termios) |*termios| {
+            termios.lflag.ICANON = true;
+            termios.lflag.ECHO = true;
+            try setAttr(termios);
+        }
+    }
+
+    // Assumes `termios` is a terminal; does not catch `error.NotATerminal`.
+    fn setAttr(termios: *posix.termios) !void {
+        posix.tcsetattr(FILENO, .NOW, termios.*) catch |err| switch (err) {
+            error.NotATerminal => unreachable,
+            else => |other_err| return other_err,
+        };
     }
 };
 
