@@ -2,6 +2,8 @@ const std = @import("std");
 const fs = std.fs;
 const posix = std.posix;
 
+// TODO: Add explicit error variants to return types
+
 const LineBuffer = struct {
     const Self = @This();
     const MAX_LENGTH = 1024;
@@ -94,54 +96,64 @@ pub const LineReader = struct {
         self.line.clear();
 
         while (true) {
-            {
-                // TODO: Extract as method
-                std.debug.print("\r\x1b[K", .{});
-                std.debug.print("?- ", .{});
-                std.debug.print("{s}", .{self.line.get()});
-            }
+            std.debug.print("\r\x1b[K", .{});
+            std.debug.print("?- ", .{});
+            std.debug.print("{s}", .{self.line.get()});
 
-            const byte = try self.readSingleByte() orelse
+            if (try self.readNextSequence()) {
                 break;
-
-            switch (byte) {
-                '\n' => {
-                    break;
-                },
-                // Normal character
-                0x20...0x7e => {
-                    self.line.insert(byte);
-                },
-                // Backspace, delete
-                0x08, 0x7f => {
-                    self.line.remove();
-                },
-                // ESC
-                0x1b => {
-                    if (try self.readSingleByte() != '[') {
-                        continue;
-                    }
-                    switch (try self.readSingleByte() orelse continue) {
-                        'A' => {
-                            // TODO: Go up in history
-                        },
-                        'B' => {
-                            // TODO: Go down in history
-                        },
-                        'C' => {
-                            // TODO: Move right in line
-                        },
-                        'D' => {
-                            // TODO: Move left in line
-                        },
-                        else => {},
-                    }
-                },
-                else => {},
             }
         }
 
         std.debug.print("\n", .{});
+    }
+
+    /// Returns `true` if **EOF** *or* **EOL**, or `false` if there are still
+    /// characters to read in the current line.
+    fn readNextSequence(self: *Self) !bool {
+        const byte = try self.readSingleByte() orelse
+            return true;
+
+        switch (byte) {
+            '\n' => {
+                return true;
+            },
+            // Normal character
+            0x20...0x7e => {
+                self.line.insert(byte);
+                return false;
+            },
+            // Backspace, delete
+            0x08, 0x7f => {
+                self.line.remove();
+                return false;
+            },
+            // ESC
+            0x1b => {
+                if (try self.readSingleByte() != '[') {
+                    return true;
+                }
+                const command = try self.readSingleByte() orelse
+                    return true;
+                switch (command) {
+                    'A' => {
+                        // TODO: Go up in history
+                    },
+                    'B' => {
+                        // TODO: Go down in history
+                    },
+                    'C' => {
+                        // TODO: Move right in line
+                    },
+                    'D' => {
+                        // TODO: Move left in line
+                    },
+                    else => {},
+                }
+                return false;
+            },
+            else => return false,
+        }
     }
 
     /// Returns `null` and sets `self.eof` iff **EOF**.
