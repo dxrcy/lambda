@@ -22,7 +22,9 @@ const LocalStore = symbols.LocalStore;
 const resolve = @import("resolve.zig");
 const debug = @import("debug.zig");
 
-pub fn main() !void {
+const PROGRAM_ERROR_CODE = 1;
+
+pub fn main() !u8 {
     // pub fn main() Allocator.Error!void {
     var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -35,11 +37,13 @@ pub fn main() !void {
 
     const filepath = args.next() orelse {
         Reporter.reportFatal("no filepath argument was provided", "", .{});
+        return PROGRAM_ERROR_CODE;
     };
 
     // TODO: Include filepath in report
     var text = utils.readFile(filepath, allocator) catch |err| {
         Reporter.reportFatal("failed to read file", "{}", .{err});
+        return PROGRAM_ERROR_CODE;
     };
     defer text.deinit(allocator);
 
@@ -50,13 +54,14 @@ pub fn main() !void {
 
     if (!std.unicode.utf8ValidateSlice(context.text)) {
         // To include context filepath
+        // TODO: Use `reportFatal`
         Reporter.report(
             "file contains invalid UTF-8 bytes",
             "",
             .{},
             .{ .file = &context },
         );
-        Reporter.checkFatal();
+        if (Reporter.checkFatal()) return PROGRAM_ERROR_CODE;
     }
 
     var decls = ArrayList(Decl).empty;
@@ -91,7 +96,7 @@ pub fn main() !void {
         }
     }
 
-    Reporter.checkFatal();
+    if (Reporter.checkFatal()) return PROGRAM_ERROR_CODE;
 
     {
         symbols.checkDeclarationCollisions(decls.items);
@@ -118,7 +123,7 @@ pub fn main() !void {
         std.debug.assert(locals.isEmpty());
     }
 
-    Reporter.checkFatal();
+    if (Reporter.checkFatal()) return PROGRAM_ERROR_CODE;
 
     // debug.printDeclarations(decls.items, &context);
     // debug.printQueries(queries.items, &context);
@@ -261,6 +266,7 @@ pub fn main() !void {
     }
 
     std.debug.print("end.\n", .{});
+    return 0;
 }
 
 fn readLineAndAppend(

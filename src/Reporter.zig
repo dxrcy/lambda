@@ -44,18 +44,6 @@ pub const Layout = union(enum) {
     query: Span,
 };
 
-// TODO: Rename
-pub fn checkFatal() void {
-    if (accumulated_count == 0) {
-        return;
-    }
-    reportFatal(
-        "unable to continue",
-        "{} errors occurred",
-        .{accumulated_count},
-    );
-}
-
 pub fn getCount() usize {
     return accumulated_count;
 }
@@ -63,16 +51,28 @@ pub fn clearCount() void {
     accumulated_count = 0;
 }
 
+// TODO: Rename
+pub fn checkFatal() bool {
+    if (accumulated_count == 0) {
+        return false;
+    }
+    reportFatal(
+        "unable to continue",
+        "{} errors occurred",
+        .{accumulated_count},
+    );
+    return true;
+}
+
 // TODO: Return error instead of calling `exit`
 pub fn reportFatal(
     comptime kind: []const u8,
     comptime description: []const u8,
     args: anytype,
-) noreturn {
+) void {
     printErrorHeading(kind);
     printErrorDescription(description, args);
     Output.flush();
-    std.process.exit(1);
 }
 
 pub fn report(
