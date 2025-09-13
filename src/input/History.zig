@@ -5,9 +5,9 @@ const assert = std.debug.assert;
 
 const Span = @import("../Span.zig");
 
-// TODO: Increase history size
-const HISTORY_SIZE = 4;
+const HISTORY_SIZE = 32;
 
+// PERF: Use ring buffer
 items: [HISTORY_SIZE]Span,
 index: usize,
 length: usize,
@@ -21,13 +21,18 @@ pub fn new() Self {
 }
 
 pub fn append(self: *Self, span: Span) void {
-    // TODO: Shift items back when array full
-    assert(self.length < HISTORY_SIZE);
+    if (self.length >= HISTORY_SIZE) {
+        // Shift items down
+        for (0..self.length - 1) |i| {
+            self.items[i] = self.items[i + 1];
+        }
+        self.items[self.length - 1] = span;
+    } else {
+        self.items[self.length] = span;
+        self.length += 1;
+    }
 
-    self.items[self.length] = span;
-    self.index = self.length;
-    self.length += 1;
-    // `index` is irrelevant here, it should be reassigned before next use
+    self.index = self.length - 1;
 }
 
 /// Assumes `self.index` is valid.
