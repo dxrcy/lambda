@@ -146,7 +146,7 @@ pub fn main() !u8 {
             debug.printSpanInline(query_span.string());
             output.print("\n", .{});
             output.print("-> ", .{});
-            debug.printTermExpr(result, decls.items);
+            debug.printTermInline(result, decls.items);
             output.print("\n", .{});
             output.print("\n", .{});
         }
@@ -195,7 +195,7 @@ pub fn main() !u8 {
                     ) orelse continue;
 
                     output.print("-> ", .{});
-                    debug.printTermExpr(result, decls.items);
+                    debug.printTermInline(result, decls.items);
                     output.print("\n", .{});
                     output.print("\n", .{});
                     // debug.printTermAll("Result", result, decls.items);
@@ -213,15 +213,15 @@ pub fn main() !u8 {
                 ) orelse continue;
 
                 output.print("* term....... ", .{});
-                debug.printTermExpr(term, decls.items);
+                debug.printTermInline(term, decls.items);
                 output.print("\n", .{});
 
                 output.print("* expanded... ", .{});
-                debug.printTermExpr(expanded, decls.items);
+                debug.printTermInline(expanded, decls.items);
                 output.print("\n", .{});
 
                 output.print("* resolved... ", .{});
-                debug.printTermExpr(result, decls.items);
+                debug.printTermInline(result, decls.items);
                 output.print("\n", .{});
                 output.print("\n", .{});
             },

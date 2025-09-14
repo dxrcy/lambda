@@ -8,6 +8,8 @@ const Term = model.Term;
 const Span = @import("Span.zig");
 const output = @import("output.zig");
 
+const MAX_RECURSION = 256;
+
 // TODO: Add wrappers to recursive functions, flush on completion
 
 pub fn printDeclarations(declarations: []const Decl) void {
@@ -36,42 +38,58 @@ pub fn printTermAll(
 ) void {
     output.print("\n:: " ++ label ++ " :: \n", .{});
     output.print("[ ", .{});
-    printTermExpr(term, decls);
+    printTermInline(term, decls);
     output.print(" ]\n", .{});
     printTerm(term, 0, "");
     output.print("\n", .{});
 }
 
-pub fn printTermExpr(term: *const Term, decls: []const Decl) void {
+pub fn printTermInline(term: *const Term, decls: []const Decl) void {
+    printTermInlineInner(term, decls, 0);
+}
+
+// TODO: Avoid superfluous parentheses
+fn printTermInlineInner(
+    term: *const Term,
+    decls: []const Decl,
+    depth: usize,
+) void {
+    const CUTOFF = "#[CUTOFF]#";
+    const UNRESOLVED = "#[UNRESOLVED]#";
+    const UNKNOWN = "#[UNKNOWN]#";
+
+    if (depth > MAX_RECURSION) {
+        output.print(CUTOFF, .{});
+        return;
+    }
+
     switch (term.value) {
         .unresolved => {
-            output.print("UNRESOLVED", .{});
+            output.print(UNRESOLVED, .{});
         },
-        .local => {
-            if (term.span) |span| {
-                output.print("{s}", .{span.string()});
-            } else {
-                output.print("MISSING", .{});
-            }
+        .local => if (term.span) |span| {
+            output.print("{s}", .{span.string()});
+        } else {
+            output.print(UNKNOWN, .{});
         },
         .global => |index| {
             output.print("{s}", .{decls[index].name.string()});
         },
         .group => |inner| {
             output.print("(", .{});
-            printTermExpr(inner, decls);
+            printTermInlineInner(inner, decls, depth + 1);
             output.print(")", .{});
         },
         .abstraction => |abstr| {
             output.print("(\\{s}. ", .{abstr.parameter.string()});
-            printTermExpr(abstr.body, decls);
+            printTermInlineInner(abstr.body, decls, depth + 1);
             output.print(")", .{});
         },
         .application => |appl| {
             output.print("(", .{});
-            printTermExpr(appl.function, decls);
+            printTermInlineInner(appl.function, decls, depth + 1);
             output.print(" ", .{});
-            printTermExpr(appl.argument, decls);
+            printTermInlineInner(appl.argument, decls, depth + 1);
             output.print(")", .{});
         },
     }

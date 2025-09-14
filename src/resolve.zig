@@ -15,6 +15,8 @@ const MAX_GLOBAL_EXPAND = 200;
 
 const ResolveError = Allocator.Error || error{MaxRecursion};
 
+// TODO: Replace `@panic` with `std.debug.panic` (and elsewhere)
+
 /// Returns `null` if recursion limit was reached.
 pub fn resolveTerm(
     term: *const Term,
