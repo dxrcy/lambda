@@ -32,18 +32,28 @@ pub fn printQueries(queries: []const Query) void {
 }
 
 pub fn printTermInline(term: *const Term, decls: []const Decl) void {
-    printTermInlineInner(term, decls, 0);
+    printTermInlineInner(term, true, decls, 0);
 }
 
-// TODO: Avoid superfluous parentheses
 fn printTermInlineInner(
     term: *const Term,
+    comptime never_ambiguous: bool,
     decls: []const Decl,
     depth: usize,
 ) void {
     if (depth > MAX_RECURSION) {
         output.print(WARNING_CUTOFF, .{});
         return;
+    }
+
+    // Whether parentheses are required to avoid ambiguity
+    const require_parens = !never_ambiguous and switch (term.value) {
+        .group, .abstraction, .application => true,
+        else => false,
+    };
+
+    if (require_parens) {
+        output.print("(", .{});
     }
 
     switch (term.value) {
@@ -59,22 +69,21 @@ fn printTermInlineInner(
             output.print("{s}", .{decls[index].name.string()});
         },
         .group => |inner| {
-            output.print("(", .{});
-            printTermInlineInner(inner, decls, depth + 1);
-            output.print(")", .{});
+            printTermInlineInner(inner, true, decls, depth + 1);
         },
         .abstraction => |abstr| {
-            output.print("(\\{s}. ", .{abstr.parameter.string()});
-            printTermInlineInner(abstr.body, decls, depth + 1);
-            output.print(")", .{});
+            output.print("\\{s}. ", .{abstr.parameter.string()});
+            printTermInlineInner(abstr.body, true, decls, depth + 1);
         },
         .application => |appl| {
-            output.print("(", .{});
-            printTermInlineInner(appl.function, decls, depth + 1);
+            printTermInlineInner(appl.function, false, decls, depth + 1);
             output.print(" ", .{});
-            printTermInlineInner(appl.argument, decls, depth + 1);
-            output.print(")", .{});
+            printTermInlineInner(appl.argument, false, decls, depth + 1);
         },
+    }
+
+    if (require_parens) {
+        output.print(")", .{});
     }
 }
 
