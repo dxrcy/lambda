@@ -150,46 +150,12 @@ pub fn main() !u8 {
         }
     }
 
-    // PERF: Don't append temporary query lines
-    // Use a separate temporary string
-    // This is not important at this stage
+    var repl = try Repl.init(allocator);
 
-    // Storage for all stdin text (including non-persistant statements)
-    var stdin_text = ArrayList(u8).empty;
-    defer stdin_text.deinit(allocator);
-
-    var stdin_context = Context{
-        .filepath = null,
-        .text = stdin_text.items,
-    };
-
-    var line_reader = try LineReader.new();
-
-    while (true) {
+    while (try repl.readLine()) |line| {
         Reporter.clearCount();
 
-        if (!try line_reader.readLine()) {
-            break; // EOF
-        }
-
-        if (line_reader.getLine().len == 0) {
-            continue;
-        }
-
-        const text_line_start = stdin_text.items.len;
-        try stdin_text.appendSlice(allocator, line_reader.getLine());
-
-        const text_line = stdin_text.items[text_line_start..stdin_text.items.len];
-        try stdin_text.append(allocator, '\n');
-
-        // Reassign pointer and length in case of resize or relocation
-        stdin_context.text = stdin_text.items;
-
-        const line_span = Span.new(text_line_start, text_line.len, &stdin_context);
-
-        line_reader.appendHistory(line_span);
-
-        if (!std.unicode.utf8ValidateSlice(text_line)) {
+        if (!std.unicode.utf8ValidateSlice(line.string())) {
             // To include context filepath
             Reporter.report(
                 "input contains invalid UTF-8 bytes",
@@ -200,7 +166,7 @@ pub fn main() !u8 {
             continue;
         }
 
-        var parser = Parser.new(line_span);
+        var parser = Parser.new(line);
 
         const stmt = try parser.tryStatement(term_allocator.allocator()) orelse {
             continue;
@@ -262,3 +228,59 @@ pub fn main() !u8 {
     std.debug.print("end.\n", .{});
     return 0;
 }
+
+const Repl = struct {
+    const Self = @This();
+
+    /// Collects all input lines (including temporaries).
+    /// `reader.history` references slices of this text via `context`.
+    text: ArrayList(u8),
+    allocator: Allocator,
+    context: Context,
+    reader: LineReader,
+
+    pub fn init(allocator: Allocator) !Self {
+        const self = Self{
+            .text = ArrayList(u8).empty,
+            .allocator = allocator,
+            .context = Context{
+                .filepath = null,
+                .text = undefined,
+            },
+            .reader = try LineReader.new(),
+        };
+        return self;
+    }
+
+    pub fn deinit(self: *Self) void {
+        self.text.deinit(self.allocator);
+    }
+
+    /// Returns `null` iff **EOF**.
+    // TODO: Add explicit error kinds
+    pub fn readLine(self: *Self) !?Span {
+        while (true) {
+            if (!try self.reader.readLine()) {
+                return null;
+            }
+            if (self.reader.getLine().len > 0) {
+                break;
+            }
+        }
+
+        const text_line_start = self.text.items.len;
+        try self.text.appendSlice(self.allocator, self.reader.getLine());
+
+        const text_line = self.text.items[text_line_start..self.text.items.len];
+        try self.text.append(self.allocator, '\n');
+
+        // Reassign pointer and length in case of resize or relocation
+        self.context.text = self.text.items;
+
+        const line_span = Span.new(text_line_start, text_line.len, &self.context);
+
+        self.reader.appendHistory(line_span);
+
+        return line_span;
+    }
+};
