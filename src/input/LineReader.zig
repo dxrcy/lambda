@@ -15,28 +15,19 @@ const LineView = @import("LineView.zig");
 pub const NewError = StdinTerminal.Error;
 pub const ReadError = StdinTerminal.Error || StdinReader.Error;
 
-const MAX_LINE_LENGTH = 1024;
 const PROMPT = "?- ";
 
 reader: StdinReader,
 terminal: StdinTerminal,
-
-line: LineBuffer,
+// TODO: Rename
 view: LineView,
-/// `history.index` is irrelevant if `view.isBuffer()`.
-history: History,
 
 pub fn new() StdinTerminal.Error!Self {
-    var self = Self{
+    return Self{
         .reader = StdinReader.new(),
         .terminal = try StdinTerminal.get(),
-
-        .line = LineBuffer.new(),
-        .view = undefined,
-        .history = History.new(),
+        .view = LineView.new(),
     };
-    self.view = LineView.fromBuffer(&self.line);
-    return self;
 }
 
 /// Returns `false` iff **EOF**.
@@ -61,18 +52,17 @@ pub fn appendHistory(self: *Self, span: Span) void {
     if (span.string().len == 0) {
         return;
     }
-    if (self.history.getLatest()) |latest| {
+    if (self.view.history.getLatest()) |latest| {
         if (std.mem.eql(u8, latest, span.string())) {
             return;
         }
     }
-    self.history.append(span);
+    self.view.history.append(span);
 }
 
 // Assumes `self.terminal` has input mode enabled.
 // Assumes `self.eof` is `false`.
 fn readLineInner(self: *Self) StdinReader.Error!void {
-    self.ensureNonhistoric();
     self.view.clear();
 
     // TODO: Use stdout
@@ -106,25 +96,24 @@ fn readNextSequence(self: *Self) StdinReader.Error!bool {
 
     switch (byte) {
         '\n' => {
-            self.ensureNonhistoric();
+            self.view.becomeLive();
             return true;
         },
         // Normal character
         0x20...0x7e => {
-            self.ensureNonhistoric();
             self.view.insert(byte);
             return false;
         },
         // Backspace, delete
         // FIXME: `Delete` key inserts `~`
         0x08, 0x7f => {
-            self.ensureNonhistoric();
             self.view.remove();
             return false;
         },
         // ^D (EOT/EOF)
         0x04 => {
-            self.ensureNonhistoric();
+            // TODO: Yield no line input on EOF
+            self.view.becomeLive(); // TODO: so remove this
             self.reader.setUserEof();
             return true;
         },
@@ -137,10 +126,10 @@ fn readNextSequence(self: *Self) StdinReader.Error!bool {
                 return true;
             switch (command) {
                 'A' => {
-                    self.previousHistory();
+                    self.view.historyBack();
                 },
                 'B' => {
-                    self.nextHistory();
+                    self.view.historyForward();
                 },
                 'C' => {
                     self.view.seek(.right);
@@ -154,48 +143,4 @@ fn readNextSequence(self: *Self) StdinReader.Error!bool {
         },
         else => return false,
     }
-}
-
-fn previousHistory(self: *Self) void {
-    if (self.history.length == 0) {
-        return;
-    }
-
-    self.history.index =
-        if (self.view.isBuffer())
-            self.history.length -| 1
-        else
-            self.history.index -| 1;
-
-    self.view = LineView.fromSlice(self.history.getActive());
-}
-
-fn nextHistory(self: *Self) void {
-    if (self.view.isBuffer()) {
-        return;
-    }
-
-    // Last item, switch to buffer
-    if (self.history.index + 1 >= self.history.length) {
-        self.view = LineView.fromBuffer(&self.line);
-        return;
-    }
-
-    self.history.index += 1;
-    self.view = LineView.fromSlice(self.history.getActive());
-    self.resetCursor();
-}
-
-/// If historic item is focused, copy string into current line and update view.
-fn ensureNonhistoric(self: *Self) void {
-    if (self.view.isBuffer()) {
-        return;
-    }
-
-    self.line.copyFrom(self.history.getActive());
-    self.view = LineView.fromBuffer(&self.line);
-}
-
-fn resetCursor(self: *Self) void {
-    self.view.seekTo(self.getLine().len);
 }

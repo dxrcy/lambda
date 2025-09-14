@@ -4,24 +4,20 @@ const std = @import("std");
 const assert = std.debug.assert;
 
 const LineBuffer = @import("LineBuffer.zig");
+const History = @import("History.zig");
 
+live: LineBuffer,
+// TODO: Integrate history into this struct
+history: History,
+is_live: bool,
 cursor: usize,
-data: union(enum) {
-    slice: []const u8,
-    buffer: *LineBuffer,
-},
 
-pub fn fromSlice(slice: []const u8) Self {
+pub fn new() Self {
     return Self{
-        .data = .{ .slice = slice },
-        .cursor = slice.len,
-    };
-}
-
-pub fn fromBuffer(line: *LineBuffer) Self {
-    return Self{
-        .data = .{ .buffer = line },
-        .cursor = line.length,
+        .live = LineBuffer.new(),
+        .history = History.new(),
+        .cursor = 0,
+        .is_live = true,
     };
 }
 
@@ -30,58 +26,81 @@ pub fn seek(self: *Self, direction: enum { left, right }) void {
         .left => if (self.cursor > 0) {
             self.cursor -= 1;
         },
-        .right => if (self.cursor < self.length()) {
+        .right => if (self.cursor < self.get().len) {
             self.cursor += 1;
         },
     }
 }
 
 pub fn seekTo(self: *Self, position: usize) void {
-    assert(position <= self.length());
+    assert(position <= self.get().len);
     self.cursor = position;
 }
 
+fn resetCursor(self: *Self) void {
+    self.cursor = self.get().len;
+}
+
 pub fn clear(self: *Self) void {
-    self.unwrapBuffer().clear();
+    self.becomeLive();
+    self.live.clear();
     self.cursor = 0;
 }
 
 pub fn insert(self: *Self, byte: u8) void {
-    if (self.unwrapBuffer().insert(byte, self.cursor)) {
+    self.becomeLive();
+    if (self.live.insert(byte, self.cursor)) {
         self.cursor += 1;
     }
 }
 
 pub fn remove(self: *Self) void {
-    self.unwrapBuffer().remove(self.cursor);
+    self.becomeLive();
+    self.live.remove(self.cursor);
     self.cursor -|= 1;
 }
 
 pub fn get(self: *const Self) []const u8 {
-    return switch (self.data) {
-        .slice => |slice| slice,
-        .buffer => |buffer| buffer.buffer[0..buffer.length],
-    };
+    if (self.is_live) {
+        return self.live.get();
+    } else {
+        return self.history.getActive();
+    }
 }
 
-fn length(self: *const Self) usize {
-    return switch (self.data) {
-        .slice => |slice| slice.len,
-        .buffer => |buffer| buffer.length,
-    };
+pub fn becomeLive(self: *Self) void {
+    if (self.is_live) {
+        return;
+    }
+
+    self.live.copyFrom(self.history.getActive());
+    self.is_live = true;
+    self.resetCursor();
 }
 
-pub fn isBuffer(self: *const Self) bool {
-    return switch (self.data) {
-        .buffer => true,
-        .slice => false,
-    };
+pub fn historyBack(self: *Self) void {
+    if (self.history.length == 0) {
+        return;
+    }
+
+    if (self.is_live) {
+        self.is_live = false;
+        self.history.index = self.history.length - 1;
+    } else {
+        self.history.index -|= 1;
+    }
+    self.resetCursor();
 }
 
-/// Assumes `self.data` is kind `buffer`.
-fn unwrapBuffer(self: *Self) *LineBuffer {
-    return switch (self.data) {
-        .buffer => |buffer| buffer,
-        .slice => unreachable,
-    };
+pub fn historyForward(self: *Self) void {
+    if (self.is_live) {
+        return;
+    }
+
+    if (self.history.index + 1 >= self.history.length) {
+        self.is_live = true;
+    } else {
+        self.history.index += 1;
+    }
+    self.resetCursor();
 }
