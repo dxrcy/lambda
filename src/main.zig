@@ -21,14 +21,16 @@ const LocalStore = symbols.LocalStore;
 
 const resolve = @import("resolve.zig");
 const debug = @import("debug.zig");
-
 const LineReader = @import("input/LineReader.zig");
+const output = @import("output.zig");
 
 pub fn main() !u8 {
     // pub fn main() Allocator.Error!void {
     var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
+
+    output.init();
 
     var args = std.process.args();
     _ = args.next();
@@ -101,7 +103,7 @@ pub fn main() !u8 {
                 },
                 .inspect => |term| {
                     _ = term;
-                    std.debug.print("unimplemented\n", .{});
+                    output.print("unimplemented\n", .{});
                 },
             }
         }
@@ -128,8 +130,8 @@ pub fn main() !u8 {
     // debug.printDeclarations(decls.items, &context);
     // debug.printQueries(queries.items, &context);
 
-    // std.debug.print("Results:\n", .{});
-    // std.debug.print("\n", .{});
+    // output.print("Results:\n", .{});
+    // output.print("\n", .{});
     {
         for (queries.items) |*query| {
             const query_span = query.term.span.?;
@@ -140,13 +142,13 @@ pub fn main() !u8 {
                 term_allocator.allocator(),
             ) orelse continue;
 
-            std.debug.print("?- ", .{});
+            output.print("?- ", .{});
             debug.printSpanInline(query_span.string());
-            std.debug.print("\n", .{});
-            std.debug.print("-> ", .{});
+            output.print("\n", .{});
+            output.print("-> ", .{});
             debug.printTermExpr(result, decls.items);
-            std.debug.print("\n", .{});
-            std.debug.print("\n", .{});
+            output.print("\n", .{});
+            output.print("\n", .{});
         }
     }
 
@@ -174,7 +176,7 @@ pub fn main() !u8 {
         };
         switch (stmt) {
             .declaration => {
-                std.debug.print("unimplemented\n", .{});
+                output.print("unimplemented\n", .{});
             },
             .query => |query| {
                 try symbols.patchSymbols(query.term, &locals, decls.items);
@@ -192,10 +194,10 @@ pub fn main() !u8 {
                         term_allocator.allocator(),
                     ) orelse continue;
 
-                    std.debug.print("-> ", .{});
+                    output.print("-> ", .{});
                     debug.printTermExpr(result, decls.items);
-                    std.debug.print("\n", .{});
-                    std.debug.print("\n", .{});
+                    output.print("\n", .{});
+                    output.print("\n", .{});
                     // debug.printTermAll("Result", result, decls.items);
                 }
             },
@@ -210,23 +212,23 @@ pub fn main() !u8 {
                     term_allocator.allocator(),
                 ) orelse continue;
 
-                std.debug.print("* term....... ", .{});
+                output.print("* term....... ", .{});
                 debug.printTermExpr(term, decls.items);
-                std.debug.print("\n", .{});
+                output.print("\n", .{});
 
-                std.debug.print("* expanded... ", .{});
+                output.print("* expanded... ", .{});
                 debug.printTermExpr(expanded, decls.items);
-                std.debug.print("\n", .{});
+                output.print("\n", .{});
 
-                std.debug.print("* resolved... ", .{});
+                output.print("* resolved... ", .{});
                 debug.printTermExpr(result, decls.items);
-                std.debug.print("\n", .{});
-                std.debug.print("\n", .{});
+                output.print("\n", .{});
+                output.print("\n", .{});
             },
         }
     }
 
-    std.debug.print("end.\n", .{});
+    output.print("end.\n", .{});
     return 0;
 }
 
@@ -234,6 +236,8 @@ const Repl = struct {
     const Self = @This();
 
     const ReadError = LineReader.ReadError || Allocator.Error;
+
+    // TODO: Properly support reading from non-terminal stdin
 
     /// Collects all input lines (including temporaries).
     /// `reader.history` references slices of this text via `context`.

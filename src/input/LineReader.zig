@@ -4,6 +4,7 @@ const std = @import("std");
 const assert = std.debug.assert;
 
 const Span = @import("../Span.zig");
+const output = @import("../output.zig");
 
 const History = @import("History.zig");
 const StdinReader = @import("StdinReader.zig");
@@ -87,14 +88,14 @@ fn readLineInner(self: *Self) StdinReader.Error!void {
 }
 
 fn printPrompt(self: *const Self) void {
-    std.debug.print("\r\x1b[K", .{});
-    std.debug.print(PROMPT, .{});
-    std.debug.print("{s}", .{self.view.get()});
-    std.debug.print("\x1b[{}G", .{self.view.cursor + PROMPT.len + 1});
+    output.print("\r\x1b[K", .{});
+    output.print(PROMPT, .{});
+    output.print("{s}", .{self.view.get()});
+    output.print("\x1b[{}G", .{self.view.cursor + PROMPT.len + 1});
 }
 
 fn printEnd(_: *const Self) void {
-    std.debug.print("\n", .{});
+    output.print("\n", .{});
 }
 
 /// Returns `true` if **EOF** *or* **EOL**, or `false` if there are still

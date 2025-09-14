@@ -6,23 +6,26 @@ const Query = model.Query;
 const Term = model.Term;
 
 const Span = @import("Span.zig");
+const output = @import("output.zig");
+
+// TODO: Add wrappers to recursive functions, flush on completion
 
 pub fn printDeclarations(declarations: []const Decl) void {
     for (declarations, 0..) |*entry, i| {
-        std.debug.print(
+        output.print(
             "\n[{}] {s}\n",
             .{ i, entry.decl.name.string() },
         );
         printTerm(entry.decl.term, 0, "");
-        std.debug.print("\n", .{});
+        output.print("\n", .{});
     }
 }
 
 pub fn printQueries(queries: []const Query) void {
     for (queries, 0..) |*query, i| {
-        std.debug.print("\n<{}>\n", .{i});
+        output.print("\n<{}>\n", .{i});
         printTerm(query.term, 0, "");
-        std.debug.print("\n", .{});
+        output.print("\n", .{});
     }
 }
 
@@ -31,45 +34,45 @@ pub fn printTermAll(
     term: *const Term,
     decls: []const Decl,
 ) void {
-    std.debug.print("\n:: " ++ label ++ " :: \n", .{});
-    std.debug.print("[ ", .{});
+    output.print("\n:: " ++ label ++ " :: \n", .{});
+    output.print("[ ", .{});
     printTermExpr(term, decls);
-    std.debug.print(" ]\n", .{});
+    output.print(" ]\n", .{});
     printTerm(term, 0, "");
-    std.debug.print("\n", .{});
+    output.print("\n", .{});
 }
 
 pub fn printTermExpr(term: *const Term, decls: []const Decl) void {
     switch (term.value) {
         .unresolved => {
-            std.debug.print("UNRESOLVED", .{});
+            output.print("UNRESOLVED", .{});
         },
         .local => {
             if (term.span) |span| {
-                std.debug.print("{s}", .{span.string()});
+                output.print("{s}", .{span.string()});
             } else {
-                std.debug.print("MISSING", .{});
+                output.print("MISSING", .{});
             }
         },
         .global => |index| {
-            std.debug.print("{s}", .{decls[index].name.string()});
+            output.print("{s}", .{decls[index].name.string()});
         },
         .group => |inner| {
-            std.debug.print("(", .{});
+            output.print("(", .{});
             printTermExpr(inner, decls);
-            std.debug.print(")", .{});
+            output.print(")", .{});
         },
         .abstraction => |abstr| {
-            std.debug.print("(\\{s}. ", .{abstr.parameter.string()});
+            output.print("(\\{s}. ", .{abstr.parameter.string()});
             printTermExpr(abstr.body, decls);
-            std.debug.print(")", .{});
+            output.print(")", .{});
         },
         .application => |appl| {
-            std.debug.print("(", .{});
+            output.print("(", .{});
             printTermExpr(appl.function, decls);
-            std.debug.print(" ", .{});
+            output.print(" ", .{});
             printTermExpr(appl.argument, decls);
-            std.debug.print(")", .{});
+            output.print(")", .{});
         },
     }
 }
@@ -94,7 +97,7 @@ pub fn printTerm(
         },
         .global => |index| {
             printLabel(depth, prefix, "global");
-            std.debug.print("[{}] ", .{index});
+            output.print("[{}] ", .{index});
             printSpanValue(term.span, null);
         },
         .group => |inner| {
@@ -124,31 +127,31 @@ fn printLabel(
     comptime label: []const u8,
 ) void {
     for (0..depth) |_| {
-        std.debug.print("|" ++ " " ** 5, .{});
+        output.print("|" ++ " " ** 5, .{});
     }
     if (prefix.len > 0) {
-        std.debug.print("{s}", .{prefix});
+        output.print("{s}", .{prefix});
     }
     if (prefix.len > 0 and label.len > 0) {
-        std.debug.print(".", .{});
+        output.print(".", .{});
     }
-    std.debug.print("{s}: ", .{label});
+    output.print("{s}: ", .{label});
 }
 
 fn printSpanValue(span: ?Span, id: ?usize) void {
     if (span) |span_unwrapped| {
-        std.debug.print("`", .{});
+        output.print("`", .{});
         printSpanInline(span_unwrapped.string());
-        std.debug.print("`", .{});
+        output.print("`", .{});
     } else {
-        std.debug.print("CONSTRUCTED", .{});
+        output.print("CONSTRUCTED", .{});
     }
 
     if (id) |id_value| {
-        std.debug.print(" {{0x{x:04}}}", .{id_value});
+        output.print(" {{0x{x:04}}}", .{id_value});
     }
 
-    std.debug.print("\n", .{});
+    output.print("\n", .{});
 }
 
 pub fn printSpanInline(value: []const u8) void {
@@ -156,12 +159,12 @@ pub fn printSpanInline(value: []const u8) void {
     for (value) |char| {
         if (std.ascii.isWhitespace(char)) {
             if (!was_whitespace) {
-                std.debug.print(" ", .{});
+                output.print(" ", .{});
                 was_whitespace = true;
             }
         } else {
             was_whitespace = false;
-            std.debug.print("{c}", .{char});
+            output.print("{c}", .{char});
         }
     }
 }
