@@ -157,6 +157,10 @@ fn readNextSequence(self: *Self) StdinReader.Error!bool {
 }
 
 fn previousHistory(self: *Self) void {
+    if (self.history.length == 0) {
+        return;
+    }
+
     self.history.index =
         if (self.view.isBuffer())
             self.history.length -| 1
