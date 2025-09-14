@@ -7,17 +7,22 @@ const HistoryList = @import("HistoryList.zig");
 const LineBuffer = @import("LineBuffer.zig");
 
 live: LineBuffer,
-// TODO: Integrate history into this struct
 history: HistoryList,
-is_live: bool,
+
+/// `null` if `live` input is currently active.
+/// Higher number means a more recent history entry.
+// TODO: Invert direction
+// TODO: Rename
+history_index: ?usize,
+/// Horizontal cursor position (byte index).
 cursor: usize,
 
 pub fn new() Self {
     return Self{
         .live = LineBuffer.new(),
         .history = HistoryList.new(),
+        .history_index = null,
         .cursor = 0,
-        .is_live = true,
     };
 }
 
@@ -61,20 +66,19 @@ pub fn remove(self: *Self) void {
 }
 
 pub fn get(self: *const Self) []const u8 {
-    if (self.is_live) {
-        return self.live.get();
+    if (self.history_index) |index| {
+        return self.history.get(index);
     } else {
-        return self.history.getActive();
+        return self.live.get();
     }
 }
 
 pub fn becomeLive(self: *Self) void {
-    if (self.is_live) {
+    const index = self.history_index orelse
         return;
-    }
 
-    self.live.copyFrom(self.history.getActive());
-    self.is_live = true;
+    self.live.copyFrom(self.history.get(index));
+    self.history_index = null;
     self.resetCursor();
 }
 
@@ -83,24 +87,28 @@ pub fn historyBack(self: *Self) void {
         return;
     }
 
-    if (self.is_live) {
-        self.is_live = false;
-        self.history.index = self.history.length - 1;
+    if (self.history_index) |*index| {
+        index.* -|= 1;
     } else {
-        self.history.index -|= 1;
+        self.history_index = self.history.length - 1;
     }
     self.resetCursor();
 }
 
 pub fn historyForward(self: *Self) void {
-    if (self.is_live) {
-        return;
-    }
+    const index = &(self.history_index orelse
+        return);
 
-    if (self.history.index + 1 >= self.history.length) {
-        self.is_live = true;
+    if (index.* + 1 >= self.history.length) {
+        self.history_index = null;
     } else {
-        self.history.index += 1;
+        index.* += 1;
     }
     self.resetCursor();
+}
+
+pub fn getLatestHistory(self: *const Self) ?[]const u8 {
+    const index = self.history_index orelse
+        return null;
+    return self.history.get(index);
 }

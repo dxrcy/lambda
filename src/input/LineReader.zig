@@ -50,7 +50,7 @@ pub fn appendHistory(self: *Self, span: Span) void {
     if (span.string().len == 0) {
         return;
     }
-    if (self.view.history.getLatest()) |latest| {
+    if (self.view.getLatestHistory()) |latest| {
         if (std.mem.eql(u8, latest, span.string())) {
             return;
         }
