@@ -28,17 +28,6 @@ pub fn new() StdinTerminal.Error!Self {
     };
 }
 
-/// Returns `false` iff **EOF**.
-pub fn readLine(self: *Self) ReadError!bool {
-    if (self.reader.eof) {
-        return false;
-    }
-    try self.terminal.enableInputMode();
-    try self.readLineInner();
-    try self.terminal.disableInputMode();
-    return true;
-}
-
 /// Returns slice of underlying buffer, which may be overridden on next
 /// read call.
 pub fn getLine(self: *const Self) []const u8 {
@@ -58,12 +47,25 @@ pub fn appendHistory(self: *Self, span: Span) void {
     self.view.history.append(span);
 }
 
-// Assumes `self.terminal` has input mode enabled.
-// Assumes `self.eof` is `false`.
-fn readLineInner(self: *Self) StdinReader.Error!void {
-    self.view.clear();
+/// Returns `false` iff **EOF** was reached *at any point* before input was
+/// confirmed (eg. by `Return` key).
+/// Note that a non-terminal stdin reader may implement different behaviour.
+pub fn readLine(self: *Self) ReadError!bool {
+    if (self.reader.eof) {
+        return false;
+    }
+    try self.terminal.enableInputMode();
+    try self.readLineInner();
+    try self.terminal.disableInputMode();
+    return !self.reader.eof;
+}
 
-    // TODO: Use stdout
+// Assumes `self.terminal` has input mode enabled.
+// Assumes `self.reader.eof` is `false`.
+fn readLineInner(self: *Self) StdinReader.Error!void {
+    assert(!self.reader.eof);
+
+    self.view.clear();
 
     while (true) {
         self.printPrompt();
@@ -71,7 +73,6 @@ fn readLineInner(self: *Self) StdinReader.Error!void {
             break;
         }
     }
-
     self.printEnd();
 }
 
@@ -86,8 +87,9 @@ fn printEnd(_: *const Self) void {
     output.print("\n", .{});
 }
 
-/// Returns `true` if **EOF** *or* **EOL**, or `false` if there are still
-/// characters to read in the current line.
+/// Returns `false` if there are still characters to read in the current line,
+/// ie. **EOF** has not yet been reached, and input has not yet been confirmed
+/// (eg. by `Return` key).
 fn readNextSequence(self: *Self) StdinReader.Error!bool {
     const byte = try self.reader.readSingleByte() orelse
         return true;
@@ -100,18 +102,14 @@ fn readNextSequence(self: *Self) StdinReader.Error!bool {
         // Normal character
         0x20...0x7e => {
             self.view.insert(byte);
-            return false;
         },
         // Backspace, delete
         // FIXME: `Delete` key inserts `~`
         0x08, 0x7f => {
             self.view.remove();
-            return false;
         },
         // ^D (EOT/EOF)
         0x04 => {
-            // TODO: Yield no line input on EOF
-            self.view.becomeLive(); // TODO: so remove this
             self.reader.setUserEof();
             return true;
         },
@@ -123,22 +121,15 @@ fn readNextSequence(self: *Self) StdinReader.Error!bool {
             const command = try self.reader.readSingleByte() orelse
                 return true;
             switch (command) {
-                'A' => {
-                    self.view.historyBack();
-                },
-                'B' => {
-                    self.view.historyForward();
-                },
-                'C' => {
-                    self.view.seek(.right);
-                },
-                'D' => {
-                    self.view.seek(.left);
-                },
+                'A' => self.view.historyBack(),
+                'B' => self.view.historyForward(),
+                'C' => self.view.seek(.right),
+                'D' => self.view.seek(.left),
                 else => {},
             }
-            return false;
         },
-        else => return false,
+        else => {},
     }
+
+    return false;
 }
