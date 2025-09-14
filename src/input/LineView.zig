@@ -5,9 +5,6 @@ const assert = std.debug.assert;
 
 const LineBuffer = @import("LineBuffer.zig");
 
-// TODO: Rename `buffer` variant and variables
-// Since `LineBuffer` has a `buffer` field
-
 cursor: usize,
 data: union(enum) {
     slice: []const u8,

@@ -3,13 +3,13 @@ const Self = @This();
 const std = @import("std");
 const assert = std.debug.assert;
 
+const Span = @import("../Span.zig");
+
 const History = @import("History.zig");
 const StdinReader = @import("StdinReader.zig");
 const StdinTerminal = @import("StdinTerminal.zig");
 const LineBuffer = @import("LineBuffer.zig");
 const LineView = @import("LineView.zig");
-
-const Span = @import("../Span.zig");
 
 const MAX_LINE_LENGTH = 1024;
 const PROMPT = "?- ";
@@ -19,7 +19,6 @@ terminal: StdinTerminal,
 
 line: LineBuffer,
 view: LineView,
-
 /// `history.index` is irrelevant if `view.isBuffer()`.
 history: History,
 
@@ -30,20 +29,13 @@ pub fn new() !Self {
 
         .line = LineBuffer.new(),
         .view = undefined,
-
         .history = History.new(),
     };
     self.view = LineView.fromBuffer(&self.line);
     return self;
 }
 
-/// Returns slice of underlying buffer, which may be overridden on next
-/// read call.
-pub fn getLine(self: *const Self) []const u8 {
-    return std.mem.trim(u8, self.view.get(), " ");
-}
-
-/// Returns `false` iff **EOF** (iff `self.eof`).
+/// Returns `false` iff **EOF**.
 pub fn readLine(self: *Self) !bool {
     if (self.reader.eof) {
         return false;
@@ -52,6 +44,12 @@ pub fn readLine(self: *Self) !bool {
     try self.readLineInner();
     try self.terminal.disableInputMode();
     return true;
+}
+
+/// Returns slice of underlying buffer, which may be overridden on next
+/// read call.
+pub fn getLine(self: *const Self) []const u8 {
+    return std.mem.trim(u8, self.view.get(), " ");
 }
 
 /// Use persistant `Span` to keep valid reference after buffer is overwritten.
