@@ -185,8 +185,6 @@ pub fn main() !u8 {
                     continue;
                 }
 
-                // debug.printTermAll("Query", query.term, decls.items);
-
                 {
                     const result = try resolve.resolveTerm(
                         query.term,
@@ -198,7 +196,6 @@ pub fn main() !u8 {
                     debug.printTermInline(result, decls.items);
                     output.print("\n", .{});
                     output.print("\n", .{});
-                    // debug.printTermAll("Result", result, decls.items);
                 }
             },
             .inspect => |term| {

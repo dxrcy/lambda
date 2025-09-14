@@ -10,15 +10,15 @@ const output = @import("output.zig");
 
 const MAX_RECURSION = 256;
 
-// TODO: Add wrappers to recursive functions, flush on completion
+const WARNING_CUTOFF = "#[CUTOFF]#";
+const WARNING_UNRESOLVED = "#[UNRESOLVED]#";
+const WARNING_UNKNOWN = "#[UNKNOWN]#";
+const WARNING_CONSTRUCTED = "#[CONSTRUCTED]#";
 
 pub fn printDeclarations(declarations: []const Decl) void {
     for (declarations, 0..) |*entry, i| {
-        output.print(
-            "\n[{}] {s}\n",
-            .{ i, entry.decl.name.string() },
-        );
-        printTerm(entry.decl.term, 0, "");
+        output.print("\n[{}] {s}\n", .{ i, entry.decl.name.string() });
+        printTermDetailedInner(entry.decl.term, 0, "");
         output.print("\n", .{});
     }
 }
@@ -26,22 +26,9 @@ pub fn printDeclarations(declarations: []const Decl) void {
 pub fn printQueries(queries: []const Query) void {
     for (queries, 0..) |*query, i| {
         output.print("\n<{}>\n", .{i});
-        printTerm(query.term, 0, "");
+        printTermDetailedInner(query.term, 0, "");
         output.print("\n", .{});
     }
-}
-
-pub fn printTermAll(
-    comptime label: []const u8,
-    term: *const Term,
-    decls: []const Decl,
-) void {
-    output.print("\n:: " ++ label ++ " :: \n", .{});
-    output.print("[ ", .{});
-    printTermInline(term, decls);
-    output.print(" ]\n", .{});
-    printTerm(term, 0, "");
-    output.print("\n", .{});
 }
 
 pub fn printTermInline(term: *const Term, decls: []const Decl) void {
@@ -54,23 +41,19 @@ fn printTermInlineInner(
     decls: []const Decl,
     depth: usize,
 ) void {
-    const CUTOFF = "#[CUTOFF]#";
-    const UNRESOLVED = "#[UNRESOLVED]#";
-    const UNKNOWN = "#[UNKNOWN]#";
-
     if (depth > MAX_RECURSION) {
-        output.print(CUTOFF, .{});
+        output.print(WARNING_CUTOFF, .{});
         return;
     }
 
     switch (term.value) {
         .unresolved => {
-            output.print(UNRESOLVED, .{});
+            output.print(WARNING_UNRESOLVED, .{});
         },
         .local => if (term.span) |span| {
             output.print("{s}", .{span.string()});
         } else {
-            output.print(UNKNOWN, .{});
+            output.print(WARNING_UNKNOWN, .{});
         },
         .global => |index| {
             output.print("{s}", .{decls[index].name.string()});
@@ -95,18 +78,23 @@ fn printTermInlineInner(
     }
 }
 
-pub fn printTerm(
+pub fn printTermDetailed(term: *const Term) void {
+    printTermDetailedInner(term, 0, "");
+}
+
+fn printTermDetailedInner(
     term: *const Term,
     depth: usize,
     comptime prefix: []const u8,
 ) void {
-    if (depth > 30) {
-        @panic("max recursion depth reached");
+    if (depth > MAX_RECURSION) {
+        output.print(WARNING_CUTOFF, .{});
+        return;
     }
 
     switch (term.value) {
         .unresolved => {
-            printLabel(depth, prefix, "UNRESOLVED");
+            printLabel(depth, prefix, WARNING_UNRESOLVED);
             printSpanValue(term.span, null);
         },
         .local => |id| {
@@ -121,20 +109,20 @@ pub fn printTerm(
         .group => |inner| {
             printLabel(depth, prefix, "group");
             printSpanValue(term.span, null);
-            printTerm(inner, depth + 1, "");
+            printTermDetailedInner(inner, depth + 1, "");
         },
         .abstraction => |abstr| {
             printLabel(depth, prefix, "abstraction");
             printSpanValue(term.span, null);
             printLabel(depth + 1, "parameter", "");
             printSpanValue(abstr.parameter, abstr.id);
-            printTerm(abstr.body, depth + 1, "body");
+            printTermDetailedInner(abstr.body, depth + 1, "body");
         },
         .application => |appl| {
             printLabel(depth, prefix, "application");
             printSpanValue(term.span, null);
-            printTerm(appl.function, depth + 1, "function");
-            printTerm(appl.argument, depth + 1, "argument");
+            printTermDetailedInner(appl.function, depth + 1, "function");
+            printTermDetailedInner(appl.argument, depth + 1, "argument");
         },
     }
 }
@@ -162,10 +150,10 @@ fn printSpanValue(span: ?Span, id: ?usize) void {
         printSpanInline(span_unwrapped.string());
         output.print("`", .{});
     } else {
-        output.print("CONSTRUCTED", .{});
+        output.print(WARNING_CONSTRUCTED, .{});
     }
 
-    if (id) |id_value| {
+    if (comptime id) |id_value| {
         output.print(" {{0x{x:04}}}", .{id_value});
     }
 
