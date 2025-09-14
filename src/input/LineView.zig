@@ -3,19 +3,19 @@ const Self = @This();
 const std = @import("std");
 const assert = std.debug.assert;
 
+const HistoryList = @import("HistoryList.zig");
 const LineBuffer = @import("LineBuffer.zig");
-const History = @import("History.zig");
 
 live: LineBuffer,
 // TODO: Integrate history into this struct
-history: History,
+history: HistoryList,
 is_live: bool,
 cursor: usize,
 
 pub fn new() Self {
     return Self{
         .live = LineBuffer.new(),
-        .history = History.new(),
+        .history = HistoryList.new(),
         .cursor = 0,
         .is_live = true,
     };

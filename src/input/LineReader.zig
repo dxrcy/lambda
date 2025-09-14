@@ -6,27 +6,25 @@ const assert = std.debug.assert;
 const Span = @import("../Span.zig");
 const output = @import("../output.zig");
 
-const History = @import("History.zig");
+const LineView = @import("LineView.zig");
 const StdinReader = @import("StdinReader.zig");
 const StdinTerminal = @import("StdinTerminal.zig");
-const LineBuffer = @import("LineBuffer.zig");
-const LineView = @import("LineView.zig");
 
 pub const NewError = StdinTerminal.Error;
 pub const ReadError = StdinTerminal.Error || StdinReader.Error;
 
 const PROMPT = "?- ";
 
-reader: StdinReader,
-terminal: StdinTerminal,
 // TODO: Rename
 view: LineView,
+reader: StdinReader,
+terminal: StdinTerminal,
 
 pub fn new() StdinTerminal.Error!Self {
     return Self{
+        .view = LineView.new(),
         .reader = StdinReader.new(),
         .terminal = try StdinTerminal.get(),
-        .view = LineView.new(),
     };
 }
 
