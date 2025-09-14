@@ -11,6 +11,9 @@ const StdinTerminal = @import("StdinTerminal.zig");
 const LineBuffer = @import("LineBuffer.zig");
 const LineView = @import("LineView.zig");
 
+pub const NewError = StdinTerminal.Error;
+pub const ReadError = StdinTerminal.Error || StdinReader.Error;
+
 const MAX_LINE_LENGTH = 1024;
 const PROMPT = "?- ";
 
@@ -22,7 +25,7 @@ view: LineView,
 /// `history.index` is irrelevant if `view.isBuffer()`.
 history: History,
 
-pub fn new() !Self {
+pub fn new() StdinTerminal.Error!Self {
     var self = Self{
         .reader = StdinReader.new(),
         .terminal = try StdinTerminal.get(),
@@ -36,7 +39,7 @@ pub fn new() !Self {
 }
 
 /// Returns `false` iff **EOF**.
-pub fn readLine(self: *Self) !bool {
+pub fn readLine(self: *Self) ReadError!bool {
     if (self.reader.eof) {
         return false;
     }
@@ -67,7 +70,7 @@ pub fn appendHistory(self: *Self, span: Span) void {
 
 // Assumes `self.terminal` has input mode enabled.
 // Assumes `self.eof` is `false`.
-fn readLineInner(self: *Self) !void {
+fn readLineInner(self: *Self) StdinReader.Error!void {
     self.ensureNonhistoric();
     self.view.clear();
 
@@ -96,7 +99,7 @@ fn printEnd(_: *const Self) void {
 
 /// Returns `true` if **EOF** *or* **EOL**, or `false` if there are still
 /// characters to read in the current line.
-fn readNextSequence(self: *Self) !bool {
+fn readNextSequence(self: *Self) StdinReader.Error!bool {
     const byte = try self.reader.readSingleByte() orelse
         return true;
 

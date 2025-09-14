@@ -3,6 +3,8 @@ const Self = @This();
 const std = @import("std");
 const fs = std.fs;
 
+pub const Error = error{ReadFailed};
+
 const BUFFER_SIZE = 1024;
 
 stdin: fs.File,
@@ -24,7 +26,7 @@ pub fn new() Self {
 
 /// Returns `null` and sets `self.eof` iff **EOF**.
 /// If `self.eof` is `true`, no read calls will be made.
-pub fn readSingleByte(self: *Self) !?u8 {
+pub fn readSingleByte(self: *Self) Error!?u8 {
     if (self.eof) {
         return null;
     }

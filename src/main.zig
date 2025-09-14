@@ -232,6 +232,8 @@ pub fn main() !u8 {
 const Repl = struct {
     const Self = @This();
 
+    const ReadError = LineReader.ReadError || Allocator.Error;
+
     /// Collects all input lines (including temporaries).
     /// `reader.history` references slices of this text via `context`.
     text: ArrayList(u8),
@@ -239,7 +241,7 @@ const Repl = struct {
     context: Context,
     reader: LineReader,
 
-    pub fn init(allocator: Allocator) !Self {
+    pub fn init(allocator: Allocator) LineReader.NewError!Self {
         const self = Self{
             .text = ArrayList(u8).empty,
             .allocator = allocator,
@@ -257,8 +259,7 @@ const Repl = struct {
     }
 
     /// Returns `null` iff **EOF**.
-    // TODO: Add explicit error kinds
-    pub fn readLine(self: *Self) !?Span {
+    pub fn readLine(self: *Self) ReadError!?Span {
         while (true) {
             if (!try self.reader.readLine()) {
                 return null;
