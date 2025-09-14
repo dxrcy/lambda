@@ -200,6 +200,10 @@ pub fn main() !u8 {
             },
             .inspect => |term| {
                 try symbols.patchSymbols(term, &locals, decls.items);
+                if (Reporter.getCount() > 0) {
+                    continue;
+                }
+
                 const expanded = resolve.expandGlobalOnce(term, decls.items);
 
                 // Resolve *expanded* term. This is different to queries
