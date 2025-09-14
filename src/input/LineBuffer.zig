@@ -30,7 +30,10 @@ pub fn insert(self: *Self, byte: u8, position: usize) void {
 
     // Shift characters up
     if (self.length > 0) {
-        var i: usize = self.length - 1;
+        var i: usize = if (self.length >= MAX_LENGTH)
+            MAX_LENGTH - 1
+        else
+            self.length;
         while (i > position) : (i -= 1) {
             self.buffer[i] = self.buffer[i - 1];
         }
