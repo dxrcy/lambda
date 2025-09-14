@@ -19,9 +19,10 @@ pub fn new() Self {
     };
 }
 
-pub fn get(self: *const Self, index: usize) []const u8 {
-    assert(index < self.length);
+pub fn get(self: *const Self, back_index: usize) []const u8 {
+    assert(back_index < self.length);
     assert(self.length <= HISTORY_SIZE);
+    const index = self.length - back_index - 1;
     return self.items[index].string();
 }
 

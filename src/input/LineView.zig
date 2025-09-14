@@ -9,20 +9,18 @@ const LineBuffer = @import("LineBuffer.zig");
 live: LineBuffer,
 history: HistoryList,
 
-/// `null` if `live` input is currently active.
-/// Higher number means a more recent history entry.
-// TODO: Invert direction
-// TODO: Rename
-history_index: ?usize,
 /// Horizontal cursor position (byte index).
 cursor: usize,
+/// `null` if `live` input is currently active.
+/// Lower number means a more recent history entry (`0` being the latest).
+scrollback: ?usize,
 
 pub fn new() Self {
     return Self{
         .live = LineBuffer.new(),
         .history = HistoryList.new(),
-        .history_index = null,
         .cursor = 0,
+        .scrollback = null,
     };
 }
 
@@ -66,19 +64,20 @@ pub fn remove(self: *Self) void {
 }
 
 pub fn get(self: *const Self) []const u8 {
-    if (self.history_index) |index| {
-        return self.history.get(index);
+    if (self.scrollback) |scrollback| {
+        return self.history.get(scrollback);
     } else {
         return self.live.get();
     }
 }
 
 pub fn becomeLive(self: *Self) void {
-    const index = self.history_index orelse
+    const scrollback = self.scrollback orelse
         return;
 
-    self.live.copyFrom(self.history.get(index));
-    self.history_index = null;
+    self.live.copyFrom(self.history.get(scrollback));
+    self.scrollback = null;
+
     self.resetCursor();
 }
 
@@ -87,28 +86,32 @@ pub fn historyBack(self: *Self) void {
         return;
     }
 
-    if (self.history_index) |*index| {
-        index.* -|= 1;
+    if (self.scrollback) |*scrollback| {
+        if (scrollback.* + 1 < self.history.length) {
+            scrollback.* += 1;
+        }
     } else {
-        self.history_index = self.history.length - 1;
+        self.scrollback = 0;
     }
+
     self.resetCursor();
 }
 
 pub fn historyForward(self: *Self) void {
-    const index = &(self.history_index orelse
-        return);
+    const scrollback = self.scrollback orelse
+        return;
 
-    if (index.* + 1 >= self.history.length) {
-        self.history_index = null;
-    } else {
-        index.* += 1;
-    }
+    self.scrollback =
+        if (scrollback == 0)
+            null
+        else
+            scrollback - 1;
+
     self.resetCursor();
 }
 
 pub fn getLatestHistory(self: *const Self) ?[]const u8 {
-    const index = self.history_index orelse
+    const scrollback = self.scrollback orelse
         return null;
-    return self.history.get(index);
+    return self.history.get(scrollback);
 }
