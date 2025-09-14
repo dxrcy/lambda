@@ -29,6 +29,7 @@ pub fn append(self: *Self, span: Span) void {
     if (self.length < HISTORY_SIZE) {
         self.items[self.length] = span;
         self.length += 1;
+        return;
     }
 
     // Shift items down
