@@ -243,7 +243,6 @@ fn tryTermSingle(
         },
 
         .ParenRight, .Equals, .Dot, .Inspect => {
-            assert(!(in_group and left.kind == .ParenRight));
             Reporter.report(
                 "unexpected token",
                 if (in_group)
