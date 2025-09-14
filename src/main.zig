@@ -151,6 +151,7 @@ pub fn main() !u8 {
     }
 
     var repl = try Repl.init(allocator);
+    defer repl.deinit();
 
     while (try repl.readLine()) |line| {
         Reporter.clearCount();
