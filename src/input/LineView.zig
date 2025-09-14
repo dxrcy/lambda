@@ -47,8 +47,9 @@ pub fn clear(self: *Self) void {
 }
 
 pub fn insert(self: *Self, byte: u8) void {
-    self.unwrapBuffer().insert(byte, self.cursor);
-    self.cursor += 1;
+    if (self.unwrapBuffer().insert(byte, self.cursor)) {
+        self.cursor += 1;
+    }
 }
 
 pub fn remove(self: *Self) void {

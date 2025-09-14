@@ -23,9 +23,11 @@ pub fn clear(self: *Self) void {
     self.length = 0;
 }
 
-pub fn insert(self: *Self, byte: u8, position: usize) void {
+/// Returns `true` if character was inserted (even if overflowing characters
+/// were cut off).
+pub fn insert(self: *Self, byte: u8, position: usize) bool {
     if (position >= MAX_LENGTH) {
-        return;
+        return false;
     }
 
     // Shift characters up
@@ -44,6 +46,8 @@ pub fn insert(self: *Self, byte: u8, position: usize) void {
     if (self.length + 1 <= MAX_LENGTH) {
         self.length += 1;
     }
+
+    return true;
 }
 
 pub fn remove(self: *Self, position: usize) void {
