@@ -3,7 +3,6 @@ const fs = std.fs;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
-const Context = @import("Context.zig");
 const Reporter = @import("Reporter.zig");
 const utils = @import("utils.zig");
 

@@ -3,8 +3,6 @@ const Self = @This();
 const std = @import("std");
 const assert = std.debug.assert;
 
-const Span = @import("../Span.zig");
-
 const TextStore = @import("../TextStore.zig");
 const Source = TextStore.Source;
 const SourceSpan = TextStore.SourceSpan;
