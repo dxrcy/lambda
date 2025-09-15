@@ -5,7 +5,6 @@ const ArrayList = std.ArrayList;
 
 const Context = @import("Context.zig");
 const Reporter = @import("Reporter.zig");
-const Span = @import("Span.zig");
 const utils = @import("utils.zig");
 
 const Parser = @import("parse/Parser.zig");
@@ -176,7 +175,8 @@ pub fn main() !u8 {
                 "input contains invalid UTF-8 bytes",
                 "",
                 .{},
-                .{ .stdin = {} },
+                .{ .source = .{ .input = {} } },
+                &text,
             );
             continue;
         }

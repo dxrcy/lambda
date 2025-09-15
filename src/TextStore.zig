@@ -4,6 +4,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const assert = std.debug.assert;
+const unicode = std.unicode;
 
 files: FilesText,
 input: ArrayList(u8),
@@ -64,8 +65,11 @@ pub const FreeSpan = struct {
     offset: usize,
     length: usize,
 
-    pub fn end(self: @This()) usize {
-        return self.offset + self.length;
+    pub fn new(offset: usize, length: usize) @This() {
+        return .{
+            .offset = offset,
+            .length = length,
+        };
     }
 
     pub fn fromBounds(start: usize, span_end: usize) @This() {
@@ -75,6 +79,10 @@ pub const FreeSpan = struct {
             .offset = start,
             .length = span_end - start,
         };
+    }
+
+    pub fn end(self: @This()) usize {
+        return self.offset + self.length;
     }
 
     pub fn addOffset(self: @This(), offset: usize) @This() {
@@ -93,6 +101,15 @@ pub const FreeSpan = struct {
         };
     }
 
+    /// Spans must be in-order and non-overlapping.
+    pub fn between(left: @This(), right: @This()) @This() {
+        assert(left.end() <= right.offset);
+        return .{
+            .offset = left.end(),
+            .length = right.offset - left.end(),
+        };
+    }
+
     pub fn in(self: @This(), text: []const u8) []const u8 {
         assert(self.offset < text.len);
         assert(self.offset + self.length <= text.len);
@@ -102,18 +119,26 @@ pub const FreeSpan = struct {
 
 // TODO: Rename
 pub const SourceSpan = struct {
-    source: Source,
     // TODO: Rename
     free: FreeSpan,
+    source: Source,
 
+    // TODO: Remove, use `.free.end()`
     pub fn end(self: @This()) usize {
         return self.free.end();
     }
 
+    pub fn new(offset: usize, length: usize, source: Source) @This() {
+        return .{
+            .free = FreeSpan.new(offset, length),
+            .source = source,
+        };
+    }
+
     pub fn fromBounds(start: usize, span_end: usize, source: Source) @This() {
         return .{
-            .source = source,
             .free = FreeSpan.fromBounds(start, span_end),
+            .source = source,
         };
     }
 
@@ -129,6 +154,15 @@ pub const SourceSpan = struct {
         assert(left.source.equals(right.source));
         return .{
             .free = left.free.join(right.free),
+            .source = left.source,
+        };
+    }
+
+    /// Spans must be in-order, non-overlapping, and from the same source.
+    pub fn between(left: @This(), right: @This()) @This() {
+        assert(left.source.equals(right.source));
+        return .{
+            .free = left.free.between(right.free),
             .source = left.source,
         };
     }
@@ -202,4 +236,94 @@ pub fn getSourceText(self: *const Self, source: Source) []const u8 {
         .file => |index| self.files.get(index).span.in(self.files.text.items),
         .input => self.input.items,
     };
+}
+
+pub fn startingLineOf(self: *const Self, span: SourceSpan) usize {
+    const text = self.getSourceText(span.source);
+    assert(span.end() < text.len);
+
+    var line: usize = 1;
+    for (text, 0..) |char, i| {
+        if (char == '\n') {
+            line += 1;
+        }
+        if (i >= span.free.offset) {
+            break;
+        }
+    }
+    return line;
+}
+
+/// Assumes valid UTF-8.
+pub fn charCount(self: *const Self, span: SourceSpan) usize {
+    return unicode.utf8CountCodepoints(span.in(self)) catch {
+        std.debug.panic("string is not valid UTF-8", .{});
+    };
+}
+
+pub fn isMultiline(self: *const Self, span: SourceSpan) bool {
+    const text = self.getSourceText(span.source);
+    assert(span.free.end() < text.len);
+
+    for (span.free.offset..span.free.end()) |i| {
+        if (text[i] == '\n') {
+            return true;
+        }
+    }
+    return false;
+}
+
+pub fn getSingleLine(
+    self: *const Self,
+    index: usize,
+    source: Source,
+) SourceSpan {
+    return self.getLeftCharacters(index, source)
+        .join(self.getRightCharacters(index, source));
+}
+
+pub fn getLeftCharacters(
+    self: *const Self,
+    index: usize,
+    source: Source,
+) SourceSpan {
+    const text = self.getSourceText(source);
+    assert(index < text.len);
+
+    var start = index;
+    while (start > 0) : (start -= 1) {
+        if (text[start - 1] == '\n') {
+            break;
+        }
+    }
+    while (start < index) : (start += 1) {
+        if (!std.ascii.isWhitespace(text[start])) {
+            break;
+        }
+    }
+
+    return SourceSpan.fromBounds(start, index, source);
+}
+
+pub fn getRightCharacters(
+    self: *const Self,
+    index: usize,
+    source: Source,
+) SourceSpan {
+    const text = self.getSourceText(source);
+    assert(index < text.len);
+
+    var end = index;
+    while (end < text.len) : (end += 1) {
+        if (text[end] == '\n') {
+            break;
+        }
+    }
+    while (end > index) : (end -= 1) {
+        if (!std.ascii.isWhitespace(text[end - 1])) {
+            break;
+        }
+    }
+
+    return SourceSpan.fromBounds(index, end, source);
 }

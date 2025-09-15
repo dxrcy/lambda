@@ -2,10 +2,13 @@ const std = @import("std");
 const io = std.io;
 const assert = std.debug.assert;
 
-const Context = @import("Context.zig");
-const Span = @import("Span.zig");
+const TextStore = @import("TextStore.zig");
+const Source = TextStore.Source;
+const SourceSpan = TextStore.SourceSpan;
 
 const ExitCode = u8;
+
+// TODO: Convert to instantiatable object instead of using staticly
 
 const PROGRAM_EXIT_CODE = 1;
 
@@ -32,20 +35,19 @@ pub const Output = struct {
 };
 
 pub const Layout = union(enum) {
-    file: *const Context,
-    stdin: void,
-    token: Span,
-    statement: Span,
-    statement_end: Span,
+    source: Source,
+    token: SourceSpan,
+    statement: SourceSpan,
+    statement_end: SourceSpan,
     statement_token: struct {
-        statement: Span,
-        token: Span,
+        statement: SourceSpan,
+        token: SourceSpan,
     },
     symbol_reference: struct {
-        declaration: Span,
-        reference: Span,
+        declaration: SourceSpan,
+        reference: SourceSpan,
     },
-    query: Span,
+    query: SourceSpan,
 };
 
 pub fn getCount() usize {
@@ -83,6 +85,7 @@ pub fn report(
     comptime description: []const u8,
     args: anytype,
     layout: Layout,
+    text: *const TextStore,
 ) void {
     accumulated_count += 1;
     printErrorHeading(kind);
@@ -91,30 +94,32 @@ pub fn report(
     defer Output.flush();
 
     switch (layout) {
-        .stdin => {},
-        .file => |context| {
-            printLabel("bytes in file", null, context);
+        .source => |source| {
+            _ = source;
+            // TODO:
+            // printLabel("bytes in file", null, source);
         },
         .token => |token| {
-            printSpan("token", token);
+            printSpan("token", token, text);
         },
         .statement => |stmt| {
-            printSpan("statement", stmt);
+            printSpan("statement", stmt, text);
         },
         .statement_end => |stmt| {
-            printSpan("end of statement", Span.new(stmt.end(), 0, stmt.context));
-            printSpan("statement", stmt);
+            const end = SourceSpan.new(stmt.free.end(), 0, stmt.source);
+            printSpan("end of statement", end, text);
+            printSpan("statement", stmt, text);
         },
         .statement_token => |value| {
-            printSpan("token", value.token);
-            printSpan("statement", value.statement);
+            printSpan("token", value.token, text);
+            printSpan("statement", value.statement, text);
         },
         .symbol_reference => |value| {
-            printSpan("initial declaration", value.declaration);
-            printSpan("redeclaration", value.reference);
+            printSpan("initial declaration", value.declaration, text);
+            printSpan("redeclaration", value.reference, text);
         },
         .query => |query| {
-            printSpan("query", query);
+            printSpan("query", query, text);
         },
     }
 }
@@ -151,72 +156,100 @@ fn printIndent(comptime depth: usize) void {
 
 fn printLabel(
     comptime label: []const u8,
-    span: ?Span,
-    context: *const Context,
+    span: ?SourceSpan,
+    text: *const TextStore,
 ) void {
-    assert(span != null or context.filepath != null);
+    // assert(span != null or context.filepath != null);
 
     setStyle(.{ .FgWhite, .Dim });
     printIndent(1);
 
-    Output.print("({s}", .{context.filepath orelse ""});
-    if (span) |span_unwrapped| {
-        Output.print(":{}", .{Context.startingLineOf(span_unwrapped)});
-    }
-    Output.print(") {s}\n", .{label});
+    _ = span;
+    _ = text;
+    Output.print("(???) {s}\n", .{label});
+
+    // TODO:
+    // const path = text.getSourcePath(span.source);
+
+    // Output.print("({s}", .{path orelse ""});
+    // TODO:
+    // if (span) |span_unwrapped| {
+    // Output.print(":{}", .{Context.startingLineOf(span_unwrapped)});
+    // }
+    // Output.print(") {s}\n", .{label});
 
     setStyle(.{.Reset});
 }
 
-fn printSpan(comptime label: []const u8, span: Span) void {
-    printLabel(label, span, span.context);
+fn printSpan(
+    comptime label: []const u8,
+    span: SourceSpan,
+    text: *const TextStore,
+) void {
+    printLabel(label, span, text);
 
-    if (span.length == 0) {
-        const line = span.context.getSingleLine(span.offset);
-        printLineParts(line, Span.new(line.end(), 0, line.context));
-        printLineHighlight(line, Span.new(line.end(), 1, line.context));
-    } else if (!Context.isMultiline(span)) {
-        const left = span.context.getLeftCharacters(span.offset);
-        const right = span.context.getRightCharacters(span.end());
-        printLineParts(left, right);
-        printLineHighlight(left, span);
+    if (span.free.length == 0) {
+        const line = text.getSingleLine(span.free.offset, span.source);
+        printLineParts(
+            line,
+            SourceSpan.new(line.free.end(), 0, line.source),
+            text,
+        );
+        printLineHighlight(
+            line,
+            SourceSpan.new(line.free.end(), 1, line.source),
+            text,
+        );
+    } else if (!text.isMultiline(span)) {
+        const left = text.getLeftCharacters(span.free.offset, span.source);
+        const right = text.getRightCharacters(span.free.end(), span.source);
+        printLineParts(left, right, text);
+        printLineHighlight(left, span, text);
     } else {
         // TODO: Properly handle multi line tokens/statements
         const border_length = 20;
         setStyle(.{ .Dim, .FgWhite });
         Output.print("~" ** border_length ++ "\n", .{});
         setStyle(.{ .Reset, .FgYellow });
-        Output.print("{s}\n", .{span.string()});
+        Output.print("{s}\n", .{span.in(text)});
         setStyle(.{ .Dim, .FgWhite });
         Output.print("~" ** border_length ++ "\n\n", .{});
         setStyle(.{.Reset});
     }
 }
 
-fn printLineParts(left: Span, right: Span) void {
-    assert(left.context == right.context);
-    assert(left.end() <= right.offset);
+fn printLineParts(
+    left: SourceSpan,
+    right: SourceSpan,
+    text: *const TextStore,
+) void {
+    assert(left.source.equals(right.source));
+    assert(left.free.end() <= right.free.offset);
 
     printIndent(2);
     setStyle(.{.FgYellow});
-    Output.print("{s}", .{left.string()});
+    Output.print("{s}", .{left.in(text)});
     setStyle(.{.Bold});
-    Output.print("{s}", .{Span.between(left, right).string()});
+    Output.print("{s}", .{SourceSpan.between(left, right).in(text)});
     setStyle(.{ .Reset, .FgYellow });
-    Output.print("{s}", .{right.string()});
+    Output.print("{s}", .{right.in(text)});
     setStyle(.{.Reset});
     Output.print("\n", .{});
 }
 
-fn printLineHighlight(left: Span, span: Span) void {
-    assert(left.end() <= span.offset);
+fn printLineHighlight(
+    left: SourceSpan,
+    span: SourceSpan,
+    text: *const TextStore,
+) void {
+    assert(left.free.end() <= span.free.offset);
 
     setStyle(.{ .Reset, .FgRed });
     printIndent(2);
-    for (0..Context.charCount(left)) |_| {
+    for (0..text.charCount(left)) |_| {
         Output.print(" ", .{});
     }
-    for (0..Context.charCount(span)) |_| {
+    for (0..text.charCount(span)) |_| {
         Output.print("^", .{});
     }
     Output.print("\n", .{});
