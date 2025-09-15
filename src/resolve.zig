@@ -17,8 +17,6 @@ const MAX_GLOBAL_EXPAND = 200;
 
 const ResolveError = Allocator.Error || error{MaxRecursion};
 
-// TODO: Replace `@panic` with `std.debug.panic` (and elsewhere)
-
 /// Returns `null` if recursion limit was reached.
 pub fn resolveTerm(
     term: *const Term,
@@ -70,8 +68,8 @@ fn resolveTermInner(
             decls,
             term_allocator,
         ),
-        .unresolved => @panic("symbol should have been resolved already"),
-        .local => @panic("local binding should have been beta-reduced already"),
+        .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
+        .local => std.debug.panic("local binding should have been beta-reduced already", .{}),
     };
 }
 
@@ -83,8 +81,11 @@ fn resolveApplication(
 ) ResolveError!*const Term {
     switch (appl.function.value) {
         .group, .global, .abstraction, .application => {},
-        .unresolved => @panic("symbol should have been resolved already"),
-        .local => @panic("local binding should have been beta-reduced already"),
+        .unresolved => std.debug.panic(
+            "symbol should have been resolved already",
+            .{},
+        ),
+        .local => std.debug.panic("local binding should have been beta-reduced already", .{}),
     }
 
     const function = try expandGlobal(
@@ -103,9 +104,9 @@ fn resolveApplication(
 
     switch (product.value) {
         .global, .abstraction, .application => {},
-        .group => @panic("group should have been flattened already"),
-        .unresolved => @panic("symbol should have been resolved already"),
-        .local => @panic("local binding should have been beta-reduced already"),
+        .group => std.debug.panic("group should have been flattened already", .{}),
+        .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
+        .local => std.debug.panic("local binding should have been beta-reduced already", .{}),
     }
 
     return resolveTermInner(
@@ -121,8 +122,8 @@ pub fn expandGlobalOnce(
     decls: []const Decl,
 ) *const Term {
     return switch (term.value) {
-        .unresolved => @panic("symbol should have been resolved already"),
-        .local => @panic("local binding should have been beta-reduced already"),
+        .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
+        .local => std.debug.panic("local binding should have been beta-reduced already", .{}),
         .global => |global| decls[global].term,
         // Flatten group
         .group => |inner| inner,
@@ -145,9 +146,9 @@ fn expandGlobal(
             term_allocator,
         );
         term = switch (product.value) {
-            .unresolved => @panic("symbol should have been resolved already"),
-            .local => @panic("local binding should have been beta-reduced already"),
-            .application => @panic("application should have been resolved already"),
+            .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
+            .local => std.debug.panic("local binding should have been beta-reduced already", .{}),
+            .application => std.debug.panic("application should have been resolved already", .{}),
             .global => |global| decls[global].term,
             .group => |inner| inner,
             .abstraction => |abstr| {
@@ -166,7 +167,7 @@ fn betaReduce(
     term_allocator: Allocator,
 ) Allocator.Error!?*Term {
     switch (term.value) {
-        .unresolved => @panic("symbol should have been resolved already"),
+        .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
         .global => return null,
         .local => |id| {
             if (id != abstr_id) {
@@ -231,7 +232,7 @@ fn betaReduce(
 /// not be mutated by the caller.
 fn deepCopyTerm(term: *Term, allocator: Allocator) Allocator.Error!*Term {
     const copy_value: Term.Kind = switch (term.value) {
-        .unresolved => @panic("symbol should have been resolved already"),
+        .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
         .global, .local => return term,
         .group => |inner| {
             // Flatten group
