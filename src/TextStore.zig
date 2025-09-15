@@ -213,14 +213,15 @@ pub fn addFile(
 }
 
 /// Adds `'\n'` after line.
+/// Returned span references appended line, *NOT* including `'\n'`.
 pub fn appendInput(
     self: *Self,
     string: []const u8,
 ) Allocator.Error!SourceSpan {
     const start = self.input.items.len;
     try self.input.appendSlice(self.allocator, string);
-    try self.input.append(self.allocator, '\n');
     const end = self.input.items.len;
+    try self.input.append(self.allocator, '\n');
 
     return SourceSpan.fromBounds(start, end, .{ .input = {} });
 }
