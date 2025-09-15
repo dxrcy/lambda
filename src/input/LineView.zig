@@ -3,6 +3,8 @@ const Self = @This();
 const std = @import("std");
 const assert = std.debug.assert;
 
+const TextStore = @import("../TextStore.zig");
+
 const HistoryList = @import("HistoryList.zig");
 const LineBuffer = @import("LineBuffer.zig");
 
@@ -15,12 +17,15 @@ cursor: usize,
 /// Lower number means a more recent history entry (`0` being the latest).
 scrollback: ?usize,
 
-pub fn new() Self {
+text: *const TextStore,
+
+pub fn new(text: *const TextStore) Self {
     return Self{
         .live = LineBuffer.new(),
         .history = HistoryList.new(),
         .cursor = 0,
         .scrollback = null,
+        .text = text,
     };
 }
 
@@ -65,7 +70,7 @@ pub fn remove(self: *Self) void {
 
 pub fn get(self: *const Self) []const u8 {
     if (self.scrollback) |scrollback| {
-        return self.history.get(scrollback);
+        return self.history.get(scrollback).in(self.text);
     } else {
         return self.live.get();
     }
@@ -75,7 +80,8 @@ pub fn becomeLive(self: *Self) void {
     const scrollback = self.scrollback orelse
         return;
 
-    self.live.copyFrom(self.history.get(scrollback));
+    const historic = self.history.get(scrollback).in(self.text);
+    self.live.copyFrom(historic);
     self.scrollback = null;
 
     self.resetCursor();
@@ -113,5 +119,5 @@ pub fn historyForward(self: *Self) void {
 pub fn getLatestHistory(self: *const Self) ?[]const u8 {
     const scrollback = self.scrollback orelse
         return null;
-    return self.history.get(scrollback);
+    return self.history.get(scrollback).in(self.text);
 }

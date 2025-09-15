@@ -3,13 +3,14 @@ const Self = @This();
 const std = @import("std");
 const assert = std.debug.assert;
 
-const Span = @import("../Span.zig");
+const TextStore = @import("../TextStore.zig");
+const SourceSpan = TextStore.SourceSpan;
 
 const HISTORY_SIZE = 32;
 
 // PERF: Use ring buffer
 
-items: [HISTORY_SIZE]Span,
+items: [HISTORY_SIZE]SourceSpan,
 length: usize,
 
 pub fn new() Self {
@@ -19,14 +20,14 @@ pub fn new() Self {
     };
 }
 
-pub fn get(self: *const Self, back_index: usize) []const u8 {
+pub fn get(self: *const Self, back_index: usize) SourceSpan {
     assert(back_index < self.length);
     assert(self.length <= HISTORY_SIZE);
     const index = self.length - back_index - 1;
-    return self.items[index].string();
+    return self.items[index];
 }
 
-pub fn append(self: *Self, span: Span) void {
+pub fn append(self: *Self, span: SourceSpan) void {
     if (self.length < HISTORY_SIZE) {
         self.items[self.length] = span;
         self.length += 1;

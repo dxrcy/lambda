@@ -3,8 +3,10 @@ const Self = @This();
 const std = @import("std");
 const assert = std.debug.assert;
 
-const Span = @import("../Span.zig");
 const output = @import("../output.zig");
+
+const TextStore = @import("../TextStore.zig");
+const SourceSpan = TextStore.SourceSpan;
 
 const LineView = @import("LineView.zig");
 const StdinReader = @import("StdinReader.zig");
@@ -20,9 +22,9 @@ view: LineView,
 reader: StdinReader,
 terminal: StdinTerminal,
 
-pub fn new() StdinTerminal.Error!Self {
+pub fn new(text: *const TextStore) StdinTerminal.Error!Self {
     return Self{
-        .view = LineView.new(),
+        .view = LineView.new(text),
         .reader = StdinReader.new(),
         .terminal = try StdinTerminal.get(),
     };
@@ -35,12 +37,13 @@ pub fn getLine(self: *const Self) []const u8 {
 }
 
 /// Use persistant `Span` to keep valid reference after buffer is overwritten.
-pub fn appendHistory(self: *Self, span: Span) void {
-    if (span.string().len == 0) {
+pub fn appendHistory(self: *Self, span: SourceSpan) void {
+    const value = span.in(self.view.text);
+    if (value.len == 0) {
         return;
     }
     if (self.view.getLatestHistory()) |latest| {
-        if (std.mem.eql(u8, latest, span.string())) {
+        if (std.mem.eql(u8, latest, value)) {
             return;
         }
     }

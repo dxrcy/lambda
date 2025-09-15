@@ -24,6 +24,9 @@ const debug = @import("debug.zig");
 const LineReader = @import("input/LineReader.zig");
 const output = @import("output.zig");
 
+const TextStore = @import("TextStore.zig");
+const SourceSpan = TextStore.SourceSpan;
+
 pub fn main() !u8 {
     // pub fn main() Allocator.Error!void {
     var gpa = std.heap.DebugAllocator(.{}){};
@@ -45,30 +48,36 @@ pub fn main() !u8 {
         );
     };
 
-    // TODO: Include filepath in report
-    var text = utils.readFile(filepath, allocator) catch |err| {
-        return Reporter.reportFatal(
-            "failed to read file",
-            "{}",
-            .{err},
-        );
-    };
-    defer text.deinit(allocator);
+    var text = TextStore.init(allocator);
+    defer text.deinit();
 
-    const context = Context{
-        .filepath = filepath,
-        .text = text.items,
+    // PERF: Stream file into text storage without intermediate ArrayList
+    const file_source = blk: {
+        // TODO: Include filepath in report
+        var file_text = utils.readFile(filepath, allocator) catch |err| {
+            return Reporter.reportFatal(
+                "failed to read file",
+                "{}",
+                .{err},
+            );
+        };
+        defer file_text.deinit(allocator);
+
+        break :blk try text.addFile(filepath, file_text.items);
     };
 
-    if (!std.unicode.utf8ValidateSlice(context.text)) {
+    const file_text = text.getSourceText(file_source);
+
+    if (!std.unicode.utf8ValidateSlice(file_text)) {
         // To include context filepath
         // TODO: Use `reportFatal`
-        Reporter.report(
-            "file contains invalid UTF-8 bytes",
-            "",
-            .{},
-            .{ .file = &context },
-        );
+        // TODO:
+        // Reporter.report(
+        //     "file contains invalid UTF-8 bytes",
+        //     "",
+        //     .{},
+        //     .{ .file = &context },
+        // );
         if (Reporter.checkFatal()) |code|
             return code;
     }
@@ -88,9 +97,10 @@ pub fn main() !u8 {
     defer term_allocator.deinit();
 
     {
-        var statements = Statements.new(&context);
+        var statements = Statements.new(file_source, &text);
         while (statements.next()) |span| {
-            var parser = Parser.new(span);
+            std.debug.print("<{s}>\n", .{span.in(&text)});
+            var parser = Parser.new(span, &text);
             const stmt = try parser.tryStatement(term_allocator.allocator()) orelse {
                 continue;
             };
@@ -109,6 +119,8 @@ pub fn main() !u8 {
         }
     }
 
+    debug.printDeclarations(decls.items, &text);
+
     if (Reporter.checkFatal()) |code|
         return code;
 
@@ -116,12 +128,12 @@ pub fn main() !u8 {
     var locals = LocalStore.init(allocator);
     defer locals.deinit();
 
-    symbols.checkDeclarationCollisions(decls.items);
+    symbols.checkDeclarationCollisions(decls.items, &text);
     for (decls.items) |*entry| {
-        try symbols.patchSymbols(entry.term, &locals, decls.items);
+        try symbols.patchSymbols(entry.term, &locals, decls.items, &text);
     }
     for (queries.items) |*query| {
-        try symbols.patchSymbols(query.term, &locals, decls.items);
+        try symbols.patchSymbols(query.term, &locals, decls.items, &text);
     }
 
     if (Reporter.checkFatal()) |code|
@@ -143,23 +155,23 @@ pub fn main() !u8 {
             ) orelse continue;
 
             output.print("?- ", .{});
-            debug.printSpanInline(query_span.string());
+            debug.printSpanInline(query_span.in(&text));
             output.print("\n", .{});
             output.print("-> ", .{});
-            debug.printTermInline(result, decls.items);
+            debug.printTermInline(result, decls.items, &text);
             output.print("\n", .{});
             output.print("\n", .{});
         }
     }
 
-    var repl = try Repl.init(allocator);
-    defer repl.deinit();
+    var repl = try Repl.new(&text);
 
     while (try repl.readLine()) |line| {
         Reporter.clearCount();
 
-        if (!std.unicode.utf8ValidateSlice(line.string())) {
+        if (!std.unicode.utf8ValidateSlice(line.in(&text))) {
             // To include context filepath
+            // TODO:
             Reporter.report(
                 "input contains invalid UTF-8 bytes",
                 "",
@@ -169,7 +181,7 @@ pub fn main() !u8 {
             continue;
         }
 
-        var parser = Parser.new(line);
+        var parser = Parser.new(line, &text);
 
         const stmt = try parser.tryStatement(term_allocator.allocator()) orelse {
             continue;
@@ -179,7 +191,12 @@ pub fn main() !u8 {
                 output.print("unimplemented\n", .{});
             },
             .query => |query| {
-                try symbols.patchSymbols(query.term, &locals, decls.items);
+                try symbols.patchSymbols(
+                    query.term,
+                    &locals,
+                    decls.items,
+                    &text,
+                );
 
                 if (Reporter.getCount() > 0) {
                     continue;
@@ -193,13 +210,13 @@ pub fn main() !u8 {
                     ) orelse continue;
 
                     output.print("-> ", .{});
-                    debug.printTermInline(result, decls.items);
+                    debug.printTermInline(result, decls.items, &text);
                     output.print("\n", .{});
                     output.print("\n", .{});
                 }
             },
             .inspect => |term| {
-                try symbols.patchSymbols(term, &locals, decls.items);
+                try symbols.patchSymbols(term, &locals, decls.items, &text);
                 if (Reporter.getCount() > 0) {
                     continue;
                 }
@@ -214,15 +231,15 @@ pub fn main() !u8 {
                 ) orelse continue;
 
                 output.print("* term....... ", .{});
-                debug.printTermInline(term, decls.items);
+                debug.printTermInline(term, decls.items, &text);
                 output.print("\n", .{});
 
                 output.print("* expanded... ", .{});
-                debug.printTermInline(expanded, decls.items);
+                debug.printTermInline(expanded, decls.items, &text);
                 output.print("\n", .{});
 
                 output.print("* resolved... ", .{});
-                debug.printTermInline(result, decls.items);
+                debug.printTermInline(result, decls.items, &text);
                 output.print("\n", .{});
                 output.print("\n", .{});
             },
@@ -240,32 +257,21 @@ const Repl = struct {
 
     // TODO: Properly support reading from non-terminal stdin
 
-    /// Collects all input lines (including temporaries).
-    /// `reader.history` references slices of this text via `context`.
-    text: ArrayList(u8),
-    allocator: Allocator,
-    context: Context,
     reader: LineReader,
+    // `LineReader` has a const reference to text store, but this is only used
+    // for reading. Best to keep the text store mutation within this container,
+    // at least in terminal mode, since input isn't streamed.
+    text: *TextStore,
 
-    pub fn init(allocator: Allocator) LineReader.NewError!Self {
-        const self = Self{
-            .text = ArrayList(u8).empty,
-            .allocator = allocator,
-            .context = Context{
-                .filepath = null,
-                .text = undefined,
-            },
-            .reader = try LineReader.new(),
+    pub fn new(text: *TextStore) LineReader.NewError!Self {
+        return Self{
+            .reader = try LineReader.new(text),
+            .text = text,
         };
-        return self;
-    }
-
-    pub fn deinit(self: *Self) void {
-        self.text.deinit(self.allocator);
     }
 
     /// Returns `null` iff **EOF**.
-    pub fn readLine(self: *Self) ReadError!?Span {
+    pub fn readLine(self: *Self) ReadError!?SourceSpan {
         while (true) {
             if (!try self.reader.readLine()) {
                 return null;
@@ -275,19 +281,8 @@ const Repl = struct {
             }
         }
 
-        const text_line_start = self.text.items.len;
-        try self.text.appendSlice(self.allocator, self.reader.getLine());
-
-        const text_line = self.text.items[text_line_start..self.text.items.len];
-        try self.text.append(self.allocator, '\n');
-
-        // Reassign pointer and length in case of resize or relocation
-        self.context.text = self.text.items;
-
-        const line_span = Span.new(text_line_start, text_line.len, &self.context);
-
-        self.reader.appendHistory(line_span);
-
-        return line_span;
+        const line = try self.text.appendInput(self.reader.getLine());
+        self.reader.appendHistory(line);
+        return line;
     }
 };

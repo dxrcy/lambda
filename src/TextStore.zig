@@ -42,11 +42,11 @@ const FilesText = struct {
     pub fn append(
         self: *@This(),
         path: []const u8,
-        text: []const u8,
+        string: []const u8,
         allocator: Allocator,
     ) Allocator.Error!usize {
         const start = self.text.items.len;
-        try self.text.appendSlice(allocator, text);
+        try self.text.appendSlice(allocator, string);
         const end = self.text.items.len;
 
         const index = self.entries.items.len;
@@ -176,6 +176,19 @@ pub fn addFile(
 ) Allocator.Error!Source {
     const index = try self.files.append(path, text, self.allocator);
     return Source{ .file = index };
+}
+
+/// Adds `'\n'` after line.
+pub fn appendInput(
+    self: *Self,
+    string: []const u8,
+) Allocator.Error!SourceSpan {
+    const start = self.input.items.len;
+    try self.input.appendSlice(self.allocator, string);
+    try self.input.append(self.allocator, '\n');
+    const end = self.input.items.len;
+
+    return SourceSpan.fromBounds(start, end, .{ .input = {} });
 }
 
 // TODO: Rename
