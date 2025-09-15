@@ -238,6 +238,13 @@ pub fn getSourceText(self: *const Self, source: Source) []const u8 {
     };
 }
 
+pub fn getSourcePath(self: *const Self, source: Source) ?[]const u8 {
+    return switch (source) {
+        .file => |index| self.files.get(index).path,
+        .input => null,
+    };
+}
+
 pub fn startingLineOf(self: *const Self, span: SourceSpan) usize {
     const text = self.getSourceText(span.source);
     assert(span.end() < text.len);

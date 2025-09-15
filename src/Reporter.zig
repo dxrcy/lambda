@@ -3,6 +3,7 @@ const io = std.io;
 const assert = std.debug.assert;
 
 const TextStore = @import("TextStore.zig");
+const FreeSpan = TextStore.FreeSpan;
 const Source = TextStore.Source;
 const SourceSpan = TextStore.SourceSpan;
 
@@ -13,6 +14,8 @@ const ExitCode = u8;
 const PROGRAM_EXIT_CODE = 1;
 
 var accumulated_count: usize = 0;
+
+// TODO: Use `output` module (using stderr)
 
 /// Call `flush` at the end of public functions.
 pub const Output = struct {
@@ -95,9 +98,9 @@ pub fn report(
 
     switch (layout) {
         .source => |source| {
-            _ = source;
-            // TODO:
-            // printLabel("bytes in file", null, source);
+            if (text.getSourcePath(source) != null) {
+                printSourceFileLabel("bytes in file", source, text);
+            }
         },
         .token => |token| {
             printSpan("token", token, text);
@@ -154,30 +157,31 @@ fn printIndent(comptime depth: usize) void {
     Output.print(INDENT ** depth, .{});
 }
 
-fn printLabel(
+fn printSourceFileLabel(
     comptime label: []const u8,
-    span: ?SourceSpan,
+    source: Source,
     text: *const TextStore,
 ) void {
-    // assert(span != null or context.filepath != null);
+    const path = text.getSourcePath(source) orelse
+        std.debug.panic("expected `Source.file`\n", .{});
 
     setStyle(.{ .FgWhite, .Dim });
     printIndent(1);
+    Output.print("({s}) {s}\n", .{ path, label });
+    setStyle(.{.Reset});
+}
 
-    _ = span;
-    _ = text;
-    Output.print("(???) {s}\n", .{label});
+fn printSourceLineLabel(
+    comptime label: []const u8,
+    span: SourceSpan,
+    text: *const TextStore,
+) void {
+    const path = text.getSourcePath(span.source) orelse "";
+    const line = text.startingLineOf(span);
 
-    // TODO:
-    // const path = text.getSourcePath(span.source);
-
-    // Output.print("({s}", .{path orelse ""});
-    // TODO:
-    // if (span) |span_unwrapped| {
-    // Output.print(":{}", .{Context.startingLineOf(span_unwrapped)});
-    // }
-    // Output.print(") {s}\n", .{label});
-
+    setStyle(.{ .FgWhite, .Dim });
+    printIndent(1);
+    Output.print("({s}:{}) {s}\n", .{ path, line, label });
     setStyle(.{.Reset});
 }
 
@@ -186,7 +190,7 @@ fn printSpan(
     span: SourceSpan,
     text: *const TextStore,
 ) void {
-    printLabel(label, span, text);
+    printSourceLineLabel(label, span, text);
 
     if (span.free.length == 0) {
         const line = text.getSingleLine(span.free.offset, span.source);
