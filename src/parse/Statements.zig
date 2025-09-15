@@ -4,19 +4,24 @@ const std = @import("std");
 const assert = std.debug.assert;
 
 const Span = @import("../Span.zig");
-const Context = @import("../Context.zig");
 
-context: *const Context,
+const TextStore = @import("../TextStore.zig");
+const Source = TextStore.Source;
+const SourceSpan = TextStore.SourceSpan;
+
+text: *const TextStore,
+source: Source,
 index: usize,
 
-pub fn new(context: *const Context) Self {
+pub fn new(text: *const TextStore, source: Source) Self {
     return .{
-        .context = context,
+        .text = text,
+        .source = source,
         .index = 0,
     };
 }
 
-pub fn next(self: *Self) ?Span {
+pub fn next(self: *Self) ?SourceSpan {
     self.advanceUntilNonwhitespace();
     if (self.peekChar() == null) {
         return null;
@@ -39,19 +44,19 @@ pub fn next(self: *Self) ?Span {
     }
 
     var end = self.index - 1;
-    while (end > 0 and isWhitespace(self.context.text[end - 1])) {
+    while (end > 0 and isWhitespace(self.text.get(self.source, end - 1))) {
         end -= 1;
     }
     assert(end > 0);
 
-    return Span.fromBounds(start, end, self.context);
+    return SourceSpan.fromBounds(start, end, self.source);
 }
 
 fn peekChar(self: *const Self) ?u8 {
-    if (self.index >= self.context.text.len) {
+    if (self.index >= self.text.getSourceText(self.source).len) {
         return null;
     }
-    return self.context.text[self.index];
+    return self.text.get(self.source, self.index);
 }
 
 fn advanceUntilNonwhitespace(self: *Self) void {
