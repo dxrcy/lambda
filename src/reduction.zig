@@ -12,13 +12,13 @@ const SourceSpan = TextStore.SourceSpan;
 
 const Reporter = @import("Reporter.zig");
 
-const MAX_RESOLVE_RECURSION = 2_000;
+const MAX_REDUCTION_RECURSION = 2_000;
 const MAX_GLOBAL_EXPAND = 200;
 
-const ResolveError = Allocator.Error || error{MaxRecursion};
+const ReductionError = Allocator.Error || error{MaxRecursion};
 
 /// Returns `null` if recursion limit was reached.
-pub fn resolveTerm(
+pub fn reduceTerm(
     term: *const Term,
     decls: []const Decl,
     term_allocator: Allocator,
@@ -28,7 +28,7 @@ pub fn resolveTerm(
     assert(term.span != null);
     const span = term.span orelse unreachable;
 
-    return resolveTermInner(term, 0, decls, term_allocator) catch |err|
+    return reduceTermInner(term, 0, decls, term_allocator) catch |err|
         switch (err) {
             error.MaxRecursion => {
                 reporter.report(
@@ -44,25 +44,25 @@ pub fn resolveTerm(
         };
 }
 
-fn resolveTermInner(
+fn reduceTermInner(
     term: *const Term,
     depth: usize,
     decls: []const Decl,
     term_allocator: Allocator,
-) ResolveError!*const Term {
-    if (depth >= MAX_RESOLVE_RECURSION) {
+) ReductionError!*const Term {
+    if (depth >= MAX_REDUCTION_RECURSION) {
         return error.MaxRecursion;
     }
     return switch (term.value) {
         .global, .abstraction => term,
         // Flatten group
-        .group => |inner| try resolveTermInner(
+        .group => |inner| try reduceTermInner(
             inner,
             depth + 1,
             decls,
             term_allocator,
         ),
-        .application => |appl| try resolveApplication(
+        .application => |appl| try reduceApplication(
             &appl,
             depth + 1,
             decls,
@@ -73,18 +73,15 @@ fn resolveTermInner(
     };
 }
 
-fn resolveApplication(
+fn reduceApplication(
     appl: *const Term.Appl,
     depth: usize,
     decls: []const Decl,
     term_allocator: Allocator,
-) ResolveError!*const Term {
+) ReductionError!*const Term {
     switch (appl.function.value) {
         .group, .global, .abstraction, .application => {},
-        .unresolved => std.debug.panic(
-            "symbol should have been resolved already",
-            .{},
-        ),
+        .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
         .local => std.debug.panic("local binding should have been beta-reduced already", .{}),
     }
 
@@ -109,7 +106,7 @@ fn resolveApplication(
         .local => std.debug.panic("local binding should have been beta-reduced already", .{}),
     }
 
-    return resolveTermInner(
+    return reduceTermInner(
         product,
         depth + 1,
         decls,
@@ -136,10 +133,10 @@ fn expandGlobal(
     depth: usize,
     decls: []const Decl,
     term_allocator: Allocator,
-) ResolveError!*const Term.Abstr {
+) ReductionError!*const Term.Abstr {
     var term = initial_term;
     for (0..MAX_GLOBAL_EXPAND) |_| {
-        const product = try resolveTermInner(
+        const product = try reduceTermInner(
             term,
             depth + 1,
             decls,

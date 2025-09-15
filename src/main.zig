@@ -13,7 +13,7 @@ const LocalStore = symbols.LocalStore;
 const TextStore = @import("TextStore.zig");
 const SourceSpan = TextStore.SourceSpan;
 
-const resolve = @import("resolve.zig");
+const reduction = @import("reduction.zig");
 const debug = @import("debug.zig");
 const output = @import("output.zig");
 const Reporter = @import("Reporter.zig");
@@ -129,10 +129,10 @@ pub fn main() !u8 {
 
     symbols.checkDeclarationCollisions(decls.items, &text, &reporter);
     for (decls.items) |*entry| {
-        try symbols.patchSymbols(entry.term, &locals, decls.items, &text, &reporter);
+        try symbols.resolveAllSymbols(entry.term, &locals, decls.items, &text, &reporter);
     }
     for (queries.items) |*query| {
-        try symbols.patchSymbols(query.term, &locals, decls.items, &text, &reporter);
+        try symbols.resolveAllSymbols(query.term, &locals, decls.items, &text, &reporter);
     }
 
     if (reporter.checkFatal()) |code|
@@ -147,7 +147,7 @@ pub fn main() !u8 {
         for (queries.items) |*query| {
             const query_span = query.term.span.?;
 
-            const result = try resolve.resolveTerm(
+            const result = try reduction.reduceTerm(
                 query.term,
                 decls.items,
                 term_allocator.allocator(),
@@ -192,7 +192,7 @@ pub fn main() !u8 {
                 output.print("unimplemented\n", .{});
             },
             .query => |query| {
-                try symbols.patchSymbols(
+                try symbols.resolveAllSymbols(
                     query.term,
                     &locals,
                     decls.items,
@@ -205,7 +205,7 @@ pub fn main() !u8 {
                 }
 
                 {
-                    const result = try resolve.resolveTerm(
+                    const result = try reduction.reduceTerm(
                         query.term,
                         decls.items,
                         term_allocator.allocator(),
@@ -220,7 +220,7 @@ pub fn main() !u8 {
                 }
             },
             .inspect => |term| {
-                try symbols.patchSymbols(
+                try symbols.resolveAllSymbols(
                     term,
                     &locals,
                     decls.items,
@@ -231,10 +231,10 @@ pub fn main() !u8 {
                     continue;
                 }
 
-                const expanded = resolve.expandGlobalOnce(term, decls.items);
+                const expanded = reduction.expandGlobalOnce(term, decls.items);
 
-                // Resolve *expanded* term. This is different to queries
-                const result = try resolve.resolveTerm(
+                // Reduce *expanded* term. This is different to queries
+                const result = try reduction.reduceTerm(
                     expanded,
                     decls.items,
                     term_allocator.allocator(),
@@ -250,7 +250,7 @@ pub fn main() !u8 {
                 debug.printTermInline(expanded, decls.items, &text);
                 output.print("\n", .{});
 
-                output.print("* resolved... ", .{});
+                output.print("* reduced.... ", .{});
                 debug.printTermInline(result, decls.items, &text);
                 output.print("\n", .{});
                 output.print("\n", .{});

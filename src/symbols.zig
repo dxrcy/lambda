@@ -43,7 +43,7 @@ pub fn checkDeclarationCollisions(
     }
 }
 
-pub fn patchSymbols(
+pub fn resolveAllSymbols(
     term: *Term,
     locals: *LocalStore,
     declarations: []const Decl,
@@ -51,11 +51,11 @@ pub fn patchSymbols(
     reporter: *Reporter,
 ) Allocator.Error!void {
     std.debug.assert(locals.isEmpty());
-    try patchSymbolsInner(term, locals, declarations, text, reporter);
+    try resolveSymbolsInner(term, locals, declarations, text, reporter);
     std.debug.assert(locals.isEmpty());
 }
 
-fn patchSymbolsInner(
+fn resolveSymbolsInner(
     term: *Term,
     locals: *LocalStore,
     declarations: []const Decl,
@@ -78,7 +78,7 @@ fn patchSymbolsInner(
             }
         },
         .group => |inner| {
-            try patchSymbolsInner(inner, locals, declarations, text, reporter);
+            try resolveSymbolsInner(inner, locals, declarations, text, reporter);
         },
         .abstraction => |abstr| {
             const value = abstr.parameter.in(text);
@@ -111,20 +111,18 @@ fn patchSymbolsInner(
                 );
             }
             try locals.push(term, value);
-            try patchSymbolsInner(abstr.body, locals, declarations, text, reporter);
+            try resolveSymbolsInner(abstr.body, locals, declarations, text, reporter);
             locals.pop();
         },
         .application => |appl| {
-            try patchSymbolsInner(appl.function, locals, declarations, text, reporter);
-            try patchSymbolsInner(appl.argument, locals, declarations, text, reporter);
+            try resolveSymbolsInner(appl.function, locals, declarations, text, reporter);
+            try resolveSymbolsInner(appl.argument, locals, declarations, text, reporter);
         },
         // No symbols in this branch should be resolved yet
         .local => unreachable,
         .global => unreachable,
     }
 }
-
-// TODO: Rename `resolve*` to avoid confusion with `resolve.zig`
 
 fn resolveSymbol(
     span: SourceSpan,
