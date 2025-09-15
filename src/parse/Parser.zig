@@ -156,17 +156,16 @@ fn tryTermGreedy(
     while (true) {
         if (self.peekTokenIfKind(.ParenRight)) |right_paren| {
             if (!in_group) {
-                _ = right_paren;
-                // TODO:
-                // Reporter.report(
-                //     "unexpected token",
-                //     "expected term or end of statement, found {s}",
-                //     .{Token.Kind.ParenRight.display()},
-                //     .{ .statement_token = .{
-                //         .statement = self.getStatement(),
-                //         .token = right_paren,
-                //     } },
-                // );
+                Reporter.report(
+                    "unexpected token",
+                    "expected term or end of statement, found {s}",
+                    .{Token.Kind.ParenRight.display()},
+                    .{ .statement_token = .{
+                        .statement = self.getStatement(),
+                        .token = right_paren,
+                    } },
+                    self.text,
+                );
                 return null;
             }
             break;
@@ -199,13 +198,13 @@ fn tryTermSingle(
 ) Allocator.Error!??*Term {
     const left = self.nextToken() orelse (return null) orelse {
         if (!allow_end) {
-            // TODO:
-            // Reporter.report(
-            //     "unexpected end of statement",
-            //     "expected term",
-            //     .{},
-            //     .{ .statement_end = self.getStatement() },
-            // );
+            Reporter.report(
+                "unexpected end of statement",
+                "expected term",
+                .{},
+                .{ .statement_end = self.getStatement() },
+                self.text,
+            );
         }
         return SomeNull(*Term);
     };
@@ -255,19 +254,19 @@ fn tryTermSingle(
         },
 
         .ParenRight, .Equals, .Dot, .Inspect => {
-            // TODO:
-            // Reporter.report(
-            //     "unexpected token",
-            //     if (in_group)
-            //         "expected term or " ++ Token.Kind.ParenRight.display() ++ ", found {s}"
-            //     else
-            //         "expected term or end of statement, found {s}",
-            //     .{left.kind.display()},
-            //     .{ .statement_token = .{
-            //         .statement = self.getStatement(),
-            //         .token = left.span,
-            //     } },
-            // );
+            Reporter.report(
+                "unexpected token",
+                if (in_group)
+                    "expected term or " ++ Token.Kind.ParenRight.display() ++ ", found {s}"
+                else
+                    "expected term or end of statement, found {s}",
+                .{left.kind.display()},
+                .{ .statement_token = .{
+                    .statement = self.getStatement(),
+                    .token = left.span,
+                } },
+                self.text,
+            );
             return null;
         },
     }
@@ -280,16 +279,16 @@ fn expectIdent(self: *Self) ?SourceSpan {
         unreachable;
     };
     if (token.kind != .Ident) {
-        // TODO:
-        // Reporter.report(
-        //     "unexpected token",
-        //     "expected {s} or end of statement, found {s}",
-        //     .{ Token.Kind.Ident.display(), token.kind.display() },
-        //     .{ .statement_token = .{
-        //         .statement = self.getStatement(),
-        //         .token = token.span,
-        //     } },
-        // );
+        Reporter.report(
+            "unexpected token",
+            "expected {s} or end of statement, found {s}",
+            .{ Token.Kind.Ident.display(), token.kind.display() },
+            .{ .statement_token = .{
+                .statement = self.getStatement(),
+                .token = token.span,
+            } },
+            self.text,
+        );
         return null;
     }
     return token.span;
@@ -297,26 +296,26 @@ fn expectIdent(self: *Self) ?SourceSpan {
 
 fn expectTokenKind(self: *Self, kind: Token.Kind) ??SourceSpan {
     const token = self.nextToken() orelse (return null) orelse {
-        // TODO:
-        // Reporter.report(
-        //     "unexpected end of statement",
-        //     "expected {s}",
-        //     .{kind.display()},
-        //     .{ .statement_end = self.getStatement() },
-        // );
+        Reporter.report(
+            "unexpected end of statement",
+            "expected {s}",
+            .{kind.display()},
+            .{ .statement_end = self.getStatement() },
+            self.text,
+        );
         return null;
     };
     if (token.kind != kind) {
-        // TODO:
-        // Reporter.report(
-        //     "unexpected token",
-        //     "expected {s}, found {s}",
-        //     .{ kind.display(), token.kind.display() },
-        //     .{ .statement_token = .{
-        //         .statement = self.getStatement(),
-        //         .token = token.span,
-        //     } },
-        // );
+        Reporter.report(
+            "unexpected token",
+            "expected {s}, found {s}",
+            .{ kind.display(), token.kind.display() },
+            .{ .statement_token = .{
+                .statement = self.getStatement(),
+                .token = token.span,
+            } },
+            self.text,
+        );
         return null;
     }
     return token.span;
@@ -350,14 +349,13 @@ fn validateToken(self: *const Self, token: Token) bool {
         const length = unicode.utf8Encode(codepoint, &buffer) catch unreachable;
         const slice = buffer[0..length];
 
-        _ = slice;
-        // TODO:
-        // Reporter.report(
-        //     "invalid charracter in token",
-        //     "character not allowed `{s}` (0x{x})",
-        //     .{ slice, codepoint },
-        //     .{ .token = token.span },
-        // );
+        Reporter.report(
+            "invalid charracter in token",
+            "character not allowed `{s}` (0x{x})",
+            .{ slice, codepoint },
+            .{ .token = token.span },
+            self.text,
+        );
         return false;
     }
     return true;

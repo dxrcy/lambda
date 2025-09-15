@@ -7,10 +7,10 @@ const AbstrId = model.AbstrId;
 const Decl = model.Decl;
 const Term = model.Term;
 
-const Reporter = @import("Reporter.zig");
-
 const TextStore = @import("TextStore.zig");
 const SourceSpan = TextStore.SourceSpan;
+
+const Reporter = @import("Reporter.zig");
 
 const MAX_RESOLVE_RECURSION = 2_000;
 const MAX_GLOBAL_EXPAND = 200;
@@ -24,6 +24,7 @@ pub fn resolveTerm(
     term: *const Term,
     decls: []const Decl,
     term_allocator: Allocator,
+    text: *const TextStore,
 ) Allocator.Error!?*const Term {
     assert(term.span != null);
     const span = term.span orelse unreachable;
@@ -31,14 +32,13 @@ pub fn resolveTerm(
     return resolveTermInner(term, 0, decls, term_allocator) catch |err|
         switch (err) {
             error.MaxRecursion => {
-                _ = span;
-                // TODO:
-                // Reporter.report(
-                //     "recursion limit reached when expanding query",
-                //     "check for any reference cycles in declarations",
-                //     .{},
-                //     .{ .query = span },
-                // );
+                Reporter.report(
+                    "recursion limit reached when expanding query",
+                    "check for any reference cycles in declarations",
+                    .{},
+                    .{ .query = span },
+                    text,
+                );
                 return null;
             },
             else => |other_err| return other_err,

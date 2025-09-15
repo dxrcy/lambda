@@ -2,8 +2,6 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
-const Reporter = @import("Reporter.zig");
-
 const model = @import("model.zig");
 const AbstrId = model.AbstrId;
 const DeclIndex = model.DeclIndex;
@@ -12,6 +10,8 @@ const Term = model.Term;
 
 const TextStore = @import("TextStore.zig");
 const SourceSpan = TextStore.SourceSpan;
+
+const Reporter = @import("Reporter.zig");
 
 pub fn checkDeclarationCollisions(
     declarations: []const Decl,
@@ -27,16 +27,16 @@ pub fn checkDeclarationCollisions(
             const prior_value = prior.name.in(text);
 
             if (std.mem.eql(u8, current_value, prior_value)) {
-                // TODO:
-                // Reporter.report(
-                //     "global already declared",
-                //     "cannot redeclare `{s}` as a global",
-                //     .{prior_value},
-                //     .{ .symbol_reference = .{
-                //         .declaration = prior.name,
-                //         .reference = current.name,
-                //     } },
-                // );
+                Reporter.report(
+                    "global already declared",
+                    "cannot redeclare `{s}` as a global",
+                    .{prior_value},
+                    .{ .symbol_reference = .{
+                        .declaration = prior.name,
+                        .reference = current.name,
+                    } },
+                    text,
+                );
             }
         }
     }
@@ -65,13 +65,13 @@ fn patchSymbolsInner(
             if (resolveSymbol(span, locals, declarations, text)) |resolved| {
                 term.* = resolved;
             } else {
-                // TODO:
-                // Reporter.report(
-                //     "unresolved symbol",
-                //     "`{s}` was not declared a global or a parameter in this scope",
-                //     .{span.string()},
-                //     .{ .token = span },
-                // );
+                Reporter.report(
+                    "unresolved symbol",
+                    "`{s}` was not declared a global or a parameter in this scope",
+                    .{span.in(text)},
+                    .{ .token = span },
+                    text,
+                );
             }
         },
         .group => |inner| {
@@ -84,29 +84,28 @@ fn patchSymbolsInner(
                     .abstraction => |prior_abstr| prior_abstr.parameter,
                     else => unreachable,
                 };
-                _ = prior_param;
-                // TODO:
-                // Reporter.report(
-                //     "parameter already declared as a variable in this scope",
-                //     "cannot shadow existing variable `{s}`",
-                //     .{abstr.parameter.string()},
-                //     .{ .symbol_reference = .{
-                //         .declaration = prior_param,
-                //         .reference = abstr.parameter,
-                //     } },
-                // );
+                Reporter.report(
+                    "parameter already declared as a variable in this scope",
+                    "cannot shadow existing variable `{s}`",
+                    .{abstr.parameter.in(text)},
+                    .{ .symbol_reference = .{
+                        .declaration = prior_param,
+                        .reference = abstr.parameter,
+                    } },
+                    text,
+                );
             }
             if (resolveGlobal(declarations, value, text)) |global_index| {
-                _ = global_index;
-                // Reporter.report(
-                //     "parameter already declared as a global",
-                //     "cannot shadow existing global declaration `{s}`",
-                //     .{abstr.parameter.string()},
-                //     .{ .symbol_reference = .{
-                //         .declaration = declarations[global_index].name,
-                //         .reference = abstr.parameter,
-                //     } },
-                // );
+                Reporter.report(
+                    "parameter already declared as a global",
+                    "cannot shadow existing global declaration `{s}`",
+                    .{abstr.parameter.in(text)},
+                    .{ .symbol_reference = .{
+                        .declaration = declarations[global_index].name,
+                        .reference = abstr.parameter,
+                    } },
+                    text,
+                );
             }
             try locals.push(term, value);
             try patchSymbolsInner(abstr.body, locals, declarations, text);

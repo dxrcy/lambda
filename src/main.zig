@@ -3,13 +3,6 @@ const fs = std.fs;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
-const Reporter = @import("Reporter.zig");
-const utils = @import("utils.zig");
-
-const Parser = @import("parse/Parser.zig");
-const Statements = @import("parse/Statements.zig");
-const Tokenizer = @import("parse/Tokenizer.zig");
-
 const model = @import("model.zig");
 const Decl = model.Decl;
 const Query = model.Query;
@@ -17,13 +10,20 @@ const Query = model.Query;
 const symbols = @import("symbols.zig");
 const LocalStore = symbols.LocalStore;
 
-const resolve = @import("resolve.zig");
-const debug = @import("debug.zig");
-const LineReader = @import("input/LineReader.zig");
-const output = @import("output.zig");
-
 const TextStore = @import("TextStore.zig");
 const SourceSpan = TextStore.SourceSpan;
+
+const resolve = @import("resolve.zig");
+const debug = @import("debug.zig");
+const output = @import("output.zig");
+const Reporter = @import("Reporter.zig");
+const utils = @import("utils.zig");
+
+const Parser = @import("parse/Parser.zig");
+const Statements = @import("parse/Statements.zig");
+const Tokenizer = @import("parse/Tokenizer.zig");
+
+const LineReader = @import("input/LineReader.zig");
 
 pub fn main() !u8 {
     // pub fn main() Allocator.Error!void {
@@ -69,13 +69,13 @@ pub fn main() !u8 {
     if (!std.unicode.utf8ValidateSlice(file_text)) {
         // To include context filepath
         // TODO: Use `reportFatal`
-        // TODO:
-        // Reporter.report(
-        //     "file contains invalid UTF-8 bytes",
-        //     "",
-        //     .{},
-        //     .{ .file = &context },
-        // );
+        Reporter.report(
+            "file contains invalid UTF-8 bytes",
+            "",
+            .{},
+            .{ .source = file_source },
+            &text,
+        );
         if (Reporter.checkFatal()) |code|
             return code;
     }
@@ -150,6 +150,7 @@ pub fn main() !u8 {
                 query.term,
                 decls.items,
                 term_allocator.allocator(),
+                &text,
             ) orelse continue;
 
             output.print("?- ", .{});
@@ -206,6 +207,7 @@ pub fn main() !u8 {
                         query.term,
                         decls.items,
                         term_allocator.allocator(),
+                        &text,
                     ) orelse continue;
 
                     output.print("-> ", .{});
@@ -227,6 +229,7 @@ pub fn main() !u8 {
                     expanded,
                     decls.items,
                     term_allocator.allocator(),
+                    &text,
                 ) orelse continue;
 
                 output.print("* term....... ", .{});
