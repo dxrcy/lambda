@@ -25,6 +25,7 @@ pub fn resolveTerm(
     decls: []const Decl,
     term_allocator: Allocator,
     text: *const TextStore,
+    reporter: *Reporter,
 ) Allocator.Error!?*const Term {
     assert(term.span != null);
     const span = term.span orelse unreachable;
@@ -32,7 +33,7 @@ pub fn resolveTerm(
     return resolveTermInner(term, 0, decls, term_allocator) catch |err|
         switch (err) {
             error.MaxRecursion => {
-                Reporter.report(
+                reporter.report(
                     "recursion limit reached when expanding query",
                     "check for any reference cycles in declarations",
                     .{},

@@ -23,6 +23,7 @@ const Token = @import("Token.zig");
 token_buf: TokenBuf,
 // TODO: Remove, and instead find text from `token_buf`
 text: *const TextStore,
+reporter: *Reporter,
 
 // For methods with `??T` return, `null` (`None`) indicates that an error was
 // reported, and we should stop parsing the current statement. This should
@@ -42,10 +43,15 @@ fn SomeNull(comptime T: type) ?T {
 }
 
 /// Assumes valid UTF-8.
-pub fn new(stmt: SourceSpan, text: *const TextStore) Self {
+pub fn new(
+    stmt: SourceSpan,
+    text: *const TextStore,
+    reporter: *Reporter,
+) Self {
     return .{
         .token_buf = TokenBuf.new(Tokenizer.new(stmt, text)),
         .text = text,
+        .reporter = reporter,
     };
 }
 
@@ -156,7 +162,7 @@ fn tryTermGreedy(
     while (true) {
         if (self.peekTokenIfKind(.ParenRight)) |right_paren| {
             if (!in_group) {
-                Reporter.report(
+                self.reporter.report(
                     "unexpected token",
                     "expected term or end of statement, found {s}",
                     .{Token.Kind.ParenRight.display()},
@@ -198,7 +204,7 @@ fn tryTermSingle(
 ) Allocator.Error!??*Term {
     const left = self.nextToken() orelse (return null) orelse {
         if (!allow_end) {
-            Reporter.report(
+            self.reporter.report(
                 "unexpected end of statement",
                 "expected term",
                 .{},
@@ -254,7 +260,7 @@ fn tryTermSingle(
         },
 
         .ParenRight, .Equals, .Dot, .Inspect => {
-            Reporter.report(
+            self.reporter.report(
                 "unexpected token",
                 if (in_group)
                     "expected term or " ++ Token.Kind.ParenRight.display() ++ ", found {s}"
@@ -279,7 +285,7 @@ fn expectIdent(self: *Self) ?SourceSpan {
         unreachable;
     };
     if (token.kind != .Ident) {
-        Reporter.report(
+        self.reporter.report(
             "unexpected token",
             "expected {s} or end of statement, found {s}",
             .{ Token.Kind.Ident.display(), token.kind.display() },
@@ -296,7 +302,7 @@ fn expectIdent(self: *Self) ?SourceSpan {
 
 fn expectTokenKind(self: *Self, kind: Token.Kind) ??SourceSpan {
     const token = self.nextToken() orelse (return null) orelse {
-        Reporter.report(
+        self.reporter.report(
             "unexpected end of statement",
             "expected {s}",
             .{kind.display()},
@@ -306,7 +312,7 @@ fn expectTokenKind(self: *Self, kind: Token.Kind) ??SourceSpan {
         return null;
     };
     if (token.kind != kind) {
-        Reporter.report(
+        self.reporter.report(
             "unexpected token",
             "expected {s}, found {s}",
             .{ kind.display(), token.kind.display() },
@@ -341,7 +347,7 @@ fn nextToken(self: *Self) ??Token {
 }
 
 /// Does not check for invalid UTF-8, this should already be checked.
-fn validateToken(self: *const Self, token: Token) bool {
+fn validateToken(self: *Self, token: Token) bool {
     const value = token.span.in(self.text);
 
     if (findDisallowedCharacter(value)) |codepoint| {
@@ -349,7 +355,7 @@ fn validateToken(self: *const Self, token: Token) bool {
         const length = unicode.utf8Encode(codepoint, &buffer) catch unreachable;
         const slice = buffer[0..length];
 
-        Reporter.report(
+        self.reporter.report(
             "invalid charracter in token",
             "character not allowed `{s}` (0x{x})",
             .{ slice, codepoint },

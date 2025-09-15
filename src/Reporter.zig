@@ -1,3 +1,5 @@
+const Self = @This();
+
 const std = @import("std");
 const io = std.io;
 const assert = std.debug.assert;
@@ -9,11 +11,15 @@ const SourceSpan = TextStore.SourceSpan;
 
 const ExitCode = u8;
 
-// TODO: Convert to instantiatable object instead of using staticly
-
 const PROGRAM_EXIT_CODE = 1;
 
-var accumulated_count: usize = 0;
+count: usize,
+
+pub fn new() Self {
+    return Self{
+        .count = 0,
+    };
+}
 
 // TODO: Use `output` module (using stderr)
 
@@ -53,30 +59,29 @@ pub const Layout = union(enum) {
     query: SourceSpan,
 };
 
-pub fn getCount() usize {
-    return accumulated_count;
-}
-pub fn clearCount() void {
-    accumulated_count = 0;
+pub fn clear(self: *Self) void {
+    self.count = 0;
 }
 
 // TODO: Rename
-pub fn checkFatal() ?ExitCode {
-    if (accumulated_count == 0) {
+pub fn checkFatal(self: *Self) ?ExitCode {
+    if (self.count == 0) {
         return null;
     }
-    return reportFatal(
+    return self.reportFatal(
         "unable to continue",
         "{} errors occurred",
-        .{accumulated_count},
+        .{self.count},
     );
 }
 
 pub fn reportFatal(
+    self: *Self,
     comptime kind: []const u8,
     comptime description: []const u8,
     args: anytype,
 ) ExitCode {
+    _ = self;
     printErrorHeading(kind);
     printErrorDescription(description, args);
     Output.flush();
@@ -84,13 +89,14 @@ pub fn reportFatal(
 }
 
 pub fn report(
+    self: *Self,
     comptime kind: []const u8,
     comptime description: []const u8,
     args: anytype,
     layout: Layout,
     text: *const TextStore,
 ) void {
-    accumulated_count += 1;
+    self.count += 1;
     printErrorHeading(kind);
     printErrorDescription(description, args);
 

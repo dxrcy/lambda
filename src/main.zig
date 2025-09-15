@@ -36,10 +36,11 @@ pub fn main() !u8 {
     var args = std.process.args();
     _ = args.next();
 
+    var reporter = Reporter.new();
     defer Reporter.Output.flush();
 
     const filepath = args.next() orelse {
-        return Reporter.reportFatal(
+        return reporter.reportFatal(
             "no filepath argument was provided",
             "",
             .{},
@@ -53,7 +54,7 @@ pub fn main() !u8 {
     const file_source = blk: {
         // TODO: Include filepath in report
         var file_text = utils.readFile(filepath, allocator) catch |err| {
-            return Reporter.reportFatal(
+            return reporter.reportFatal(
                 "failed to read file",
                 "{}",
                 .{err},
@@ -69,14 +70,14 @@ pub fn main() !u8 {
     if (!std.unicode.utf8ValidateSlice(file_text)) {
         // To include context filepath
         // TODO: Use `reportFatal`
-        Reporter.report(
+        reporter.report(
             "file contains invalid UTF-8 bytes",
             "",
             .{},
             .{ .source = file_source },
             &text,
         );
-        if (Reporter.checkFatal()) |code|
+        if (reporter.checkFatal()) |code|
             return code;
     }
 
@@ -98,7 +99,7 @@ pub fn main() !u8 {
         var statements = Statements.new(file_source, &text);
         while (statements.next()) |span| {
             std.debug.print("<{s}>\n", .{span.in(&text)});
-            var parser = Parser.new(span, &text);
+            var parser = Parser.new(span, &text, &reporter);
             const stmt = try parser.tryStatement(term_allocator.allocator()) orelse {
                 continue;
             };
@@ -119,22 +120,22 @@ pub fn main() !u8 {
 
     debug.printDeclarations(decls.items, &text);
 
-    if (Reporter.checkFatal()) |code|
+    if (reporter.checkFatal()) |code|
         return code;
 
     // Reusable by any operation which patches symbols
     var locals = LocalStore.init(allocator);
     defer locals.deinit();
 
-    symbols.checkDeclarationCollisions(decls.items, &text);
+    symbols.checkDeclarationCollisions(decls.items, &text, &reporter);
     for (decls.items) |*entry| {
-        try symbols.patchSymbols(entry.term, &locals, decls.items, &text);
+        try symbols.patchSymbols(entry.term, &locals, decls.items, &text, &reporter);
     }
     for (queries.items) |*query| {
-        try symbols.patchSymbols(query.term, &locals, decls.items, &text);
+        try symbols.patchSymbols(query.term, &locals, decls.items, &text, &reporter);
     }
 
-    if (Reporter.checkFatal()) |code|
+    if (reporter.checkFatal()) |code|
         return code;
 
     // debug.printDeclarations(decls.items, &context);
@@ -151,6 +152,7 @@ pub fn main() !u8 {
                 decls.items,
                 term_allocator.allocator(),
                 &text,
+                &reporter,
             ) orelse continue;
 
             output.print("?- ", .{});
@@ -166,12 +168,11 @@ pub fn main() !u8 {
     var repl = try Repl.new(&text);
 
     while (try repl.readLine()) |line| {
-        Reporter.clearCount();
+        reporter.clear();
 
         if (!std.unicode.utf8ValidateSlice(line.in(&text))) {
             // To include context filepath
-            // TODO:
-            Reporter.report(
+            reporter.report(
                 "input contains invalid UTF-8 bytes",
                 "",
                 .{},
@@ -181,7 +182,7 @@ pub fn main() !u8 {
             continue;
         }
 
-        var parser = Parser.new(line, &text);
+        var parser = Parser.new(line, &text, &reporter);
 
         const stmt = try parser.tryStatement(term_allocator.allocator()) orelse {
             continue;
@@ -196,9 +197,10 @@ pub fn main() !u8 {
                     &locals,
                     decls.items,
                     &text,
+                    &reporter,
                 );
 
-                if (Reporter.getCount() > 0) {
+                if (reporter.count > 0) {
                     continue;
                 }
 
@@ -208,6 +210,7 @@ pub fn main() !u8 {
                         decls.items,
                         term_allocator.allocator(),
                         &text,
+                        &reporter,
                     ) orelse continue;
 
                     output.print("-> ", .{});
@@ -217,8 +220,14 @@ pub fn main() !u8 {
                 }
             },
             .inspect => |term| {
-                try symbols.patchSymbols(term, &locals, decls.items, &text);
-                if (Reporter.getCount() > 0) {
+                try symbols.patchSymbols(
+                    term,
+                    &locals,
+                    decls.items,
+                    &text,
+                    &reporter,
+                );
+                if (reporter.count > 0) {
                     continue;
                 }
 
@@ -230,6 +239,7 @@ pub fn main() !u8 {
                     decls.items,
                     term_allocator.allocator(),
                     &text,
+                    &reporter,
                 ) orelse continue;
 
                 output.print("* term....... ", .{});

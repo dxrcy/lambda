@@ -16,6 +16,7 @@ const Reporter = @import("Reporter.zig");
 pub fn checkDeclarationCollisions(
     declarations: []const Decl,
     text: *const TextStore,
+    reporter: *Reporter,
 ) void {
     for (declarations, 0..) |current, i| {
         for (declarations[0..i], 0..) |prior, j| {
@@ -27,7 +28,7 @@ pub fn checkDeclarationCollisions(
             const prior_value = prior.name.in(text);
 
             if (std.mem.eql(u8, current_value, prior_value)) {
-                Reporter.report(
+                reporter.report(
                     "global already declared",
                     "cannot redeclare `{s}` as a global",
                     .{prior_value},
@@ -47,9 +48,10 @@ pub fn patchSymbols(
     locals: *LocalStore,
     declarations: []const Decl,
     text: *const TextStore,
+    reporter: *Reporter,
 ) Allocator.Error!void {
     std.debug.assert(locals.isEmpty());
-    try patchSymbolsInner(term, locals, declarations, text);
+    try patchSymbolsInner(term, locals, declarations, text, reporter);
     std.debug.assert(locals.isEmpty());
 }
 
@@ -58,6 +60,7 @@ fn patchSymbolsInner(
     locals: *LocalStore,
     declarations: []const Decl,
     text: *const TextStore,
+    reporter: *Reporter,
 ) Allocator.Error!void {
     switch (term.value) {
         .unresolved => {
@@ -65,7 +68,7 @@ fn patchSymbolsInner(
             if (resolveSymbol(span, locals, declarations, text)) |resolved| {
                 term.* = resolved;
             } else {
-                Reporter.report(
+                reporter.report(
                     "unresolved symbol",
                     "`{s}` was not declared a global or a parameter in this scope",
                     .{span.in(text)},
@@ -75,7 +78,7 @@ fn patchSymbolsInner(
             }
         },
         .group => |inner| {
-            try patchSymbolsInner(inner, locals, declarations, text);
+            try patchSymbolsInner(inner, locals, declarations, text, reporter);
         },
         .abstraction => |abstr| {
             const value = abstr.parameter.in(text);
@@ -84,7 +87,7 @@ fn patchSymbolsInner(
                     .abstraction => |prior_abstr| prior_abstr.parameter,
                     else => unreachable,
                 };
-                Reporter.report(
+                reporter.report(
                     "parameter already declared as a variable in this scope",
                     "cannot shadow existing variable `{s}`",
                     .{abstr.parameter.in(text)},
@@ -96,7 +99,7 @@ fn patchSymbolsInner(
                 );
             }
             if (resolveGlobal(declarations, value, text)) |global_index| {
-                Reporter.report(
+                reporter.report(
                     "parameter already declared as a global",
                     "cannot shadow existing global declaration `{s}`",
                     .{abstr.parameter.in(text)},
@@ -108,12 +111,12 @@ fn patchSymbolsInner(
                 );
             }
             try locals.push(term, value);
-            try patchSymbolsInner(abstr.body, locals, declarations, text);
+            try patchSymbolsInner(abstr.body, locals, declarations, text, reporter);
             locals.pop();
         },
         .application => |appl| {
-            try patchSymbolsInner(appl.function, locals, declarations, text);
-            try patchSymbolsInner(appl.argument, locals, declarations, text);
+            try patchSymbolsInner(appl.function, locals, declarations, text, reporter);
+            try patchSymbolsInner(appl.argument, locals, declarations, text, reporter);
         },
         // No symbols in this branch should be resolved yet
         .local => unreachable,
