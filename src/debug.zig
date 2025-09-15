@@ -5,7 +5,9 @@ const Decl = model.Decl;
 const Query = model.Query;
 const Term = model.Term;
 
-const Span = @import("Span.zig");
+const TextStore = @import("TextStore.zig");
+const SourceSpan = TextStore.SourceSpan;
+
 const output = @import("output.zig");
 
 const MAX_RECURSION = 256;
@@ -15,10 +17,13 @@ const WARNING_UNRESOLVED = "#[UNRESOLVED]#";
 const WARNING_UNKNOWN = "#[UNKNOWN]#";
 const WARNING_CONSTRUCTED = "#[CONSTRUCTED]#";
 
-pub fn printDeclarations(declarations: []const Decl) void {
-    for (declarations, 0..) |*entry, i| {
-        output.print("\n[{}] {s}\n", .{ i, entry.decl.name.string() });
-        printTermDetailedInner(entry.decl.term, 0, "");
+pub fn printDeclarations(
+    declarations: []const Decl,
+    text: *const TextStore,
+) void {
+    for (declarations, 0..) |*decl, i| {
+        output.print("\n[{}] {s}\n", .{ i, decl.name.in(text) });
+        printTermDetailedInner(decl.term, 0, "", text);
         output.print("\n", .{});
     }
 }
@@ -87,14 +92,16 @@ fn printTermInlineInner(
     }
 }
 
-pub fn printTermDetailed(term: *const Term) void {
-    printTermDetailedInner(term, 0, "");
+pub fn printTermDetailed(term: *const Term, text: *const TextStore) void {
+    printTermDetailedInner(term, 0, "", text);
 }
 
+// TODO: Re-order parameters
 fn printTermDetailedInner(
     term: *const Term,
     depth: usize,
     comptime prefix: []const u8,
+    text: *const TextStore,
 ) void {
     if (depth > MAX_RECURSION) {
         output.print(WARNING_CUTOFF, .{});
@@ -104,38 +111,39 @@ fn printTermDetailedInner(
     switch (term.value) {
         .unresolved => {
             printLabel(depth, prefix, WARNING_UNRESOLVED);
-            printSpanValue(term.span, null);
+            printSpanValue(term.span, null, text);
         },
         .local => |id| {
             printLabel(depth, prefix, "local");
-            printSpanValue(term.span, id);
+            printSpanValue(term.span, id, text);
         },
         .global => |index| {
             printLabel(depth, prefix, "global");
             output.print("[{}] ", .{index});
-            printSpanValue(term.span, null);
+            printSpanValue(term.span, null, text);
         },
         .group => |inner| {
             printLabel(depth, prefix, "group");
-            printSpanValue(term.span, null);
-            printTermDetailedInner(inner, depth + 1, "");
+            printSpanValue(term.span, null, text);
+            printTermDetailedInner(inner, depth + 1, "", text);
         },
         .abstraction => |abstr| {
             printLabel(depth, prefix, "abstraction");
-            printSpanValue(term.span, null);
+            printSpanValue(term.span, null, text);
             printLabel(depth + 1, "parameter", "");
-            printSpanValue(abstr.parameter, abstr.id);
-            printTermDetailedInner(abstr.body, depth + 1, "body");
+            printSpanValue(abstr.parameter, abstr.id, text);
+            printTermDetailedInner(abstr.body, depth + 1, "body", text);
         },
         .application => |appl| {
             printLabel(depth, prefix, "application");
-            printSpanValue(term.span, null);
-            printTermDetailedInner(appl.function, depth + 1, "function");
-            printTermDetailedInner(appl.argument, depth + 1, "argument");
+            printSpanValue(term.span, null, text);
+            printTermDetailedInner(appl.function, depth + 1, "function", text);
+            printTermDetailedInner(appl.argument, depth + 1, "argument", text);
         },
     }
 }
 
+// TODO: Re-order parameters
 fn printLabel(
     depth: usize,
     comptime prefix: []const u8,
@@ -153,16 +161,16 @@ fn printLabel(
     output.print("{s}: ", .{label});
 }
 
-fn printSpanValue(span: ?Span, id: ?usize) void {
+fn printSpanValue(span: ?SourceSpan, id: ?usize, text: *const TextStore) void {
     if (span) |span_unwrapped| {
         output.print("`", .{});
-        printSpanInline(span_unwrapped.string());
+        printSpanInline(span_unwrapped.in(text));
         output.print("`", .{});
     } else {
         output.print(WARNING_CONSTRUCTED, .{});
     }
 
-    if (comptime id) |id_value| {
+    if (id) |id_value| {
         output.print(" {{0x{x:04}}}", .{id_value});
     }
 

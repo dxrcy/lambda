@@ -9,15 +9,15 @@ const TextStore = @import("../TextStore.zig");
 const Source = TextStore.Source;
 const SourceSpan = TextStore.SourceSpan;
 
-text: *const TextStore,
-source: Source,
 index: usize,
+source: Source,
+text: *const TextStore,
 
-pub fn new(text: *const TextStore, source: Source) Self {
+pub fn new(source: Source, text: *const TextStore) Self {
     return .{
-        .text = text,
-        .source = source,
         .index = 0,
+        .source = source,
+        .text = text,
     };
 }
 

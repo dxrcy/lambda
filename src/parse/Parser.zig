@@ -5,8 +5,11 @@ const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 const unicode = std.unicode;
 
-const Span = @import("../Span.zig");
 const Reporter = @import("../Reporter.zig");
+
+const TextStore = @import("../TextStore.zig");
+const Source = TextStore.Source;
+const SourceSpan = TextStore.SourceSpan;
 
 const model = @import("../model.zig");
 const Decl = model.Decl;
@@ -18,6 +21,8 @@ const Tokenizer = @import("Tokenizer.zig");
 const Token = @import("Token.zig");
 
 token_buf: TokenBuf,
+// TODO: Remove, and instead find text from `token_buf`
+text: *const TextStore,
 
 // For methods with `??T` return, `null` (`None`) indicates that an error was
 // reported, and we should stop parsing the current statement. This should
@@ -37,11 +42,14 @@ fn SomeNull(comptime T: type) ?T {
 }
 
 /// Assumes valid UTF-8.
-pub fn new(stmt: Span) Self {
-    return .{ .token_buf = TokenBuf.new(Tokenizer.new(stmt)) };
+pub fn new(stmt: SourceSpan, text: *const TextStore) Self {
+    return .{
+        .token_buf = TokenBuf.new(Tokenizer.new(stmt, text)),
+        .text = text,
+    };
 }
 
-fn getStatement(self: *const Self) Span {
+fn getStatement(self: *const Self) SourceSpan {
     return self.token_buf.tokenizer.statement;
 }
 
@@ -148,15 +156,17 @@ fn tryTermGreedy(
     while (true) {
         if (self.peekTokenIfKind(.ParenRight)) |right_paren| {
             if (!in_group) {
-                Reporter.report(
-                    "unexpected token",
-                    "expected term or end of statement, found {s}",
-                    .{Token.Kind.ParenRight.display()},
-                    .{ .statement_token = .{
-                        .statement = self.getStatement(),
-                        .token = right_paren,
-                    } },
-                );
+                _ = right_paren;
+                // TODO:
+                // Reporter.report(
+                //     "unexpected token",
+                //     "expected term or end of statement, found {s}",
+                //     .{Token.Kind.ParenRight.display()},
+                //     .{ .statement_token = .{
+                //         .statement = self.getStatement(),
+                //         .token = right_paren,
+                //     } },
+                // );
                 return null;
             }
             break;
@@ -168,6 +178,7 @@ fn tryTermGreedy(
                 break;
             };
 
+        // TODO: Handle `null` span (panic)... and likewise elsewhere
         parent = try Term.create(
             left.span.?.join(right.span.?),
             .{ .application = .{
@@ -188,12 +199,13 @@ fn tryTermSingle(
 ) Allocator.Error!??*Term {
     const left = self.nextToken() orelse (return null) orelse {
         if (!allow_end) {
-            Reporter.report(
-                "unexpected end of statement",
-                "expected term",
-                .{},
-                .{ .statement_end = self.getStatement() },
-            );
+            // TODO:
+            // Reporter.report(
+            //     "unexpected end of statement",
+            //     "expected term",
+            //     .{},
+            //     .{ .statement_end = self.getStatement() },
+            // );
         }
         return SomeNull(*Term);
     };
@@ -220,7 +232,7 @@ fn tryTermSingle(
             return try Term.create(
                 left.span.join(right.span.?),
                 .{ .abstraction = .{
-                    .id = left.span.offset,
+                    .id = left.span.free.offset,
                     .parameter = parameter,
                     .body = right,
                 } },
@@ -243,70 +255,74 @@ fn tryTermSingle(
         },
 
         .ParenRight, .Equals, .Dot, .Inspect => {
-            Reporter.report(
-                "unexpected token",
-                if (in_group)
-                    "expected term or " ++ Token.Kind.ParenRight.display() ++ ", found {s}"
-                else
-                    "expected term or end of statement, found {s}",
-                .{left.kind.display()},
-                .{ .statement_token = .{
-                    .statement = self.getStatement(),
-                    .token = left.span,
-                } },
-            );
+            // TODO:
+            // Reporter.report(
+            //     "unexpected token",
+            //     if (in_group)
+            //         "expected term or " ++ Token.Kind.ParenRight.display() ++ ", found {s}"
+            //     else
+            //         "expected term or end of statement, found {s}",
+            //     .{left.kind.display()},
+            //     .{ .statement_token = .{
+            //         .statement = self.getStatement(),
+            //         .token = left.span,
+            //     } },
+            // );
             return null;
         },
     }
 }
 
 /// Assumes next token is present; caller must ensure this.
-fn expectIdent(self: *Self) ?Span {
+fn expectIdent(self: *Self) ?SourceSpan {
     const token = self.nextToken() orelse
         (return null) orelse {
         unreachable;
     };
     if (token.kind != .Ident) {
-        Reporter.report(
-            "unexpected token",
-            "expected {s} or end of statement, found {s}",
-            .{ Token.Kind.Ident.display(), token.kind.display() },
-            .{ .statement_token = .{
-                .statement = self.getStatement(),
-                .token = token.span,
-            } },
-        );
+        // TODO:
+        // Reporter.report(
+        //     "unexpected token",
+        //     "expected {s} or end of statement, found {s}",
+        //     .{ Token.Kind.Ident.display(), token.kind.display() },
+        //     .{ .statement_token = .{
+        //         .statement = self.getStatement(),
+        //         .token = token.span,
+        //     } },
+        // );
         return null;
     }
     return token.span;
 }
 
-fn expectTokenKind(self: *Self, kind: Token.Kind) ??Span {
+fn expectTokenKind(self: *Self, kind: Token.Kind) ??SourceSpan {
     const token = self.nextToken() orelse (return null) orelse {
-        Reporter.report(
-            "unexpected end of statement",
-            "expected {s}",
-            .{kind.display()},
-            .{ .statement_end = self.getStatement() },
-        );
+        // TODO:
+        // Reporter.report(
+        //     "unexpected end of statement",
+        //     "expected {s}",
+        //     .{kind.display()},
+        //     .{ .statement_end = self.getStatement() },
+        // );
         return null;
     };
     if (token.kind != kind) {
-        Reporter.report(
-            "unexpected token",
-            "expected {s}, found {s}",
-            .{ kind.display(), token.kind.display() },
-            .{ .statement_token = .{
-                .statement = self.getStatement(),
-                .token = token.span,
-            } },
-        );
+        // TODO:
+        // Reporter.report(
+        //     "unexpected token",
+        //     "expected {s}, found {s}",
+        //     .{ kind.display(), token.kind.display() },
+        //     .{ .statement_token = .{
+        //         .statement = self.getStatement(),
+        //         .token = token.span,
+        //     } },
+        // );
         return null;
     }
     return token.span;
 }
 
-fn peekTokenIfKind(self: *Self, kind: Token.Kind) ?Span {
+fn peekTokenIfKind(self: *Self, kind: Token.Kind) ?SourceSpan {
     if (self.token_buf.peek()) |token| {
         if (token.kind == kind) {
             return token.span;
@@ -319,27 +335,29 @@ fn nextToken(self: *Self) ??Token {
     const token = self.token_buf.next() orelse {
         return SomeNull(Token);
     };
-    if (!validateToken(token)) {
+    if (!self.validateToken(token)) {
         return null;
     }
     return token;
 }
 
 /// Does not check for invalid UTF-8, this should already be checked.
-fn validateToken(token: Token) bool {
-    const value = token.span.string();
+fn validateToken(self: *const Self, token: Token) bool {
+    const value = token.span.in(self.text);
 
     if (findDisallowedCharacter(value)) |codepoint| {
         var buffer: [4]u8 = undefined;
         const length = unicode.utf8Encode(codepoint, &buffer) catch unreachable;
         const slice = buffer[0..length];
 
-        Reporter.report(
-            "invalid charracter in token",
-            "character not allowed `{s}` (0x{x})",
-            .{ slice, codepoint },
-            .{ .token = token.span },
-        );
+        _ = slice;
+        // TODO:
+        // Reporter.report(
+        //     "invalid charracter in token",
+        //     "character not allowed `{s}` (0x{x})",
+        //     .{ slice, codepoint },
+        //     .{ .token = token.span },
+        // );
         return false;
     }
     return true;

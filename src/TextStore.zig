@@ -64,12 +64,32 @@ pub const FreeSpan = struct {
     offset: usize,
     length: usize,
 
+    pub fn end(self: @This()) usize {
+        return self.offset + self.length;
+    }
+
     pub fn fromBounds(start: usize, span_end: usize) @This() {
         // FIXME: Should this be `<`?
         assert(start <= span_end);
         return .{
             .offset = start,
             .length = span_end - start,
+        };
+    }
+
+    pub fn addOffset(self: @This(), offset: usize) @This() {
+        return .{
+            .offset = self.offset + offset,
+            .length = self.length,
+        };
+    }
+
+    /// Spans must be in-order and non-overlapping.
+    pub fn join(left: @This(), right: @This()) @This() {
+        assert(left.end() <= right.offset);
+        return .{
+            .offset = left.offset,
+            .length = right.end() - left.offset,
         };
     }
 
@@ -86,10 +106,30 @@ pub const SourceSpan = struct {
     // TODO: Rename
     free: FreeSpan,
 
+    pub fn end(self: @This()) usize {
+        return self.free.end();
+    }
+
     pub fn fromBounds(start: usize, span_end: usize, source: Source) @This() {
         return .{
             .source = source,
             .free = FreeSpan.fromBounds(start, span_end),
+        };
+    }
+
+    pub fn addOffset(self: @This(), offset: usize) @This() {
+        return .{
+            .free = self.free.addOffset(offset),
+            .source = self.source,
+        };
+    }
+
+    /// Spans must be in-order, non-overlapping, and from the same source.
+    pub fn join(left: @This(), right: @This()) @This() {
+        assert(left.source.equals(right.source));
+        return .{
+            .free = left.free.join(right.free),
+            .source = left.source,
         };
     }
 
@@ -101,6 +141,19 @@ pub const SourceSpan = struct {
 pub const Source = union(enum) {
     file: usize,
     input: void,
+
+    pub fn equals(self: @This(), other: @This()) bool {
+        switch (self) {
+            .file => |index| switch (other) {
+                .file => |other_index| return index == other_index,
+                .input => return false,
+            },
+            .input => switch (other) {
+                .file => return false,
+                .input => return true,
+            },
+        }
+    }
 };
 
 pub fn init(allocator: Allocator) Self {

@@ -1,15 +1,16 @@
 const Self = @This();
 const std = @import("std");
 
-const Span = @import("../Span.zig");
+const TextStore = @import("../TextStore.zig");
+const SourceSpan = TextStore.SourceSpan;
 
-span: Span,
+span: SourceSpan,
 kind: Kind,
 
-pub fn new(span: Span) Self {
+pub fn new(span: SourceSpan, text: *const TextStore) Self {
     return .{
         .span = span,
-        .kind = Kind.from(span.string()),
+        .kind = Kind.from(span.in(text)),
     };
 }
 

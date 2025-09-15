@@ -4,7 +4,9 @@ const std = @import("std");
 const assert = std.debug.assert;
 const unicode = std.unicode;
 
-const Span = @import("../Span.zig");
+const TextStore = @import("../TextStore.zig");
+const Source = TextStore.Source;
+const SourceSpan = TextStore.SourceSpan;
 
 const model = @import("../model.zig");
 const Term = model.Term;
@@ -12,26 +14,30 @@ const Term = model.Term;
 const TokenChar = @import("TokenChar.zig");
 const Token = @import("Token.zig");
 
-statement: Span,
 char_iter: unicode.Utf8Iterator,
+statement: SourceSpan,
+text: *const TextStore,
 
-pub fn new(statement: Span) Self {
+pub fn new(statement: SourceSpan, text: *const TextStore) Self {
     // Text should have already been checked as valid UTF-8
-    const view = unicode.Utf8View.init(statement.string()) catch unreachable;
+    // TODO: Panic on error
+    const view = unicode.Utf8View.init(statement.in(text)) catch unreachable;
     return .{
-        .statement = statement,
         .char_iter = view.iterator(),
+        .statement = statement,
+        .text = text,
     };
 }
 
 pub fn next(self: *Self) ?Token {
     while (true) {
-        const span = self.nextTokenSpan() orelse return null;
-        if (std.mem.startsWith(u8, span.string(), "--")) {
+        const span = self.nextTokenSpan() orelse
+            return null;
+        if (std.mem.startsWith(u8, span.in(self.text), "--")) {
             self.advanceUntilNextLine();
             continue;
         }
-        return Token.new(span);
+        return Token.new(span, self.text);
     }
 }
 
@@ -62,7 +68,7 @@ fn nextChar(self: *Self) ?TokenChar {
 }
 
 /// Treats comment symbol (anything beginning with `--`) as a normal token.
-fn nextTokenSpan(self: *Self) ?Span {
+fn nextTokenSpan(self: *Self) ?SourceSpan {
     self.advanceUntilNonwhitespace();
     if (self.isEnd()) {
         return null;
@@ -70,7 +76,7 @@ fn nextTokenSpan(self: *Self) ?Span {
     return self.tryAtomic() orelse self.expectCombination();
 }
 
-fn tryAtomic(self: *Self) ?Span {
+fn tryAtomic(self: *Self) ?SourceSpan {
     assert(!self.isEnd());
 
     const char = self.peekChar() orelse unreachable;
@@ -82,11 +88,11 @@ fn tryAtomic(self: *Self) ?Span {
     const start = self.getIndex();
     _ = self.nextChar();
 
-    return Span.fromBounds(start, self.getIndex(), self.statement.context)
-        .addOffset(self.statement.offset);
+    return SourceSpan.fromBounds(start, self.getIndex(), self.statement.source)
+        .addOffset(self.statement.free.offset);
 }
 
-fn expectCombination(self: *Self) Span {
+fn expectCombination(self: *Self) SourceSpan {
     assert(!self.isEnd());
 
     const start = self.getIndex();
@@ -100,8 +106,8 @@ fn expectCombination(self: *Self) Span {
         _ = self.nextChar();
     }
 
-    return Span.fromBounds(start, self.getIndex(), self.statement.context)
-        .addOffset(self.statement.offset);
+    return SourceSpan.fromBounds(start, self.getIndex(), self.statement.source)
+        .addOffset(self.statement.free.offset);
 }
 
 fn advanceUntilNonwhitespace(self: *Self) void {

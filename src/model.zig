@@ -1,14 +1,14 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const Span = @import("Span.zig");
-const Context = @import("Context.zig");
+const TextStore = @import("TextStore.zig");
+const SourceSpan = TextStore.SourceSpan;
 
 pub const DeclIndex = usize;
 pub const AbstrId = usize;
 
 pub const Decl = struct {
-    name: Span,
+    name: SourceSpan,
     term: *Term,
 };
 
@@ -28,7 +28,7 @@ pub const Term = struct {
 
     /// `null` represents a constructed term, which does not correspond to a
     /// string slice in a source text.
-    span: ?Span,
+    span: ?SourceSpan,
     value: Kind,
 
     pub const Kind = union(enum) {
@@ -45,7 +45,7 @@ pub const Term = struct {
         id: AbstrId,
         /// Should only be used to display a parameter name.
         /// For resolution or reduction use `id`.
-        parameter: Span,
+        parameter: SourceSpan,
         body: *Term,
     };
 
@@ -56,7 +56,7 @@ pub const Term = struct {
 
     /// Allocate and initialize a `Term`.
     pub fn create(
-        span: ?Span,
+        span: ?SourceSpan,
         value: Kind,
         allocator: Allocator,
     ) Allocator.Error!*Term {
