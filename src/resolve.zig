@@ -8,7 +8,9 @@ const Decl = model.Decl;
 const Term = model.Term;
 
 const Reporter = @import("Reporter.zig");
-const Span = @import("Span.zig");
+
+const TextStore = @import("TextStore.zig");
+const SourceSpan = TextStore.SourceSpan;
 
 const MAX_RESOLVE_RECURSION = 2_000;
 const MAX_GLOBAL_EXPAND = 200;
@@ -29,12 +31,14 @@ pub fn resolveTerm(
     return resolveTermInner(term, 0, decls, term_allocator) catch |err|
         switch (err) {
             error.MaxRecursion => {
-                Reporter.report(
-                    "recursion limit reached when expanding query",
-                    "check for any reference cycles in declarations",
-                    .{},
-                    .{ .query = span },
-                );
+                _ = span;
+                // TODO:
+                // Reporter.report(
+                //     "recursion limit reached when expanding query",
+                //     "check for any reference cycles in declarations",
+                //     .{},
+                //     .{ .query = span },
+                // );
                 return null;
             },
             else => |other_err| return other_err,

@@ -36,8 +36,12 @@ pub fn printQueries(queries: []const Query) void {
     }
 }
 
-pub fn printTermInline(term: *const Term, decls: []const Decl) void {
-    printTermInlineInner(term, true, decls, 0);
+pub fn printTermInline(
+    term: *const Term,
+    decls: []const Decl,
+    text: *const TextStore,
+) void {
+    printTermInlineInner(term, true, decls, 0, text);
 }
 
 fn printTermInlineInner(
@@ -45,6 +49,7 @@ fn printTermInlineInner(
     comptime never_ambiguous: bool,
     decls: []const Decl,
     depth: usize,
+    text: *const TextStore,
 ) void {
     if (depth > MAX_RECURSION) {
         output.print(WARNING_CUTOFF, .{});
@@ -66,24 +71,24 @@ fn printTermInlineInner(
             output.print(WARNING_UNRESOLVED, .{});
         },
         .local => if (term.span) |span| {
-            output.print("{s}", .{span.string()});
+            output.print("{s}", .{span.in(text)});
         } else {
             output.print(WARNING_UNKNOWN, .{});
         },
         .global => |index| {
-            output.print("{s}", .{decls[index].name.string()});
+            output.print("{s}", .{decls[index].name.in(text)});
         },
         .group => |inner| {
-            printTermInlineInner(inner, true, decls, depth + 1);
+            printTermInlineInner(inner, true, decls, depth + 1, text);
         },
         .abstraction => |abstr| {
-            output.print("\\{s}. ", .{abstr.parameter.string()});
-            printTermInlineInner(abstr.body, true, decls, depth + 1);
+            output.print("\\{s}. ", .{abstr.parameter.in(text)});
+            printTermInlineInner(abstr.body, true, decls, depth + 1, text);
         },
         .application => |appl| {
-            printTermInlineInner(appl.function, false, decls, depth + 1);
+            printTermInlineInner(appl.function, false, decls, depth + 1, text);
             output.print(" ", .{});
-            printTermInlineInner(appl.argument, false, decls, depth + 1);
+            printTermInlineInner(appl.argument, false, decls, depth + 1, text);
         },
     }
 

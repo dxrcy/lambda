@@ -3,7 +3,6 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
 const Reporter = @import("Reporter.zig");
-const Span = @import("Span.zig");
 
 const model = @import("model.zig");
 const AbstrId = model.AbstrId;
@@ -11,26 +10,33 @@ const DeclIndex = model.DeclIndex;
 const Decl = model.Decl;
 const Term = model.Term;
 
-pub fn checkDeclarationCollisions(declarations: []const Decl) void {
+const TextStore = @import("TextStore.zig");
+const SourceSpan = TextStore.SourceSpan;
+
+pub fn checkDeclarationCollisions(
+    declarations: []const Decl,
+    text: *const TextStore,
+) void {
     for (declarations, 0..) |current, i| {
         for (declarations[0..i], 0..) |prior, j| {
             if (i == j) {
                 continue;
             }
 
-            const current_value = current.name.string();
-            const prior_value = prior.name.string();
+            const current_value = current.name.in(text);
+            const prior_value = prior.name.in(text);
 
             if (std.mem.eql(u8, current_value, prior_value)) {
-                Reporter.report(
-                    "global already declared",
-                    "cannot redeclare `{s}` as a global",
-                    .{prior_value},
-                    .{ .symbol_reference = .{
-                        .declaration = prior.name,
-                        .reference = current.name,
-                    } },
-                );
+                // TODO:
+                // Reporter.report(
+                //     "global already declared",
+                //     "cannot redeclare `{s}` as a global",
+                //     .{prior_value},
+                //     .{ .symbol_reference = .{
+                //         .declaration = prior.name,
+                //         .reference = current.name,
+                //     } },
+                // );
             }
         }
     }
@@ -40,9 +46,10 @@ pub fn patchSymbols(
     term: *Term,
     locals: *LocalStore,
     declarations: []const Decl,
+    text: *const TextStore,
 ) Allocator.Error!void {
     std.debug.assert(locals.isEmpty());
-    try patchSymbolsInner(term, locals, declarations);
+    try patchSymbolsInner(term, locals, declarations, text);
     std.debug.assert(locals.isEmpty());
 }
 
@@ -50,59 +57,64 @@ fn patchSymbolsInner(
     term: *Term,
     locals: *LocalStore,
     declarations: []const Decl,
+    text: *const TextStore,
 ) Allocator.Error!void {
     switch (term.value) {
         .unresolved => {
             const span = term.span.?;
-            if (resolveSymbol(span, locals, declarations)) |resolved| {
+            if (resolveSymbol(span, locals, declarations, text)) |resolved| {
                 term.* = resolved;
             } else {
-                Reporter.report(
-                    "unresolved symbol",
-                    "`{s}` was not declared a global or a parameter in this scope",
-                    .{span.string()},
-                    .{ .token = span },
-                );
+                // TODO:
+                // Reporter.report(
+                //     "unresolved symbol",
+                //     "`{s}` was not declared a global or a parameter in this scope",
+                //     .{span.string()},
+                //     .{ .token = span },
+                // );
             }
         },
         .group => |inner| {
-            try patchSymbolsInner(inner, locals, declarations);
+            try patchSymbolsInner(inner, locals, declarations, text);
         },
         .abstraction => |abstr| {
-            const value = abstr.parameter.string();
+            const value = abstr.parameter.in(text);
             if (resolveLocal(locals, value)) |prior_term| {
                 const prior_param = switch (prior_term.value) {
                     .abstraction => |prior_abstr| prior_abstr.parameter,
                     else => unreachable,
                 };
-                Reporter.report(
-                    "parameter already declared as a variable in this scope",
-                    "cannot shadow existing variable `{s}`",
-                    .{abstr.parameter.string()},
-                    .{ .symbol_reference = .{
-                        .declaration = prior_param,
-                        .reference = abstr.parameter,
-                    } },
-                );
+                _ = prior_param;
+                // TODO:
+                // Reporter.report(
+                //     "parameter already declared as a variable in this scope",
+                //     "cannot shadow existing variable `{s}`",
+                //     .{abstr.parameter.string()},
+                //     .{ .symbol_reference = .{
+                //         .declaration = prior_param,
+                //         .reference = abstr.parameter,
+                //     } },
+                // );
             }
-            if (resolveGlobal(declarations, value)) |global_index| {
-                Reporter.report(
-                    "parameter already declared as a global",
-                    "cannot shadow existing global declaration `{s}`",
-                    .{abstr.parameter.string()},
-                    .{ .symbol_reference = .{
-                        .declaration = declarations[global_index].name,
-                        .reference = abstr.parameter,
-                    } },
-                );
+            if (resolveGlobal(declarations, value, text)) |global_index| {
+                _ = global_index;
+                // Reporter.report(
+                //     "parameter already declared as a global",
+                //     "cannot shadow existing global declaration `{s}`",
+                //     .{abstr.parameter.string()},
+                //     .{ .symbol_reference = .{
+                //         .declaration = declarations[global_index].name,
+                //         .reference = abstr.parameter,
+                //     } },
+                // );
             }
             try locals.push(term, value);
-            try patchSymbolsInner(abstr.body, locals, declarations);
+            try patchSymbolsInner(abstr.body, locals, declarations, text);
             locals.pop();
         },
         .application => |appl| {
-            try patchSymbolsInner(appl.function, locals, declarations);
-            try patchSymbolsInner(appl.argument, locals, declarations);
+            try patchSymbolsInner(appl.function, locals, declarations, text);
+            try patchSymbolsInner(appl.argument, locals, declarations, text);
         },
         // No symbols in this branch should be resolved yet
         .local => unreachable,
@@ -113,11 +125,12 @@ fn patchSymbolsInner(
 // TODO: Rename `resolve*` to avoid confusion with `resolve.zig`
 
 fn resolveSymbol(
-    span: Span,
+    span: SourceSpan,
     locals: *const LocalStore,
     declarations: []const Decl,
+    text: *const TextStore,
 ) ?Term {
-    const value = span.string();
+    const value = span.in(text);
     if (resolveLocal(locals, value)) |term| {
         // Assumes `term` is `abstraction`
         const id = term.value.abstraction.id;
@@ -126,7 +139,7 @@ fn resolveSymbol(
             .value = .{ .local = id },
         };
     }
-    if (resolveGlobal(declarations, value)) |index| {
+    if (resolveGlobal(declarations, value, text)) |index| {
         return Term{
             .span = span,
             .value = .{ .global = index },
@@ -150,9 +163,10 @@ fn resolveLocal(
 fn resolveGlobal(
     declarations: []const Decl,
     value: []const u8,
+    text: *const TextStore,
 ) ?DeclIndex {
     for (declarations, 0..) |*decl, i| {
-        const decl_value = decl.name.string();
+        const decl_value = decl.name.in(text);
         if (std.mem.eql(u8, decl_value, value)) {
             return i;
         }
