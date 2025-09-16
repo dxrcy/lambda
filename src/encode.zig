@@ -16,6 +16,7 @@ const LocalId = usize;
 pub const TermTree = struct {
     const Self = @This();
 
+    // TODO: Rename `nodes` and `Node`
     items: ArrayList(Item),
     allocator: Allocator,
 
@@ -24,6 +25,18 @@ pub const TermTree = struct {
         application: void,
         local: LocalId,
         empty: usize,
+
+        pub fn equals(left: @This(), right: @This()) bool {
+            if (std.meta.activeTag(left) != std.meta.activeTag(right)) {
+                return false;
+            }
+            return switch (left) {
+                .abstraction => |abstr| abstr == right.abstraction,
+                .application => true,
+                .local => |local| local == right.local,
+                .empty => |length| length == right.empty,
+            };
+        }
     };
 
     fn init(allocator: Allocator) Self {
@@ -35,6 +48,18 @@ pub const TermTree = struct {
 
     pub fn deinit(self: *Self) void {
         self.items.deinit(self.allocator);
+    }
+
+    pub fn equals(left: *const Self, right: *const Self) bool {
+        if (left.items.items.len != right.items.items.len) {
+            return false;
+        }
+        for (left.items.items, right.items.items) |left_item, right_item| {
+            if (!left_item.equals(right_item)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     pub fn encodeTerm(

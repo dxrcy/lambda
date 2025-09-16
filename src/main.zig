@@ -83,10 +83,14 @@ pub fn main() !u8 {
     }
 
     var decls = ArrayList(Decl).empty;
+    // `fingerprint`s deinitialized later, in case we exit before they are initialized
     defer decls.deinit(allocator);
 
     var queries = ArrayList(Query).empty;
     defer queries.deinit(allocator);
+
+    var term_allocator = std.heap.ArenaAllocator.init(gpa.allocator());
+    defer term_allocator.deinit();
 
     // TODO: Separate term storage into
     // - terms in declarations
@@ -98,9 +102,6 @@ pub fn main() !u8 {
     // We could even catch malformed queries while parsing declarations, by
     // dry-running query parse (if is query) when parsing decls: no allocations
     // will be made (pass in a dummy allocator and return nullptr).
-
-    var term_allocator = std.heap.ArenaAllocator.init(gpa.allocator());
-    defer term_allocator.deinit();
 
     {
         var statements = Statements.new(file_source, &text);
@@ -153,6 +154,17 @@ pub fn main() !u8 {
 
     if (reporter.checkFatal()) |code|
         return code;
+
+    for (decls.items) |*decl| {
+        decl.fingerprint = try encode.TermTree.encodeTerm(
+            decl.term,
+            allocator,
+            decls.items,
+        );
+    }
+    defer for (decls.items) |*decl| {
+        decl.fingerprint.deinit();
+    };
 
     debug.printDeclarations(decls.items, &text);
 
@@ -229,7 +241,6 @@ pub fn main() !u8 {
                     output.print("-> ", .{});
                     debug.printTermInline(result, decls.items, &text);
                     output.print("\n", .{});
-                    output.print("\n", .{});
 
                     var tree = try encode.TermTree.encodeTerm(
                         result,
@@ -238,26 +249,35 @@ pub fn main() !u8 {
                     );
                     defer tree.deinit();
 
-                    for (tree.items.items, 0..) |item, i| {
-                        // output.print("{}\n", .{item});
-                        output.print("{:>4}\t", .{i});
-                        switch (item) {
-                            .abstraction => |id| {
-                                output.print("A{}", .{id});
-                            },
-                            .application => {
-                                output.print("P", .{});
-                            },
-                            .local => |id| {
-                                output.print("L{}", .{id});
-                            },
-                            .empty => |length| {
-                                output.print("\t-- {}", .{length});
-                            },
+                    // for (tree.items.items, 0..) |item, i| {
+                    //     // output.print("{}\n", .{item});
+                    //     output.print("{:>4}\t", .{i});
+                    //     switch (item) {
+                    //         .abstraction => |id| {
+                    //             output.print("A{}", .{id});
+                    //         },
+                    //         .application => {
+                    //             output.print("P", .{});
+                    //         },
+                    //         .local => |id| {
+                    //             output.print("L{}", .{id});
+                    //         },
+                    //         .empty => |length| {
+                    //             output.print("\t-- {}", .{length});
+                    //         },
+                    //     }
+                    //     output.print("\n", .{});
+                    // }
+                    // output.print("\n", .{});
+                    // output.print("\n", .{});
+
+                    // TODO: If query is a a single global, don't repeat it here
+                    for (decls.items) |decl| {
+                        if (tree.equals(&decl.fingerprint)) {
+                            output.print("~> {s}\n", .{decl.name.in(&text)});
                         }
-                        output.print("\n", .{});
                     }
-                    output.print("\n", .{});
+
                     output.print("\n", .{});
                 }
             },

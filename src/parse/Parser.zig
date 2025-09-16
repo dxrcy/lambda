@@ -127,7 +127,11 @@ fn expectDeclaration(self: *Self, term_allocator: Allocator) Allocator.Error!?De
     const term = try self.expectStatementTerm(term_allocator) orelse
         return null;
 
-    return Decl{ .name = name, .term = term };
+    return Decl{
+        .name = name,
+        .term = term,
+        .fingerprint = undefined,
+    };
 }
 
 /// Assumes next token is present; caller must ensure this.
