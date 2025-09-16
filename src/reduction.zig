@@ -94,7 +94,7 @@ fn reduceApplication(
 
     const product = try betaReduce(
         function.body,
-        function.id,
+        function.parameter,
         appl.argument,
         term_allocator,
     ) orelse function.body;
@@ -159,24 +159,26 @@ fn expandGlobal(
 /// Returns `null` if no descendant term was substituted; no need to deep-copy.
 fn betaReduce(
     term: *Term,
-    abstr_id: AbstrId,
+    abstr_param: SourceSpan,
     applied_argument: *Term,
     term_allocator: Allocator,
 ) Allocator.Error!?*Term {
     switch (term.value) {
         .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
         .global => return null,
-        .local => |id| {
-            if (id != abstr_id) {
+        .local => |param| {
+            if (param.offset == abstr_param.free.offset //
+            and param.source.equals(abstr_param.source)) {
+                return try deepCopyTerm(applied_argument, term_allocator);
+            } else {
                 return null;
             }
-            return try deepCopyTerm(applied_argument, term_allocator);
         },
         .group => |inner| {
             // Flatten group
             return try betaReduce(
                 inner,
-                abstr_id,
+                abstr_param,
                 applied_argument,
                 term_allocator,
             );
@@ -184,7 +186,7 @@ fn betaReduce(
         .abstraction => |abstr| {
             const body = try betaReduce(
                 abstr.body,
-                abstr_id,
+                abstr_param,
                 applied_argument,
                 term_allocator,
             ) orelse {
@@ -192,7 +194,6 @@ fn betaReduce(
             };
             return try Term.create(null, .{
                 .abstraction = .{
-                    .id = abstr.id,
                     .parameter = abstr.parameter,
                     .body = body,
                 },
@@ -201,13 +202,13 @@ fn betaReduce(
         .application => |appl| {
             const function = try betaReduce(
                 appl.function,
-                abstr_id,
+                abstr_param,
                 applied_argument,
                 term_allocator,
             );
             const argument = try betaReduce(
                 appl.argument,
-                abstr_id,
+                abstr_param,
                 applied_argument,
                 term_allocator,
             );
@@ -237,7 +238,6 @@ fn deepCopyTerm(term: *Term, allocator: Allocator) Allocator.Error!*Term {
         },
         .abstraction => |abstr| .{
             .abstraction = .{
-                .id = abstr.id,
                 .parameter = abstr.parameter,
                 .body = try deepCopyTerm(abstr.body, allocator),
             },

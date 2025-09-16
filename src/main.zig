@@ -118,8 +118,6 @@ pub fn main() !u8 {
         }
     }
 
-    debug.printDeclarations(decls.items, &text);
-
     if (reporter.checkFatal()) |code|
         return code;
 
@@ -138,11 +136,8 @@ pub fn main() !u8 {
     if (reporter.checkFatal()) |code|
         return code;
 
-    // debug.printDeclarations(decls.items, &context);
-    // debug.printQueries(queries.items, &context);
+    debug.printDeclarations(decls.items, &text);
 
-    // output.print("Results:\n", .{});
-    // output.print("\n", .{});
     {
         for (queries.items) |*query| {
             const query_span = query.term.span.?;

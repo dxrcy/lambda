@@ -116,32 +116,32 @@ fn printTermDetailedInner(
     switch (term.value) {
         .unresolved => {
             printLabel(depth, prefix, WARNING_UNRESOLVED);
-            printSpanValue(term.span, null, text);
+            printSpanValue(term.span, false, text);
         },
-        .local => |id| {
+        .local => {
             printLabel(depth, prefix, "local");
-            printSpanValue(term.span, id, text);
+            printSpanValue(term.span, true, text);
         },
         .global => |index| {
             printLabel(depth, prefix, "global");
             output.print("[{}] ", .{index});
-            printSpanValue(term.span, null, text);
+            printSpanValue(term.span, false, text);
         },
         .group => |inner| {
             printLabel(depth, prefix, "group");
-            printSpanValue(term.span, null, text);
+            printSpanValue(term.span, false, text);
             printTermDetailedInner(inner, depth + 1, "", text);
         },
         .abstraction => |abstr| {
             printLabel(depth, prefix, "abstraction");
-            printSpanValue(term.span, null, text);
+            printSpanValue(term.span, false, text);
             printLabel(depth + 1, "parameter", "");
-            printSpanValue(abstr.parameter, abstr.id, text);
+            printSpanValue(abstr.parameter, true, text);
             printTermDetailedInner(abstr.body, depth + 1, "body", text);
         },
         .application => |appl| {
             printLabel(depth, prefix, "application");
-            printSpanValue(term.span, null, text);
+            printSpanValue(term.span, false, text);
             printTermDetailedInner(appl.function, depth + 1, "function", text);
             printTermDetailedInner(appl.argument, depth + 1, "argument", text);
         },
@@ -166,17 +166,24 @@ fn printLabel(
     output.print("{s}: ", .{label});
 }
 
-fn printSpanValue(span: ?SourceSpan, id: ?usize, text: *const TextStore) void {
-    if (span) |span_unwrapped| {
-        output.print("`", .{});
-        printSpanInline(span_unwrapped.in(text));
-        output.print("`", .{});
-    } else {
+fn printSpanValue(
+    span: ?SourceSpan,
+    comptime details: bool,
+    text: *const TextStore,
+) void {
+    const span_unwrapped = span orelse {
         output.print(WARNING_CONSTRUCTED, .{});
-    }
+        output.print("\n", .{});
+        return;
+    };
 
-    if (id) |id_value| {
-        output.print(" {{0x{x:04}}}", .{id_value});
+    output.print("`", .{});
+    printSpanInline(span_unwrapped.in(text));
+    output.print("`", .{});
+
+    if (details) {
+        const path = text.getSourcePath(span_unwrapped.source) orelse "";
+        output.print(" {{{s}@{x}}}", .{ path, span_unwrapped.free.offset });
     }
 
     output.print("\n", .{});

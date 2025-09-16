@@ -2,10 +2,10 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 const TextStore = @import("TextStore.zig");
+const Source = TextStore.Source;
 const SourceSpan = TextStore.SourceSpan;
 
 pub const DeclIndex = usize;
-pub const AbstrId = usize;
 
 pub const Decl = struct {
     name: SourceSpan,
@@ -15,6 +15,13 @@ pub const Decl = struct {
 // TODO: Remove, and simply use `*Term`
 pub const Query = struct {
     term: *Term,
+};
+
+/// Like a `SourceSpan` without a `length`.
+/// To uniquely identify a paramater declaration.
+pub const ParamRef = struct {
+    source: Source,
+    offset: usize,
 };
 
 /// Not very type-safe, since this type is used in many different contexts,
@@ -33,7 +40,7 @@ pub const Term = struct {
 
     pub const Kind = union(enum) {
         unresolved: void,
-        local: AbstrId,
+        local: ParamRef,
         global: DeclIndex,
         group: *Term,
         abstraction: Abstr,
@@ -41,10 +48,8 @@ pub const Term = struct {
     };
 
     pub const Abstr = struct {
-        // FIXME: Ids are not unique between terms of different contexts
-        id: AbstrId,
-        /// Should only be used to display a parameter name.
-        /// For resolution or reduction use `id`.
+        /// Used for resolution and reduction.
+        /// Referred to by `ParamRef`.
         parameter: SourceSpan,
         body: *Term,
     };

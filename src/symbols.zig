@@ -3,9 +3,9 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
 const model = @import("model.zig");
-const AbstrId = model.AbstrId;
 const DeclIndex = model.DeclIndex;
 const Decl = model.Decl;
+const ParamRef = model.ParamRef;
 const Term = model.Term;
 
 const TextStore = @import("TextStore.zig");
@@ -82,17 +82,13 @@ fn resolveSymbolsInner(
         },
         .abstraction => |abstr| {
             const value = abstr.parameter.in(text);
-            if (resolveLocal(locals, value)) |prior_term| {
-                const prior_param = switch (prior_term.value) {
-                    .abstraction => |prior_abstr| prior_abstr.parameter,
-                    else => unreachable,
-                };
+            if (resolveLocal(locals, value)) |param| {
                 reporter.report(
                     "parameter already declared as a variable in this scope",
                     "cannot shadow existing variable `{s}`",
                     .{abstr.parameter.in(text)},
                     .{ .symbol_reference = .{
-                        .declaration = prior_param,
+                        .declaration = param,
                         .reference = abstr.parameter,
                     } },
                     text,
@@ -110,7 +106,7 @@ fn resolveSymbolsInner(
                     text,
                 );
             }
-            try locals.push(term, value);
+            try locals.push(abstr.parameter, value);
             try resolveSymbolsInner(abstr.body, locals, declarations, text, reporter);
             locals.pop();
         },
@@ -131,12 +127,13 @@ fn resolveSymbol(
     text: *const TextStore,
 ) ?Term {
     const value = span.in(text);
-    if (resolveLocal(locals, value)) |term| {
-        // Assumes `term` is `abstraction`
-        const id = term.value.abstraction.id;
+    if (resolveLocal(locals, value)) |param| {
         return Term{
             .span = span,
-            .value = .{ .local = id },
+            .value = .{ .local = .{
+                .offset = param.free.offset,
+                .source = param.source,
+            } },
         };
     }
     if (resolveGlobal(declarations, value, text)) |index| {
@@ -151,10 +148,10 @@ fn resolveSymbol(
 fn resolveLocal(
     locals: *const LocalStore,
     value: []const u8,
-) ?*Term {
+) ?SourceSpan {
     for (locals.entries.items) |entry| {
         if (std.mem.eql(u8, entry.value, value)) {
-            return entry.term;
+            return entry.param;
         }
     }
     return null;
@@ -182,7 +179,7 @@ pub const LocalStore = struct {
     allocator: Allocator,
 
     pub const Entry = struct {
-        term: *Term,
+        param: SourceSpan,
         value: []const u8,
     };
 
@@ -203,11 +200,11 @@ pub const LocalStore = struct {
 
     pub fn push(
         self: *Self,
-        term: *Term,
+        param: SourceSpan,
         value: []const u8,
     ) Allocator.Error!void {
         try self.entries.append(self.allocator, .{
-            .term = term,
+            .param = param,
             .value = value,
         });
     }

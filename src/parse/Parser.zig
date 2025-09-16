@@ -237,7 +237,6 @@ fn tryTermSingle(
             return try Term.create(
                 left.span.join(right.span.?),
                 .{ .abstraction = .{
-                    .id = left.span.free.offset,
                     .parameter = parameter,
                     .body = right,
                 } },
