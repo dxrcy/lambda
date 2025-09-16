@@ -98,7 +98,6 @@ pub fn main() !u8 {
     {
         var statements = Statements.new(file_source, &text);
         while (statements.next()) |span| {
-            std.debug.print("<{s}>\n", .{span.in(&text)});
             var parser = Parser.new(span, &text, &reporter);
             const stmt = try parser.tryStatement(term_allocator.allocator()) orelse {
                 continue;
