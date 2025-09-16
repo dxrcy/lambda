@@ -7,8 +7,8 @@ const model = @import("model.zig");
 const Decl = model.Decl;
 const Query = model.Query;
 
-const symbols = @import("symbols.zig");
-const LocalStore = symbols.LocalStore;
+const resolution = @import("resolution.zig");
+const LocalStore = resolution.LocalStore;
 
 const TextStore = @import("TextStore.zig");
 const SourceSpan = TextStore.SourceSpan;
@@ -125,12 +125,12 @@ pub fn main() !u8 {
     var locals = LocalStore.init(allocator);
     defer locals.deinit();
 
-    symbols.checkDeclarationCollisions(decls.items, &text, &reporter);
+    resolution.checkDeclarationCollisions(decls.items, &text, &reporter);
     for (decls.items) |*entry| {
-        try symbols.resolveAllSymbols(entry.term, &locals, decls.items, &text, &reporter);
+        try resolution.resolveAllSymbols(entry.term, &locals, decls.items, &text, &reporter);
     }
     for (queries.items) |*query| {
-        try symbols.resolveAllSymbols(query.term, &locals, decls.items, &text, &reporter);
+        try resolution.resolveAllSymbols(query.term, &locals, decls.items, &text, &reporter);
     }
 
     if (reporter.checkFatal()) |code|
@@ -187,7 +187,7 @@ pub fn main() !u8 {
                 output.print("unimplemented\n", .{});
             },
             .query => |query| {
-                try symbols.resolveAllSymbols(
+                try resolution.resolveAllSymbols(
                     query.term,
                     &locals,
                     decls.items,
@@ -215,7 +215,7 @@ pub fn main() !u8 {
                 }
             },
             .inspect => |term| {
-                try symbols.resolveAllSymbols(
+                try resolution.resolveAllSymbols(
                     term,
                     &locals,
                     decls.items,
