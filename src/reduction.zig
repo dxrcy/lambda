@@ -17,14 +17,38 @@ const MAX_GLOBAL_EXPAND = 200;
 
 const ReductionError = Allocator.Error || error{MaxRecursion};
 
+/// Requires that `Param`, `Input`, and `Output` are all pointers.
+/// Requires that `Input` and `Output` are non-`const` (for consistency).
+/// Requires that `Param` points to the same type that `Input` does (although
+/// `Param` may be `const`).
+/// Returns a pointer equivalent to `Output`, but with the `const`-ness of `Param`
+fn PointerMaybeConst(
+    comptime Param: type,
+    comptime Input: type,
+    comptime Output: type,
+) type {
+    const param = @typeInfo(Param);
+    var input = @typeInfo(Input);
+    var output = @typeInfo(Output);
+
+    assert(!input.pointer.is_const);
+    assert(!output.pointer.is_const);
+
+    input.pointer.is_const = param.pointer.is_const;
+    output.pointer.is_const = param.pointer.is_const;
+
+    assert(@Type(param) == @Type(input));
+    return @Type(output);
+}
+
 /// Returns `null` if recursion limit was reached.
 pub fn reduceTerm(
-    term: *const Term,
+    term: anytype,
     decls: []const Decl,
     term_allocator: Allocator,
     text: *const TextStore,
     reporter: *Reporter,
-) Allocator.Error!?*const Term {
+) Allocator.Error!?PointerMaybeConst(@TypeOf(term), *Term, *Term) {
     assert(term.span != null);
     const span = term.span orelse unreachable;
 
@@ -45,11 +69,11 @@ pub fn reduceTerm(
 }
 
 fn reduceTermInner(
-    term: *const Term,
+    term: anytype,
     depth: usize,
     decls: []const Decl,
     term_allocator: Allocator,
-) ReductionError!*const Term {
+) ReductionError!PointerMaybeConst(@TypeOf(term), *Term, *Term) {
     if (depth >= MAX_REDUCTION_RECURSION) {
         return error.MaxRecursion;
     }
@@ -62,8 +86,8 @@ fn reduceTermInner(
             decls,
             term_allocator,
         ),
-        .application => |appl| try reduceApplication(
-            &appl,
+        .application => |*appl| try reduceApplication(
+            appl,
             depth + 1,
             decls,
             term_allocator,
@@ -74,11 +98,11 @@ fn reduceTermInner(
 }
 
 fn reduceApplication(
-    appl: *const Term.Appl,
+    appl: anytype,
     depth: usize,
     decls: []const Decl,
     term_allocator: Allocator,
-) ReductionError!*const Term {
+) ReductionError!PointerMaybeConst(@TypeOf(appl), *Term.Appl, *Term) {
     switch (appl.function.value) {
         .group, .global, .abstraction, .application => {},
         .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
@@ -129,11 +153,11 @@ pub fn expandGlobalOnce(
 }
 
 fn expandGlobal(
-    initial_term: *const Term,
+    initial_term: anytype,
     depth: usize,
     decls: []const Decl,
     term_allocator: Allocator,
-) ReductionError!*const Term.Abstr {
+) ReductionError!PointerMaybeConst(@TypeOf(initial_term), *Term, *Term.Abstr) {
     var term = initial_term;
     for (0..MAX_GLOBAL_EXPAND) |_| {
         const product = try reduceTermInner(
@@ -148,8 +172,8 @@ fn expandGlobal(
             .application => std.debug.panic("application should have been resolved already", .{}),
             .global => |global| decls[global].term,
             .group => |inner| inner,
-            .abstraction => |abstr| {
-                return &abstr;
+            .abstraction => |*abstr| {
+                return abstr;
             },
         };
     }
