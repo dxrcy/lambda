@@ -20,8 +20,22 @@ pub const Query = struct {
 /// Like a `SourceSpan` without a `length`.
 /// To uniquely identify a paramater declaration.
 pub const ParamRef = struct {
+    const Self = @This();
+
     source: Source,
     offset: usize,
+
+    pub fn from(span: SourceSpan) Self {
+        return Self{
+            .source = span.source,
+            .offset = span.free.offset,
+        };
+    }
+
+    // TODO: Use in `reduction.zig`
+    pub fn equals(left: Self, right: Self) bool {
+        return left.offset == right.offset and left.source.equals(right.source);
+    }
 };
 
 /// Not very type-safe, since this type is used in many different contexts,
