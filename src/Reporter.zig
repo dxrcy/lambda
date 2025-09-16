@@ -216,14 +216,30 @@ fn printSpan(
         printLineParts(left, right, text);
         printLineHighlight(left, span, text);
     } else {
-        // TODO: Properly handle multi line tokens/statements
-        const border_length = 20;
-        setStyle(.{ .Dim, .FgWhite });
-        Output.print("~" ** border_length ++ "\n", .{});
-        setStyle(.{ .Reset, .FgYellow });
-        Output.print("{s}\n", .{span.in(text)});
-        setStyle(.{ .Dim, .FgWhite });
-        Output.print("~" ** border_length ++ "\n\n", .{});
+        // NOTE: Assumes the span contains the entire statement
+        // This is fine, it works well enough right now
+
+        setStyle(.{.FgYellow});
+        var line_start = true;
+        for (span.in(text)) |ch| {
+            if (line_start) {
+                printIndent(2);
+            }
+            line_start = false;
+            Output.print("{c}", .{ch});
+            if (ch == '\n') {
+                line_start = true;
+            }
+        }
+        Output.print("\n", .{});
+        setStyle(.{.Reset});
+
+        setStyle(.{ .Reset, .FgRed });
+        printIndent(2);
+        for (0..maxLineWidth(span.in(text))) |_| {
+            Output.print("^", .{});
+        }
+        Output.print("\n", .{});
         setStyle(.{.Reset});
     }
 }
@@ -264,6 +280,25 @@ fn printLineHighlight(
     }
     Output.print("\n", .{});
     setStyle(.{.Reset});
+}
+
+fn maxLineWidth(value: []const u8) usize {
+    var line_width: usize = 0;
+    var max: usize = 0;
+
+    for (value) |ch| {
+        if (ch == '\n') {
+            line_width = 0;
+            continue;
+        }
+
+        line_width += 1;
+        if (line_width > max) {
+            max = line_width;
+        }
+    }
+
+    return max;
 }
 
 const Style = enum(u8) {
