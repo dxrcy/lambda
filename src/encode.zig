@@ -24,8 +24,6 @@ pub const TermTree = struct {
         application: void,
         local: LocalId,
         empty: usize,
-        // TODO: Remove
-        unset: void,
     };
 
     fn init(allocator: Allocator) Self {
@@ -46,74 +44,107 @@ pub const TermTree = struct {
     ) !Self {
         var self = Self.init(allocator);
 
+        // TODO: Reuse local store
+        // TODO: Don't use same allocator
         var locals = LocalStore.init(allocator);
         defer locals.deinit();
 
-        try self.insertTerm(0, term, decls, &locals);
+        try self.insertTerm(term, decls, &locals);
 
         return self;
     }
 
-    // TODO: Add depth parameter
+    /// Bfs.
     fn insertTerm(
         self: *Self,
-        index: usize,
         term: *const Term,
         decls: []const Decl,
         locals: *LocalStore,
     ) !void {
-        switch (term.value) {
-            // TODO: Handle these kinds
-            .unresolved => unreachable,
+        var queue = term_queue.Queue.init(self.allocator, {});
+        defer queue.deinit();
 
-            // Expand global
-            .global => |global| {
-                try self.insertTerm(index, decls[global].term, decls, locals);
-            },
+        try queue.add(.{
+            .term = term,
+            .index = 0,
+        });
 
-            // Flatten group
-            .group => |inner| {
-                try self.insertTerm(index, inner, decls, locals);
-            },
+        // TODO: Add iteration limit
+        while (queue.removeOrNull()) |entry| {
+            switch (expandGlobal(entry.term, decls).value) {
+                .unresolved, .global, .group => unreachable,
 
-            .local => |param| {
-                const id = locals.get(param) orelse {
-                    // TODO: Panic
-                    unreachable;
-                };
-                try self.insertItem(index, .{ .local = id });
-            },
+                .local => |param| {
+                    const id = locals.get(param) orelse {
+                        unreachable; // TODO: Panic
+                    };
+                    try self.insertItem(entry.index, .{ .local = id });
+                },
 
-            .abstraction => |abstr| {
-                const id = try locals.push(ParamRef.from(abstr.parameter));
-                try self.insertItem(index, .{ .abstraction = id });
-                try self.insertTerm(2 * index + 1, abstr.body, decls, locals);
-                try self.insertItem(2 * index + 2, .{ .empty = 1 });
-            },
+                .abstraction => |abstr| {
+                    const id = try locals.push(ParamRef.from(abstr.parameter));
+                    try self.insertItem(entry.index, .{ .abstraction = id });
+                    try queue.add(.{
+                        .term = abstr.body,
+                        .index = 2 * entry.index + 1,
+                    });
+                },
 
-            .application => |appl| {
-                try self.insertItem(index, .{ .application = {} });
-                try self.insertTerm(2 * index + 1, appl.function, decls, locals);
-                try self.insertTerm(2 * index + 2, appl.argument, decls, locals);
-            },
+                .application => |appl| {
+                    try self.insertItem(entry.index, .{ .application = {} });
+                    try queue.add(.{
+                        .term = appl.function,
+                        .index = 2 * entry.index + 1,
+                    });
+                    try queue.add(.{
+                        .term = appl.argument,
+                        .index = 2 * entry.index + 2,
+                    });
+                },
+            }
         }
     }
 
     fn insertItem(self: *Self, index: usize, item: Item) !void {
-        if (index < self.items.items.len) {
-            self.items.items[index] = item;
-            return;
-        }
-
         if (index > self.items.items.len) {
-            for (self.items.items.len..index) |_| {
-                try self.items.append(self.allocator, .{ .unset = {} });
-            }
+            try self.items.append(self.allocator, .{
+                .empty = index - self.items.items.len,
+            });
         }
-
         try self.items.append(self.allocator, item);
     }
 };
+
+const term_queue = struct {
+    pub const Item = struct {
+        term: *const Term,
+        index: usize,
+    };
+
+    const Queue = std.PriorityQueue(Item, void, compare);
+
+    fn compare(_: void, _: Item, _: Item) std.math.Order {
+        return std.math.Order.eq;
+    }
+};
+
+// TODO: Add iteration limit
+fn expandGlobal(
+    initial_term: *const Term,
+    decls: []const Decl,
+) *const Term {
+    var term = initial_term;
+    while (true) {
+        term = switch (term.value) {
+            .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
+            .global => |global| decls[global].term,
+            .group => |inner| inner,
+            .local, .application, .abstraction => {
+                return term;
+            },
+        };
+    }
+}
 
 pub const LocalStore = struct {
     const Self = @This();

@@ -254,9 +254,6 @@ pub fn main() !u8 {
                             .empty => |length| {
                                 output.print("\t-- {}", .{length});
                             },
-                            .unset => {
-                                output.print("\t**", .{});
-                            },
                         }
                         output.print("\n", .{});
                     }
