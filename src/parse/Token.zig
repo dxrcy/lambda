@@ -1,7 +1,7 @@
 const Self = @This();
 const std = @import("std");
 
-const TextStore = @import("../TextStore.zig");
+const TextStore = @import("../text/TextStore.zig");
 const SourceSpan = TextStore.SourceSpan;
 
 span: SourceSpan,

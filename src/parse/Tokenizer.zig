@@ -4,7 +4,7 @@ const std = @import("std");
 const assert = std.debug.assert;
 const unicode = std.unicode;
 
-const TextStore = @import("../TextStore.zig");
+const TextStore = @import("../text/TextStore.zig");
 const Source = TextStore.Source;
 const SourceSpan = TextStore.SourceSpan;
 

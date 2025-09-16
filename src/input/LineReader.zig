@@ -3,10 +3,10 @@ const Self = @This();
 const std = @import("std");
 const assert = std.debug.assert;
 
-const output = @import("../output.zig");
-
-const TextStore = @import("../TextStore.zig");
+const TextStore = @import("../text/TextStore.zig");
 const SourceSpan = TextStore.SourceSpan;
+
+const output = @import("../output.zig");
 
 const LineView = @import("LineView.zig");
 const StdinReader = @import("StdinReader.zig");

@@ -3,7 +3,7 @@ const Self = @This();
 const std = @import("std");
 const assert = std.debug.assert;
 
-const TextStore = @import("../TextStore.zig");
+const TextStore = @import("../text/TextStore.zig");
 
 const HistoryList = @import("HistoryList.zig");
 const LineBuffer = @import("LineBuffer.zig");

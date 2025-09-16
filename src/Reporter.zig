@@ -4,7 +4,7 @@ const std = @import("std");
 const io = std.io;
 const assert = std.debug.assert;
 
-const TextStore = @import("TextStore.zig");
+const TextStore = @import("text/TextStore.zig");
 const FreeSpan = TextStore.FreeSpan;
 const Source = TextStore.Source;
 const SourceSpan = TextStore.SourceSpan;

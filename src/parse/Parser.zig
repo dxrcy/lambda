@@ -5,11 +5,11 @@ const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 const unicode = std.unicode;
 
-const Reporter = @import("../Reporter.zig");
-
-const TextStore = @import("../TextStore.zig");
+const TextStore = @import("../text/TextStore.zig");
 const Source = TextStore.Source;
 const SourceSpan = TextStore.SourceSpan;
+
+const Reporter = @import("../Reporter.zig");
 
 const model = @import("../model.zig");
 const Decl = model.Decl;

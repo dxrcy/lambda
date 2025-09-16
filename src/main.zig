@@ -3,14 +3,7 @@ const fs = std.fs;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
-const model = @import("model.zig");
-const Decl = model.Decl;
-const Query = model.Query;
-
-const resolution = @import("resolution.zig");
-const LocalStore = resolution.LocalStore;
-
-const TextStore = @import("TextStore.zig");
+const TextStore = @import("text/TextStore.zig");
 const SourceSpan = TextStore.SourceSpan;
 
 const reduction = @import("reduction.zig");
@@ -24,6 +17,13 @@ const Statements = @import("parse/Statements.zig");
 const Tokenizer = @import("parse/Tokenizer.zig");
 
 const LineReader = @import("input/LineReader.zig");
+
+const model = @import("model.zig");
+const Decl = model.Decl;
+const Query = model.Query;
+
+const resolution = @import("resolution.zig");
+const LocalStore = resolution.LocalStore;
 
 pub fn main() !u8 {
     // pub fn main() Allocator.Error!void {
@@ -92,6 +92,12 @@ pub fn main() !u8 {
     // - temporary terms (file queries, repl queries)
     // And destroy temporaries after their use
 
+    // TODO: Two passes per file, one to declare global bindings, one to run queries
+    // This requires modifying the parse call, to avoid double allocations
+    // We could even catch malformed queries while parsing declarations, by
+    // dry-running query parse (if is query) when parsing decls: no allocations
+    // will be made (pass in a dummy allocator and return nullptr).
+
     var term_allocator = std.heap.ArenaAllocator.init(gpa.allocator());
     defer term_allocator.deinit();
 
@@ -126,10 +132,22 @@ pub fn main() !u8 {
 
     resolution.checkDeclarationCollisions(decls.items, &text, &reporter);
     for (decls.items) |*entry| {
-        try resolution.resolveAllSymbols(entry.term, &locals, decls.items, &text, &reporter);
+        try resolution.resolveAllSymbols(
+            entry.term,
+            &locals,
+            decls.items,
+            &text,
+            &reporter,
+        );
     }
     for (queries.items) |*query| {
-        try resolution.resolveAllSymbols(query.term, &locals, decls.items, &text, &reporter);
+        try resolution.resolveAllSymbols(
+            query.term,
+            &locals,
+            decls.items,
+            &text,
+            &reporter,
+        );
     }
 
     if (reporter.checkFatal()) |code|

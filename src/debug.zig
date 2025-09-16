@@ -1,12 +1,12 @@
 const std = @import("std");
 
+const TextStore = @import("text/TextStore.zig");
+const SourceSpan = TextStore.SourceSpan;
+
 const model = @import("model.zig");
 const Decl = model.Decl;
 const Query = model.Query;
 const Term = model.Term;
-
-const TextStore = @import("TextStore.zig");
-const SourceSpan = TextStore.SourceSpan;
 
 const output = @import("output.zig");
 

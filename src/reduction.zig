@@ -7,7 +7,7 @@ const AbstrId = model.AbstrId;
 const Decl = model.Decl;
 const Term = model.Term;
 
-const TextStore = @import("TextStore.zig");
+const TextStore = @import("text/TextStore.zig");
 const SourceSpan = TextStore.SourceSpan;
 
 const Reporter = @import("Reporter.zig");
