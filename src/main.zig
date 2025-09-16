@@ -11,6 +11,7 @@ const debug = @import("debug.zig");
 const output = @import("output.zig");
 const Reporter = @import("Reporter.zig");
 const utils = @import("utils.zig");
+const encode = @import("encode.zig");
 
 const Parser = @import("parse/Parser.zig");
 const Statements = @import("parse/Statements.zig");
@@ -227,6 +228,38 @@ pub fn main() !u8 {
 
                     output.print("-> ", .{});
                     debug.printTermInline(result, decls.items, &text);
+                    output.print("\n", .{});
+                    output.print("\n", .{});
+
+                    var tree = try encode.TermTree.encodeTerm(
+                        result,
+                        allocator,
+                        decls.items,
+                    );
+                    defer tree.deinit();
+
+                    for (tree.items.items, 0..) |item, i| {
+                        // output.print("{}\n", .{item});
+                        output.print("{:>4}\t", .{i});
+                        switch (item) {
+                            .abstraction => |id| {
+                                output.print("A{}", .{id});
+                            },
+                            .application => {
+                                output.print("P", .{});
+                            },
+                            .local => |id| {
+                                output.print("L{}", .{id});
+                            },
+                            .empty => |length| {
+                                output.print("\t-- {}", .{length});
+                            },
+                            .unset => {
+                                output.print("\t**", .{});
+                            },
+                        }
+                        output.print("\n", .{});
+                    }
                     output.print("\n", .{});
                     output.print("\n", .{});
                 }
