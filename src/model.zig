@@ -12,7 +12,7 @@ pub const DeclIndex = usize;
 pub const Decl = struct {
     name: SourceSpan,
     term: *Term,
-    fingerprint: TermTree,
+    fingerprint: ?TermTree,
 };
 
 // TODO: Remove, and simply use `*Term`

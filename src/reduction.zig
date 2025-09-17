@@ -67,7 +67,7 @@ pub fn reduceTerm(
                 };
 
                 reporter.report(
-                    "recursion limit reached when expanding query",
+                    "recursion limit reached when expanding term",
                     "check for any reference cycles in declarations",
                     .{},
                     .{ .query = span },

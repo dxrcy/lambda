@@ -97,6 +97,8 @@ pub fn main() !u8 {
     // - temporary terms (file queries, repl queries)
     // And destroy temporaries after their use
 
+    // TODO: Create DeclStore to handle inner allocations
+
     // TODO: Two passes per file, one to declare global bindings, one to run queries
     // This requires modifying the parse call, to avoid double allocations
     // We could even catch malformed queries while parsing declarations, by
@@ -168,14 +170,17 @@ pub fn main() !u8 {
             &reporter,
         ) orelse decl.term;
 
-        decl.fingerprint = try encode.TermTree.encodeTerm(
+        // Sets to `null` on fail (iteration limit)
+        decl.fingerprint = try encode.encodeTerm(
             reduced,
             allocator,
             decls.items,
         );
     }
     defer for (decls.items) |*decl| {
-        decl.fingerprint.deinit();
+        if (decl.fingerprint) |*fingerprint| {
+            fingerprint.deinit();
+        }
     };
 
     debug.printDeclarations(decls.items, &text);
@@ -229,6 +234,8 @@ pub fn main() !u8 {
                 output.print("unimplemented\n", .{});
             },
             .query => |query| {
+                const query_span = query.term.span.?;
+
                 try resolution.resolveAllSymbols(
                     query.term,
                     &locals,
@@ -254,11 +261,20 @@ pub fn main() !u8 {
                     debug.printTermInline(result, decls.items, &text);
                     output.print("\n", .{});
 
-                    var tree = try encode.TermTree.encodeTerm(
+                    var tree = try encode.encodeTerm(
                         result,
                         allocator,
                         decls.items,
-                    );
+                    ) orelse {
+                        reporter.report(
+                            "recursion limit reached when expanding term",
+                            "check for any reference cycles in declarations",
+                            .{},
+                            .{ .query = query_span },
+                            &text,
+                        );
+                        continue;
+                    };
                     defer tree.deinit();
 
                     // debug.printFingerprint(&decls.items[8].fingerprint);
@@ -276,7 +292,9 @@ pub fn main() !u8 {
 
                     // TODO: If query is a a single global, don't repeat it here
                     for (decls.items) |decl| {
-                        if (tree.equals(&decl.fingerprint)) {
+                        const decl_fingerprint = decl.fingerprint orelse
+                            continue;
+                        if (tree.equals(&decl_fingerprint)) {
                             output.print("~> {s}\n", .{decl.name.in(&text)});
                         }
                     }

@@ -4,14 +4,46 @@ const ArrayList = std.ArrayList;
 const assert = std.debug.assert;
 
 const TextStore = @import("text/TextStore.zig");
-const SourceSpan = TextStore.SourceSpan;
 
 const model = @import("model.zig");
 const Decl = model.Decl;
 const ParamRef = model.ParamRef;
 const Term = model.Term;
 
+const Reporter = @import("Reporter.zig");
+
+const MAX_ENCODE_ITERATION = 200;
+const MAX_GLOBAL_EXPAND = 200;
+
+// TODO: Rename `MaxRecursion` (iteration like recursion).
+// Update `reduction.ReductionError` as well.
+const EncodeError = Allocator.Error || error{MaxRecursion};
+
 const LocalId = usize;
+
+// TODO: Rename "encode*" to "fingerprint*"
+
+/// Returns `null` if recursion limit was reached.
+pub fn encodeTerm(
+    term: *const Term,
+    allocator: Allocator,
+    decls: []const Decl,
+) Allocator.Error!?TermTree {
+    var fingerprint = TermTree.init(allocator);
+
+    // TODO: Reuse local store
+    // TODO: Don't use same allocator
+    var locals = LocalStore.init(allocator);
+    defer locals.deinit();
+
+    fingerprint.insertTerm(term, decls, &locals) catch |err|
+        switch (err) {
+            error.MaxRecursion => return null,
+            else => |other_err| return other_err,
+        };
+
+    return fingerprint;
+}
 
 // TODO: Rename
 pub const TermTree = struct {
@@ -63,31 +95,13 @@ pub const TermTree = struct {
         return true;
     }
 
-    // TODO: Move to `encode`
-    pub fn encodeTerm(
-        term: *const Term,
-        allocator: Allocator,
-        decls: []const Decl,
-    ) !Self {
-        var self = Self.init(allocator);
-
-        // TODO: Reuse local store
-        // TODO: Don't use same allocator
-        var locals = LocalStore.init(allocator);
-        defer locals.deinit();
-
-        try self.insertTerm(term, decls, &locals);
-
-        return self;
-    }
-
-    /// Bfs.
+    /// Traverses terms by BFS.
     fn insertTerm(
         self: *Self,
         term: *const Term,
         decls: []const Decl,
         locals: *LocalStore,
-    ) !void {
+    ) EncodeError!void {
         var queue = term_queue.Queue.init(self.allocator, {});
         defer queue.deinit();
 
@@ -96,9 +110,14 @@ pub const TermTree = struct {
             .index = 0,
         });
 
-        // TODO: Add iteration limit
-        while (queue.removeOrNull()) |entry| {
-            switch (expandGlobal(entry.term, decls).value) {
+        var i: usize = 0;
+        while (queue.removeOrNull()) |entry| : (i += 1) {
+            if (i >= MAX_ENCODE_ITERATION) {
+                return error.MaxRecursion;
+            }
+
+            const expanded = try expandGlobal(entry.term, decls);
+            switch (expanded.value) {
                 // TODO: Panic
                 .unresolved, .global, .group => unreachable,
 
@@ -160,9 +179,9 @@ const term_queue = struct {
 fn expandGlobal(
     initial_term: *const Term,
     decls: []const Decl,
-) *const Term {
+) EncodeError!*const Term {
     var term = initial_term;
-    while (true) {
+    for (0..MAX_GLOBAL_EXPAND) |_| {
         term = switch (term.value) {
             .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
             .global => |global| decls[global].term,
@@ -172,6 +191,7 @@ fn expandGlobal(
             },
         };
     }
+    return error.MaxRecursion;
 }
 
 pub const LocalStore = struct {
