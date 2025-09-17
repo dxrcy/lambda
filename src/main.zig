@@ -304,6 +304,12 @@ pub fn main() !u8 {
                     &reporter,
                 ) orelse continue;
 
+                var sig_opt = try signature.generateTermSignature(
+                    result,
+                    allocator,
+                    decls.items,
+                );
+
                 output.print("* term......... ", .{});
                 debug.printTermInline(term, decls.items, &text);
                 output.print("\n", .{});
@@ -317,11 +323,8 @@ pub fn main() !u8 {
                 output.print("\n", .{});
 
                 output.print("* signature.... ", .{});
-                if (try signature.generateTermSignature(
-                    result,
-                    allocator,
-                    decls.items,
-                )) |*sig| {
+                if (sig_opt) |*sig| {
+                    defer sig.deinit();
                     debug.printSignature(sig);
                 } else {
                     output.print("#[IMPOSSIBLE]#", .{});
