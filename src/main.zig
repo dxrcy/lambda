@@ -264,6 +264,8 @@ pub fn main() !u8 {
                     // debug.printFingerprint(&decls.items[8].fingerprint);
                     // debug.printFingerprint(&tree);
 
+                    // debug.printFingerprint(&tree);
+
                     // output.print("\n", .{});
                     // output.print("-> ", .{});
                     // debug.printTermInline(result, decls.items, &text);
