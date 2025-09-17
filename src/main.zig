@@ -269,14 +269,10 @@ pub fn main() !u8 {
                             const decl_sig = decl.signature orelse
                                 continue;
 
-                            if (sig.equals(&decl_sig)) {
-                                // Skip if query is the same global
-                                switch (query.term.value) {
-                                    .global => |global| if (i == global) {
-                                        continue;
-                                    },
-                                    else => {},
-                                }
+                            if (sig.equals(&decl_sig) and
+                                !isDeclIndex(i, query.term) and
+                                !isDeclIndex(i, result))
+                            {
                                 output.print("-> {s}\n", .{decl.name.in(&text)});
                             }
                         }
@@ -339,6 +335,13 @@ pub fn main() !u8 {
 
     output.print("end.\n", .{});
     return 0;
+}
+
+fn isDeclIndex(index: usize, term: *const model.Term) bool {
+    switch (term.value) {
+        .global => |global| return index == global,
+        else => return false,
+    }
 }
 
 const Repl = struct {

@@ -183,6 +183,7 @@ fn expandGlobal(
         term = switch (term.value) {
             .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
             .global => |global| decls[global].term,
+            // Flatten group
             .group => |inner| inner,
             .local, .application, .abstraction => {
                 return term;
