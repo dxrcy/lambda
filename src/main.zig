@@ -183,7 +183,7 @@ pub fn main() !u8 {
         }
     };
 
-    debug.printDeclarations(decls.items, &text);
+    // debug.printDeclarations(decls.items, &text);
 
     {
         for (queries.items) |*query| {
@@ -234,8 +234,6 @@ pub fn main() !u8 {
                 output.print("unimplemented\n", .{});
             },
             .query => |query| {
-                const query_span = query.term.span.?;
-
                 try resolution.resolveAllSymbols(
                     query.term,
                     &locals,
@@ -261,41 +259,28 @@ pub fn main() !u8 {
                     debug.printTermInline(result, decls.items, &text);
                     output.print("\n", .{});
 
-                    var tree = try encode.encodeTerm(
+                    var tree_opt = try encode.encodeTerm(
                         result,
                         allocator,
                         decls.items,
-                    ) orelse {
-                        reporter.report(
-                            "recursion limit reached when expanding term",
-                            "check for any reference cycles in declarations",
-                            .{},
-                            .{ .query = query_span },
-                            &text,
-                        );
-                        continue;
-                    };
-                    defer tree.deinit();
+                    );
+                    if (tree_opt) |*tree| {
+                        defer tree.deinit();
 
-                    // debug.printFingerprint(&decls.items[8].fingerprint);
-                    // debug.printFingerprint(&tree);
+                        for (decls.items, 0..) |decl, i| {
+                            const decl_fingerprint = decl.fingerprint orelse
+                                continue;
 
-                    // debug.printFingerprint(&tree);
-
-                    // output.print("\n", .{});
-                    // output.print("-> ", .{});
-                    // debug.printTermInline(result, decls.items, &text);
-                    // output.print("\n", .{});
-                    // output.print("-- ", .{});
-                    // debug.printTermInline(decls.items[8].term, decls.items, &text);
-                    // output.print("\n", .{});
-
-                    // TODO: If query is a a single global, don't repeat it here
-                    for (decls.items) |decl| {
-                        const decl_fingerprint = decl.fingerprint orelse
-                            continue;
-                        if (tree.equals(&decl_fingerprint)) {
-                            output.print("~> {s}\n", .{decl.name.in(&text)});
+                            if (tree.equals(&decl_fingerprint)) {
+                                // Skip if query is the same global
+                                switch (query.term.value) {
+                                    .global => |global| if (i == global) {
+                                        continue;
+                                    },
+                                    else => {},
+                                }
+                                output.print("~> {s}\n", .{decl.name.in(&text)});
+                            }
                         }
                     }
 
