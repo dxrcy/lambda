@@ -1,11 +1,10 @@
 # Lambda Calculus Parser
 
-Parse lambda calculus statements.
-In the future, this will also validate/evaluate expressions.
+Parse, reduce, and unify lambda calculus statements.
 
 # Usage
 
-Requires Zig `0.14.1` to compile.
+Requires Zig `0.15.1` to compile.
 
 ```sh
 zig build run -- example/valid
@@ -13,8 +12,10 @@ zig build run -- example/valid
 
 # Features
 
-- [x] Multiple-error reporting
 - [x] Streamlined parsing
+- [x] Term reduction (application)
+- [x] Unifying terms with matching structures
 - [x] Basic Unicode support
+- [x] Multiple-error reporting
 - [x] Blazingly fast
 
