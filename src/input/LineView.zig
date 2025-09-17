@@ -84,7 +84,7 @@ pub fn becomeLive(self: *Self) void {
     self.live.copyFrom(historic);
     self.scrollback = null;
 
-    self.resetCursor();
+    // self.resetCursor();
 }
 
 pub fn historyBack(self: *Self) void {
