@@ -260,14 +260,11 @@ pub fn main() !u8 {
                     debug.printTermInline(result, decls.items, &text);
                     output.print("\n", .{});
 
-                    var sig_opt = try signature.generateTermSignature(
+                    if (try signature.generateTermSignature(
                         result,
                         allocator,
                         decls.items,
-                    );
-                    if (sig_opt) |*sig| {
-                        defer sig.deinit();
-
+                    )) |*sig| {
                         for (decls.items, 0..) |decl, i| {
                             const decl_sig = decl.signature orelse
                                 continue;
@@ -280,7 +277,7 @@ pub fn main() !u8 {
                                     },
                                     else => {},
                                 }
-                                output.print("~> {s}\n", .{decl.name.in(&text)});
+                                output.print("-> {s}\n", .{decl.name.in(&text)});
                             }
                         }
                     }
@@ -311,17 +308,30 @@ pub fn main() !u8 {
                     &reporter,
                 ) orelse continue;
 
-                output.print("* term....... ", .{});
+                output.print("* term......... ", .{});
                 debug.printTermInline(term, decls.items, &text);
                 output.print("\n", .{});
 
-                output.print("* expanded... ", .{});
+                output.print("* expanded..... ", .{});
                 debug.printTermInline(expanded, decls.items, &text);
                 output.print("\n", .{});
 
-                output.print("* reduced.... ", .{});
+                output.print("* reduced...... ", .{});
                 debug.printTermInline(result, decls.items, &text);
                 output.print("\n", .{});
+
+                output.print("* signature.... ", .{});
+                if (try signature.generateTermSignature(
+                    result,
+                    allocator,
+                    decls.items,
+                )) |*sig| {
+                    debug.printSignature(sig);
+                } else {
+                    output.print("#[IMPOSSIBLE]#", .{});
+                }
+                output.print("\n", .{});
+
                 output.print("\n", .{});
             },
         }
