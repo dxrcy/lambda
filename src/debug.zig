@@ -38,7 +38,7 @@ pub fn printQueries(queries: []const Query) void {
 }
 
 pub fn printSignature(signature: *const Signature) void {
-    for (signature.items.items, 0..) |item, i| {
+    for (signature.nodes.items, 0..) |item, i| {
         if (i > 0) {
             output.print("-", .{});
         }

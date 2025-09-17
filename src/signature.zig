@@ -47,12 +47,11 @@ pub fn generateTermSignature(
 pub const Signature = struct {
     const Self = @This();
 
-    // TODO: Rename `nodes` and `Node`
-    items: ArrayList(Item),
+    nodes: ArrayList(Node),
     count: usize,
     allocator: Allocator,
 
-    const Item = union(enum) {
+    const Node = union(enum) {
         abstraction: LocalId,
         application: void,
         local: LocalId,
@@ -73,21 +72,21 @@ pub const Signature = struct {
 
     fn init(allocator: Allocator) Self {
         return Self{
-            .items = ArrayList(Item).empty,
+            .nodes = ArrayList(Node).empty,
             .count = 0,
             .allocator = allocator,
         };
     }
 
     pub fn deinit(self: *Self) void {
-        self.items.deinit(self.allocator);
+        self.nodes.deinit(self.allocator);
     }
 
     pub fn equals(left: *const Self, right: *const Self) bool {
-        if (left.items.items.len != right.items.items.len) {
+        if (left.nodes.items.len != right.nodes.items.len) {
             return false;
         }
-        for (left.items.items, right.items.items) |left_item, right_item| {
+        for (left.nodes.items, right.nodes.items) |left_item, right_item| {
             if (!left_item.equals(right_item)) {
                 return false;
             }
@@ -125,12 +124,12 @@ pub const Signature = struct {
                     const id = locals.get(param) orelse {
                         unreachable; // TODO: Panic
                     };
-                    try self.appendItem(entry.index, .{ .local = id });
+                    try self.appendNode(entry.index, .{ .local = id });
                 },
 
                 .abstraction => |abstr| {
                     const id = try locals.push(ParamRef.from(abstr.parameter));
-                    try self.appendItem(entry.index, .{ .abstraction = id });
+                    try self.appendNode(entry.index, .{ .abstraction = id });
                     try queue.add(.{
                         .term = abstr.body,
                         .index = entry.index * 2 + 1,
@@ -138,7 +137,7 @@ pub const Signature = struct {
                 },
 
                 .application => |appl| {
-                    try self.appendItem(entry.index, .{ .application = {} });
+                    try self.appendNode(entry.index, .{ .application = {} });
                     try queue.add(.{
                         .term = appl.function,
                         .index = entry.index * 2 + 1,
@@ -152,14 +151,14 @@ pub const Signature = struct {
         }
     }
 
-    fn appendItem(self: *Self, index: usize, item: Item) !void {
-        assert(std.meta.activeTag(item) != .empty);
+    fn appendNode(self: *Self, index: usize, node: Node) !void {
+        assert(std.meta.activeTag(node) != .empty);
         if (index > self.count + 1) {
-            try self.items.append(self.allocator, .{
+            try self.nodes.append(self.allocator, .{
                 .empty = index - self.count - 1,
             });
         }
-        try self.items.append(self.allocator, item);
+        try self.nodes.append(self.allocator, node);
         self.count = index;
     }
 };
