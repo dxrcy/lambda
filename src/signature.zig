@@ -49,6 +49,7 @@ pub const Signature = struct {
 
     // TODO: Rename `nodes` and `Node`
     items: ArrayList(Item),
+    count: usize,
     allocator: Allocator,
 
     const Item = union(enum) {
@@ -73,6 +74,7 @@ pub const Signature = struct {
     fn init(allocator: Allocator) Self {
         return Self{
             .items = ArrayList(Item).empty,
+            .count = 0,
             .allocator = allocator,
         };
     }
@@ -131,7 +133,7 @@ pub const Signature = struct {
                     try self.appendItem(entry.index, .{ .abstraction = id });
                     try queue.add(.{
                         .term = abstr.body,
-                        .index = 2 * entry.index + 1,
+                        .index = entry.index * 2 + 1,
                     });
                 },
 
@@ -139,11 +141,11 @@ pub const Signature = struct {
                     try self.appendItem(entry.index, .{ .application = {} });
                     try queue.add(.{
                         .term = appl.function,
-                        .index = 2 * entry.index + 1,
+                        .index = entry.index * 2 + 1,
                     });
                     try queue.add(.{
                         .term = appl.argument,
-                        .index = 2 * entry.index + 2,
+                        .index = entry.index * 2 + 2,
                     });
                 },
             }
@@ -151,12 +153,14 @@ pub const Signature = struct {
     }
 
     fn appendItem(self: *Self, index: usize, item: Item) !void {
-        if (index > self.items.items.len) {
+        assert(std.meta.activeTag(item) != .empty);
+        if (index > self.count + 1) {
             try self.items.append(self.allocator, .{
-                .empty = index - self.items.items.len,
+                .empty = index - self.count - 1,
             });
         }
         try self.items.append(self.allocator, item);
+        self.count = index;
     }
 };
 
