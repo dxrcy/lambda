@@ -31,13 +31,17 @@ fn PointerMaybeConst(
     var input = @typeInfo(Input);
     var output = @typeInfo(Output);
 
-    assert(!input.pointer.is_const);
-    assert(!output.pointer.is_const);
+    if (input.pointer.is_const or output.pointer.is_const) {
+        @compileError("Input and output pointers must be non-const");
+    }
 
     input.pointer.is_const = param.pointer.is_const;
     output.pointer.is_const = param.pointer.is_const;
 
-    assert(@Type(param) == @Type(input));
+    if (@Type(param) != @Type(input)) {
+        @compileError("Input pointer does not match parameter pointer");
+    }
+
     return @Type(output);
 }
 
@@ -49,12 +53,19 @@ pub fn reduceTerm(
     text: *const TextStore,
     reporter: *Reporter,
 ) Allocator.Error!?PointerMaybeConst(@TypeOf(term), *Term, *Term) {
-    assert(term.span != null);
-    const span = term.span orelse unreachable;
-
-    return reduceTermInner(term, 0, decls, term_allocator) catch |err|
+    return reduceTermInner(
+        term,
+        0,
+        decls,
+        term_allocator,
+    ) catch |err|
         switch (err) {
             error.MaxRecursion => {
+                // TODO: Handle this
+                const span = term.span orelse {
+                    std.debug.panic("unimplemented", .{});
+                };
+
                 reporter.report(
                     "recursion limit reached when expanding query",
                     "check for any reference cycles in declarations",

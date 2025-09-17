@@ -155,9 +155,21 @@ pub fn main() !u8 {
     if (reporter.checkFatal()) |code|
         return code;
 
+    // Reduce *all nested* globals (eg. `1 := S 0` is applied)
+    // So reduced queries can match decl fingerprint
     for (decls.items) |*decl| {
-        decl.fingerprint = try encode.TermTree.encodeTerm(
+        // TODO: Use temporary allocator for this, since terms are only used
+        // within the current iteration; fingerprint does not refer to terms
+        const reduced = try reduction.reduceTerm(
             decl.term,
+            decls.items,
+            term_allocator.allocator(),
+            &text,
+            &reporter,
+        ) orelse decl.term;
+
+        decl.fingerprint = try encode.TermTree.encodeTerm(
+            reduced,
             allocator,
             decls.items,
         );
@@ -249,26 +261,15 @@ pub fn main() !u8 {
                     );
                     defer tree.deinit();
 
-                    // for (tree.items.items, 0..) |item, i| {
-                    //     // output.print("{}\n", .{item});
-                    //     output.print("{:>4}\t", .{i});
-                    //     switch (item) {
-                    //         .abstraction => |id| {
-                    //             output.print("A{}", .{id});
-                    //         },
-                    //         .application => {
-                    //             output.print("P", .{});
-                    //         },
-                    //         .local => |id| {
-                    //             output.print("L{}", .{id});
-                    //         },
-                    //         .empty => |length| {
-                    //             output.print("\t-- {}", .{length});
-                    //         },
-                    //     }
-                    //     output.print("\n", .{});
-                    // }
+                    // debug.printFingerprint(&decls.items[8].fingerprint);
+                    // debug.printFingerprint(&tree);
+
                     // output.print("\n", .{});
+                    // output.print("-> ", .{});
+                    // debug.printTermInline(result, decls.items, &text);
+                    // output.print("\n", .{});
+                    // output.print("-- ", .{});
+                    // debug.printTermInline(decls.items[8].term, decls.items, &text);
                     // output.print("\n", .{});
 
                     // TODO: If query is a a single global, don't repeat it here

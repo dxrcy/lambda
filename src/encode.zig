@@ -13,6 +13,7 @@ const Term = model.Term;
 
 const LocalId = usize;
 
+// TODO: Rename
 pub const TermTree = struct {
     const Self = @This();
 
@@ -62,6 +63,7 @@ pub const TermTree = struct {
         return true;
     }
 
+    // TODO: Move to `encode`
     pub fn encodeTerm(
         term: *const Term,
         allocator: Allocator,
@@ -97,6 +99,7 @@ pub const TermTree = struct {
         // TODO: Add iteration limit
         while (queue.removeOrNull()) |entry| {
             switch (expandGlobal(entry.term, decls).value) {
+                // TODO: Panic
                 .unresolved, .global, .group => unreachable,
 
                 .local => |param| {
