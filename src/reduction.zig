@@ -12,6 +12,7 @@ const SourceSpan = TextStore.SourceSpan;
 
 const Reporter = @import("Reporter.zig");
 
+// TODO: Rename
 const MAX_REDUCTION_RECURSION = 2_000;
 const MAX_GLOBAL_EXPAND = 200;
 

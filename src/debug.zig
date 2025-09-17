@@ -9,7 +9,7 @@ const Query = model.Query;
 const Term = model.Term;
 
 const output = @import("output.zig");
-const TermTree = @import("encode.zig").TermTree;
+const Signature = @import("signature.zig").Signature;
 
 const MAX_RECURSION = 256;
 
@@ -37,8 +37,8 @@ pub fn printQueries(queries: []const Query) void {
     }
 }
 
-pub fn printFingerprint(fingerprint: *const TermTree) void {
-    for (fingerprint.items.items, 0..) |item, i| {
+pub fn printSignature(signature: *const Signature) void {
+    for (signature.items.items, 0..) |item, i| {
         if (i > 0) {
             output.print("-", .{});
         }

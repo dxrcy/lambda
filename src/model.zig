@@ -5,14 +5,14 @@ const TextStore = @import("text/TextStore.zig");
 const Source = TextStore.Source;
 const SourceSpan = TextStore.SourceSpan;
 
-const TermTree = @import("encode.zig").TermTree;
+const Signature = @import("signature.zig").Signature;
 
 pub const DeclIndex = usize;
 
 pub const Decl = struct {
     name: SourceSpan,
     term: *Term,
-    fingerprint: ?TermTree,
+    signature: ?Signature,
 };
 
 // TODO: Remove, and simply use `*Term`

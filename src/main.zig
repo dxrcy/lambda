@@ -11,7 +11,7 @@ const debug = @import("debug.zig");
 const output = @import("output.zig");
 const Reporter = @import("Reporter.zig");
 const utils = @import("utils.zig");
-const encode = @import("encode.zig");
+const signature = @import("signature.zig");
 
 const Parser = @import("parse/Parser.zig");
 const Statements = @import("parse/Statements.zig");
@@ -83,7 +83,8 @@ pub fn main() !u8 {
     }
 
     var decls = ArrayList(Decl).empty;
-    // `fingerprint`s deinitialized later, in case we exit before they are initialized
+    // `signature`s of items deinitialized later, in case we exit before they
+    // are initialized
     defer decls.deinit(allocator);
 
     var queries = ArrayList(Query).empty;
@@ -158,10 +159,10 @@ pub fn main() !u8 {
         return code;
 
     // Reduce *all nested* globals (eg. `1 := S 0` is applied)
-    // So reduced queries can match decl fingerprint
+    // So reduced queries can match decl signature
     for (decls.items) |*decl| {
         // TODO: Use temporary allocator for this, since terms are only used
-        // within the current iteration; fingerprint does not refer to terms
+        // within the current iteration; signature does not refer to terms
         const reduced = try reduction.reduceTerm(
             decl.term,
             decls.items,
@@ -171,15 +172,15 @@ pub fn main() !u8 {
         ) orelse decl.term;
 
         // Sets to `null` on fail (iteration limit)
-        decl.fingerprint = try encode.encodeTerm(
+        decl.signature = try signature.generateTermSignature(
             reduced,
             allocator,
             decls.items,
         );
     }
     defer for (decls.items) |*decl| {
-        if (decl.fingerprint) |*fingerprint| {
-            fingerprint.deinit();
+        if (decl.signature) |*sig| {
+            sig.deinit();
         }
     };
 
@@ -259,19 +260,19 @@ pub fn main() !u8 {
                     debug.printTermInline(result, decls.items, &text);
                     output.print("\n", .{});
 
-                    var tree_opt = try encode.encodeTerm(
+                    var sig_opt = try signature.generateTermSignature(
                         result,
                         allocator,
                         decls.items,
                     );
-                    if (tree_opt) |*tree| {
-                        defer tree.deinit();
+                    if (sig_opt) |*sig| {
+                        defer sig.deinit();
 
                         for (decls.items, 0..) |decl, i| {
-                            const decl_fingerprint = decl.fingerprint orelse
+                            const decl_sig = decl.signature orelse
                                 continue;
 
-                            if (tree.equals(&decl_fingerprint)) {
+                            if (sig.equals(&decl_sig)) {
                                 // Skip if query is the same global
                                 switch (query.term.value) {
                                     .global => |global| if (i == global) {

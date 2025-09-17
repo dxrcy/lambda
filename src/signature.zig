@@ -12,41 +12,39 @@ const Term = model.Term;
 
 const Reporter = @import("Reporter.zig");
 
-const MAX_ENCODE_ITERATION = 200;
-const MAX_GLOBAL_EXPAND = 200;
+const MAX_TRAVERSAL_ITERATION = 200;
+const MAX_EXPAND_ITERATION = 200;
 
 // TODO: Rename `MaxRecursion` (iteration like recursion).
 // Update `reduction.ReductionError` as well.
-const EncodeError = Allocator.Error || error{MaxRecursion};
+const SignatureError = Allocator.Error || error{MaxRecursion};
 
 const LocalId = usize;
 
-// TODO: Rename "encode*" to "fingerprint*"
-
 /// Returns `null` if recursion limit was reached.
-pub fn encodeTerm(
+pub fn generateTermSignature(
     term: *const Term,
     allocator: Allocator,
     decls: []const Decl,
-) Allocator.Error!?TermTree {
-    var fingerprint = TermTree.init(allocator);
-
+) Allocator.Error!?Signature {
     // TODO: Reuse local store
     // TODO: Don't use same allocator
     var locals = LocalStore.init(allocator);
     defer locals.deinit();
 
-    fingerprint.insertTerm(term, decls, &locals) catch |err|
+    var sig = Signature.init(allocator);
+
+    sig.appendTerm(term, decls, &locals) catch |err|
         switch (err) {
             error.MaxRecursion => return null,
             else => |other_err| return other_err,
         };
 
-    return fingerprint;
+    return sig;
 }
 
-// TODO: Rename
-pub const TermTree = struct {
+// TODO: Hash signature data?
+pub const Signature = struct {
     const Self = @This();
 
     // TODO: Rename `nodes` and `Node`
@@ -96,12 +94,12 @@ pub const TermTree = struct {
     }
 
     /// Traverses terms by BFS.
-    fn insertTerm(
+    fn appendTerm(
         self: *Self,
         term: *const Term,
         decls: []const Decl,
         locals: *LocalStore,
-    ) EncodeError!void {
+    ) SignatureError!void {
         var queue = term_queue.Queue.init(self.allocator, {});
         defer queue.deinit();
 
@@ -112,7 +110,7 @@ pub const TermTree = struct {
 
         var i: usize = 0;
         while (queue.removeOrNull()) |entry| : (i += 1) {
-            if (i >= MAX_ENCODE_ITERATION) {
+            if (i >= MAX_TRAVERSAL_ITERATION) {
                 return error.MaxRecursion;
             }
 
@@ -125,12 +123,12 @@ pub const TermTree = struct {
                     const id = locals.get(param) orelse {
                         unreachable; // TODO: Panic
                     };
-                    try self.insertItem(entry.index, .{ .local = id });
+                    try self.appendItem(entry.index, .{ .local = id });
                 },
 
                 .abstraction => |abstr| {
                     const id = try locals.push(ParamRef.from(abstr.parameter));
-                    try self.insertItem(entry.index, .{ .abstraction = id });
+                    try self.appendItem(entry.index, .{ .abstraction = id });
                     try queue.add(.{
                         .term = abstr.body,
                         .index = 2 * entry.index + 1,
@@ -138,7 +136,7 @@ pub const TermTree = struct {
                 },
 
                 .application => |appl| {
-                    try self.insertItem(entry.index, .{ .application = {} });
+                    try self.appendItem(entry.index, .{ .application = {} });
                     try queue.add(.{
                         .term = appl.function,
                         .index = 2 * entry.index + 1,
@@ -152,7 +150,7 @@ pub const TermTree = struct {
         }
     }
 
-    fn insertItem(self: *Self, index: usize, item: Item) !void {
+    fn appendItem(self: *Self, index: usize, item: Item) !void {
         if (index > self.items.items.len) {
             try self.items.append(self.allocator, .{
                 .empty = index - self.items.items.len,
@@ -179,9 +177,9 @@ const term_queue = struct {
 fn expandGlobal(
     initial_term: *const Term,
     decls: []const Decl,
-) EncodeError!*const Term {
+) SignatureError!*const Term {
     var term = initial_term;
-    for (0..MAX_GLOBAL_EXPAND) |_| {
+    for (0..MAX_EXPAND_ITERATION) |_| {
         term = switch (term.value) {
             .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
             .global => |global| decls[global].term,

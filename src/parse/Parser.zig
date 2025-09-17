@@ -130,7 +130,7 @@ fn expectDeclaration(self: *Self, term_allocator: Allocator) Allocator.Error!?De
     return Decl{
         .name = name,
         .term = term,
-        .fingerprint = undefined,
+        .signature = undefined,
     };
 }
 
