@@ -16,7 +16,7 @@ const Reporter = @import("Reporter.zig");
 const MAX_REDUCTION_RECURSION = 2_000;
 const MAX_GLOBAL_EXPAND = 200;
 
-const ReductionError = Allocator.Error || error{MaxRecursion};
+const ReductionError = Allocator.Error || error{DepthCutoff};
 
 /// Requires that `Param`, `Input`, and `Output` are all pointers.
 /// Requires that `Input` and `Output` are non-`const` (for consistency).
@@ -61,7 +61,7 @@ pub fn reduceTerm(
         term_allocator,
     ) catch |err|
         switch (err) {
-            error.MaxRecursion => {
+            error.DepthCutoff => {
                 // TODO: Handle this
                 const span = term.span orelse {
                     std.debug.panic("unimplemented", .{});
@@ -87,7 +87,7 @@ fn reduceTermInner(
     term_allocator: Allocator,
 ) ReductionError!PointerMaybeConst(@TypeOf(term), *Term, *Term) {
     if (depth >= MAX_REDUCTION_RECURSION) {
-        return error.MaxRecursion;
+        return error.DepthCutoff;
     }
     return switch (term.value) {
         .global, .abstraction => term,
@@ -137,9 +137,9 @@ fn reduceApplication(
 
     switch (product.value) {
         .global, .abstraction, .application => {},
-        .group => std.debug.panic("group should have been flattened already", .{}),
         .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
         .local => std.debug.panic("local binding should have been beta-reduced already", .{}),
+        .group => std.debug.panic("group should have been flattened already", .{}),
     }
 
     return reduceTermInner(
@@ -189,7 +189,7 @@ fn expandGlobal(
             },
         };
     }
-    return error.MaxRecursion;
+    return error.DepthCutoff;
 }
 
 /// Returns `null` if no descendant term was substituted; no need to deep-copy.

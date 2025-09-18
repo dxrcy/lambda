@@ -17,18 +17,15 @@ const MAX_EXPAND_ITERATION = 200;
 /// To ensure hasher is always deterministic.
 const HASHER_SEED = 0;
 
-// TODO: Rename `MaxRecursion` (iteration like recursion).
-// Update `reduction.ReductionError` as well.
-const HashingError = Allocator.Error || error{MaxRecursion};
 const Hasher = std.hash.Wyhash;
+const SigningError = Allocator.Error || error{DepthCutoff};
 
 pub const Signer = struct {
     const Self = @This();
 
-    // TODO: Rename to `prev_index`
-    count: usize,
+    prev_index: usize,
     params: ParamTree,
-    queue: term_queue.Queue,
+    queue: NodeQueue.Queue,
 
     const Node = union(enum) {
         abstraction: usize,
@@ -39,9 +36,9 @@ pub const Signer = struct {
 
     pub fn init(allocator: Allocator) Self {
         return Self{
-            .count = 0,
+            .prev_index = 0,
             .params = ParamTree.init(allocator),
-            .queue = term_queue.Queue.init(allocator, {}),
+            .queue = NodeQueue.Queue.init(allocator, {}),
         };
     }
 
@@ -51,7 +48,7 @@ pub const Signer = struct {
     }
 
     fn reset(self: *Self) void {
-        self.count = 0;
+        self.prev_index = 0;
         self.params.clear();
         self.queue.clearRetainingCapacity();
     }
@@ -63,13 +60,11 @@ pub const Signer = struct {
         decls: []const Decl,
     ) Allocator.Error!?u64 {
         var hasher = Hasher.init(HASHER_SEED);
-
         self.hashTermRecursive(&hasher, term, decls) catch |err|
             switch (err) {
-                error.MaxRecursion => return null,
+                error.DepthCutoff => return null,
                 else => |other_err| return other_err,
             };
-
         return hasher.final();
     }
 
@@ -79,7 +74,7 @@ pub const Signer = struct {
         hasher: anytype,
         term: *const Term,
         decls: []const Decl,
-    ) HashingError!void {
+    ) SigningError!void {
         self.reset();
 
         try self.queue.add(.{
@@ -87,23 +82,26 @@ pub const Signer = struct {
             .index = 0,
         });
 
+        // FIXME: Use index as queue priority to ensure correct order
+
         var i: usize = 0;
         while (self.queue.removeOrNull()) |entry| : (i += 1) {
             if (i >= MAX_TRAVERSAL_ITERATION) {
-                return error.MaxRecursion;
+                return error.DepthCutoff;
             }
 
             const expanded = try expandGlobal(entry.term, decls);
             switch (expanded.value) {
-                // TODO: Panic
-                .unresolved, .global, .group => unreachable,
+                .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
+                .global => std.debug.panic("global should have been expanded already", .{}),
+                .group => std.debug.panic("group should have been flattened already", .{}),
 
                 .local => |param| {
                     const param_index = self.params.getAncestorIndex(
                         entry.index,
                         param,
                     ) orelse {
-                        unreachable; // TODO: Panic
+                        std.debug.panic("parameter should exist in tree matching local binding", .{});
                     };
 
                     try self.hashNode(hasher, entry.index, .{
@@ -149,36 +147,22 @@ pub const Signer = struct {
     }
 
     fn hashNode(self: *Self, hasher: anytype, index: usize, node: Node) !void {
-        // TODO: assert index > count ?
+        // TODO: assert index > prev_index
         assert(std.meta.activeTag(node) != .empty);
 
-        if (index > self.count + 1) {
-            std.hash.autoHash(hasher, .{ .empty = index - self.count - 1 });
+        if (index > self.prev_index + 1) {
+            std.hash.autoHash(hasher, .{ .empty = index - self.prev_index - 1 });
         }
 
         std.hash.autoHash(hasher, node);
-        self.count = index;
+        self.prev_index = index;
     }
 };
 
-const term_queue = struct {
-    pub const Item = struct {
-        term: *const Term,
-        index: usize,
-    };
-
-    const Queue = std.PriorityQueue(Item, void, compare);
-
-    fn compare(_: void, _: Item, _: Item) std.math.Order {
-        return std.math.Order.eq;
-    }
-};
-
-// TODO: Add iteration limit
 fn expandGlobal(
     initial_term: *const Term,
     decls: []const Decl,
-) HashingError!*const Term {
+) SigningError!*const Term {
     var term = initial_term;
     for (0..MAX_EXPAND_ITERATION) |_| {
         term = switch (term.value) {
@@ -191,7 +175,7 @@ fn expandGlobal(
             },
         };
     }
-    return error.MaxRecursion;
+    return error.DepthCutoff;
 }
 
 pub const ParamTree = struct {
@@ -271,5 +255,18 @@ pub const ParamTree = struct {
         }
 
         return null;
+    }
+};
+
+const NodeQueue = struct {
+    pub const Item = struct {
+        term: *const Term,
+        index: usize,
+    };
+
+    pub const Queue = std.PriorityQueue(Item, void, compare);
+
+    fn compare(_: void, _: Item, _: Item) std.math.Order {
+        return std.math.Order.eq;
     }
 };
