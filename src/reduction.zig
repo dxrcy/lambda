@@ -90,7 +90,22 @@ fn reduceTermInner(
         return error.DepthCutoff;
     }
     return switch (term.value) {
-        .global, .abstraction => term,
+        .local, .global => term,
+        .abstraction => |abstr| {
+            // TODO: `reduceTermInner` should return `null` if nothing changed
+            const body = try reduceTermInner(
+                abstr.body,
+                depth + 1,
+                decls,
+                term_allocator,
+            );
+            return try Term.create(null, .{
+                .abstraction = .{
+                    .parameter = abstr.parameter,
+                    .body = body,
+                },
+            }, term_allocator);
+        },
         // Flatten group
         .group => |inner| try reduceTermInner(
             inner,
@@ -103,9 +118,8 @@ fn reduceTermInner(
             depth + 1,
             decls,
             term_allocator,
-        ),
+        ) orelse term,
         .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
-        .local => std.debug.panic("local binding should have been beta-reduced already", .{}),
     };
 }
 
@@ -114,15 +128,21 @@ fn reduceApplication(
     depth: usize,
     decls: []const Decl,
     term_allocator: Allocator,
-) ReductionError!PointerMaybeConst(@TypeOf(appl), *Term.Appl, *Term) {
-    switch (appl.function.value) {
-        .group, .global, .abstraction, .application => {},
-        .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
-        .local => std.debug.panic("local binding should have been beta-reduced already", .{}),
+) ReductionError!?PointerMaybeConst(@TypeOf(appl), *Term.Appl, *Term) {
+    const function_term = try reduceTermInner(
+        appl.function,
+        depth + 1,
+        decls,
+        term_allocator,
+    );
+
+    switch (function_term.value) {
+        .global, .abstraction => {},
+        else => return null,
     }
 
     const function = try expandGlobal(
-        appl.function,
+        function_term,
         depth,
         decls,
         term_allocator,
