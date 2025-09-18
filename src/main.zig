@@ -11,7 +11,7 @@ const debug = @import("debug.zig");
 const output = @import("output.zig");
 const Reporter = @import("Reporter.zig");
 const utils = @import("utils.zig");
-const signature = @import("signature.zig");
+const Signer = @import("signature.zig").Signer;
 
 const Parser = @import("parse/Parser.zig");
 const Statements = @import("parse/Statements.zig");
@@ -156,6 +156,9 @@ pub fn main() !u8 {
     if (reporter.checkFatal()) |code|
         return code;
 
+    var signer = Signer.init(allocator);
+    defer signer.deinit();
+
     // Reduce *all nested* globals (eg. `1 := S 0` is applied)
     // So reduced queries can match decl signature
     for (decls.items) |*decl| {
@@ -170,11 +173,7 @@ pub fn main() !u8 {
         ) orelse decl.term;
 
         // Sets to `null` on fail (iteration limit)
-        decl.signature = try signature.generateTermSignature(
-            reduced,
-            allocator,
-            decls.items,
-        );
+        decl.signature = try signer.sign(reduced, decls.items);
     }
 
     // debug.printDeclarations(decls.items, &text);
@@ -253,11 +252,7 @@ pub fn main() !u8 {
                     debug.printTermInline(result, decls.items, &text);
                     output.print("\n", .{});
 
-                    if (try signature.generateTermSignature(
-                        result,
-                        allocator,
-                        decls.items,
-                    )) |sig| {
+                    if (try signer.sign(result, decls.items)) |sig| {
                         for (decls.items, 0..) |decl, i| {
                             const decl_sig = decl.signature orelse
                                 continue;
@@ -297,11 +292,7 @@ pub fn main() !u8 {
                     &reporter,
                 ) orelse continue;
 
-                const sig_opt = try signature.generateTermSignature(
-                    result,
-                    allocator,
-                    decls.items,
-                );
+                const sig_opt = try signer.sign(result, decls.items);
 
                 output.print("* term......... ", .{});
                 debug.printTermInline(term, decls.items, &text);
@@ -317,8 +308,7 @@ pub fn main() !u8 {
 
                 output.print("* signature.... ", .{});
                 if (sig_opt) |sig| {
-                    output.print("* hash......... ", .{});
-                    output.print("0x{x:08}\n", .{sig});
+                    output.print("0x{x:08}", .{sig});
                 } else {
                     output.print("#[IMPOSSIBLE]#", .{});
                 }

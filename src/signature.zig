@@ -14,113 +14,81 @@ const Reporter = @import("Reporter.zig");
 
 const MAX_TRAVERSAL_ITERATION = 200;
 const MAX_EXPAND_ITERATION = 200;
+/// To ensure hasher is always deterministic.
+const HASHER_SEED = 0;
 
 // TODO: Rename `MaxRecursion` (iteration like recursion).
 // Update `reduction.ReductionError` as well.
-const SignatureError = Allocator.Error || error{MaxRecursion};
+const HashingError = Allocator.Error || error{MaxRecursion};
+const Hasher = std.hash.Wyhash;
 
-/// Returns `null` if recursion limit was reached.
-pub fn generateTermSignature(
-    term: *const Term,
-    allocator: Allocator,
-    decls: []const Decl,
-) Allocator.Error!?u64 {
-    // TODO: Reuse local store
-    // TODO: Don't use same allocator
-    var params = ParamTree.init(allocator);
-    defer params.deinit();
-
-    // TODO: Reuse nodes queue
-    var queue = term_queue.Queue.init(allocator, {});
-    defer queue.deinit();
-
-    var sig = Signature.init(allocator);
-
-    sig.appendTerm(term, decls, &params, &queue) catch |err|
-        switch (err) {
-            error.MaxRecursion => return null,
-            else => |other_err| return other_err,
-        };
-
-    var hasher = std.hash.Wyhash.init(0);
-    for (sig.nodes.items) |node| {
-        std.hash.autoHash(&hasher, node);
-    }
-
-    sig.deinit();
-
-    return hasher.final();
-}
-
-// TODO: Rename
-pub const Signature = struct {
+pub const Signer = struct {
     const Self = @This();
 
-    nodes: ArrayList(Node),
+    // TODO: Rename to `prev_index`
     count: usize,
-    allocator: Allocator,
+    params: ParamTree,
+    queue: term_queue.Queue,
 
     const Node = union(enum) {
         abstraction: usize,
         application: void,
         local: usize,
         empty: usize,
-
-        pub fn equals(left: @This(), right: @This()) bool {
-            if (std.meta.activeTag(left) != std.meta.activeTag(right)) {
-                return false;
-            }
-            return switch (left) {
-                .abstraction => |abstr| abstr == right.abstraction,
-                .application => true,
-                .local => |local| local == right.local,
-                .empty => |length| length == right.empty,
-            };
-        }
     };
 
-    fn init(allocator: Allocator) Self {
+    pub fn init(allocator: Allocator) Self {
         return Self{
-            .nodes = ArrayList(Node).empty,
             .count = 0,
-            .allocator = allocator,
+            .params = ParamTree.init(allocator),
+            .queue = term_queue.Queue.init(allocator, {}),
         };
     }
 
     pub fn deinit(self: *Self) void {
-        self.nodes.deinit(self.allocator);
+        self.params.deinit();
+        self.queue.deinit();
     }
 
-    pub fn equals(left: *const Self, right: *const Self) bool {
-        if (left.nodes.items.len != right.nodes.items.len) {
-            return false;
-        }
-        for (left.nodes.items, right.nodes.items) |left_item, right_item| {
-            if (!left_item.equals(right_item)) {
-                return false;
-            }
-        }
-        return true;
+    fn reset(self: *Self) void {
+        self.count = 0;
+        self.params.clear();
+        self.queue.clearRetainingCapacity();
     }
 
-    /// Traverses terms by BFS.
-    fn appendTerm(
+    /// Returns `null` if iteration limit was reached.
+    pub fn sign(
         self: *Self,
         term: *const Term,
         decls: []const Decl,
-        params: *ParamTree,
-        queue: *term_queue.Queue,
-    ) SignatureError!void {
-        params.clear();
-        queue.clearRetainingCapacity();
+    ) Allocator.Error!?u64 {
+        var hasher = Hasher.init(HASHER_SEED);
 
-        try queue.add(.{
+        self.hashTermRecursive(&hasher, term, decls) catch |err|
+            switch (err) {
+                error.MaxRecursion => return null,
+                else => |other_err| return other_err,
+            };
+
+        return hasher.final();
+    }
+
+    /// Traverses terms by BFS.
+    fn hashTermRecursive(
+        self: *Self,
+        hasher: anytype,
+        term: *const Term,
+        decls: []const Decl,
+    ) HashingError!void {
+        self.reset();
+
+        try self.queue.add(.{
             .term = term,
             .index = 0,
         });
 
         var i: usize = 0;
-        while (queue.removeOrNull()) |entry| : (i += 1) {
+        while (self.queue.removeOrNull()) |entry| : (i += 1) {
             if (i >= MAX_TRAVERSAL_ITERATION) {
                 return error.MaxRecursion;
             }
@@ -131,40 +99,47 @@ pub const Signature = struct {
                 .unresolved, .global, .group => unreachable,
 
                 .local => |param| {
-                    const param_index = params.getAncestorIndex(
+                    const param_index = self.params.getAncestorIndex(
                         entry.index,
                         param,
                     ) orelse {
                         unreachable; // TODO: Panic
                     };
-                    try self.appendNode(entry.index, .{
+
+                    try self.hashNode(hasher, entry.index, .{
                         .local = param_index,
                     });
                 },
 
                 .abstraction => |abstr| {
-                    try params.insert(
+                    try self.params.insert(
                         entry.index,
                         ParamRef.from(abstr.parameter),
                     );
 
-                    try self.appendNode(entry.index, .{
+                    try self.hashNode(hasher, entry.index, .{
                         .abstraction = entry.index,
                     });
 
-                    try queue.add(.{
+                    try self.queue.add(.{
                         .term = abstr.body,
                         .index = entry.index * 2 + 1,
                     });
                 },
 
                 .application => |appl| {
-                    try self.appendNode(entry.index, .{ .application = {} });
-                    try queue.add(.{
+                    try self.hashNode(
+                        hasher,
+                        entry.index,
+                        .{ .application = {} },
+                    );
+
+                    try self.queue.add(.{
                         .term = appl.function,
                         .index = entry.index * 2 + 1,
                     });
-                    try queue.add(.{
+
+                    try self.queue.add(.{
                         .term = appl.argument,
                         .index = entry.index * 2 + 2,
                     });
@@ -173,14 +148,15 @@ pub const Signature = struct {
         }
     }
 
-    fn appendNode(self: *Self, index: usize, node: Node) !void {
+    fn hashNode(self: *Self, hasher: anytype, index: usize, node: Node) !void {
+        // TODO: assert index > count ?
         assert(std.meta.activeTag(node) != .empty);
+
         if (index > self.count + 1) {
-            try self.nodes.append(self.allocator, .{
-                .empty = index - self.count - 1,
-            });
+            std.hash.autoHash(hasher, .{ .empty = index - self.count - 1 });
         }
-        try self.nodes.append(self.allocator, node);
+
+        std.hash.autoHash(hasher, node);
         self.count = index;
     }
 };
@@ -202,7 +178,7 @@ const term_queue = struct {
 fn expandGlobal(
     initial_term: *const Term,
     decls: []const Decl,
-) SignatureError!*const Term {
+) HashingError!*const Term {
     var term = initial_term;
     for (0..MAX_EXPAND_ITERATION) |_| {
         term = switch (term.value) {

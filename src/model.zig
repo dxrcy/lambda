@@ -5,8 +5,6 @@ const TextStore = @import("text/TextStore.zig");
 const Source = TextStore.Source;
 const SourceSpan = TextStore.SourceSpan;
 
-const Signature = @import("signature.zig").Signature;
-
 pub const DeclIndex = usize;
 
 pub const Decl = struct {
