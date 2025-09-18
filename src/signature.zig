@@ -19,8 +19,6 @@ const MAX_EXPAND_ITERATION = 200;
 // Update `reduction.ReductionError` as well.
 const SignatureError = Allocator.Error || error{MaxRecursion};
 
-const LocalId = usize;
-
 /// Returns `null` if recursion limit was reached.
 pub fn generateTermSignature(
     term: *const Term,
@@ -29,12 +27,12 @@ pub fn generateTermSignature(
 ) Allocator.Error!?Signature {
     // TODO: Reuse local store
     // TODO: Don't use same allocator
-    var locals = LocalStore.init(allocator);
-    defer locals.deinit();
+    var params = ParamTree.init(allocator);
+    defer params.deinit();
 
     var sig = Signature.init(allocator);
 
-    sig.appendTerm(term, decls, &locals) catch |err|
+    sig.appendTerm(term, decls, &params) catch |err|
         switch (err) {
             error.MaxRecursion => return null,
             else => |other_err| return other_err,
@@ -52,9 +50,9 @@ pub const Signature = struct {
     allocator: Allocator,
 
     const Node = union(enum) {
-        abstraction: LocalId,
+        abstraction: usize,
         application: void,
-        local: LocalId,
+        local: usize,
         empty: usize,
 
         pub fn equals(left: @This(), right: @This()) bool {
@@ -99,8 +97,9 @@ pub const Signature = struct {
         self: *Self,
         term: *const Term,
         decls: []const Decl,
-        locals: *LocalStore,
+        params: *ParamTree,
     ) SignatureError!void {
+        // TODO: Caller passes in
         var queue = term_queue.Queue.init(self.allocator, {});
         defer queue.deinit();
 
@@ -121,15 +120,27 @@ pub const Signature = struct {
                 .unresolved, .global, .group => unreachable,
 
                 .local => |param| {
-                    const id = locals.get(param) orelse {
+                    const param_index = params.getAncestorIndex(
+                        entry.index,
+                        param,
+                    ) orelse {
                         unreachable; // TODO: Panic
                     };
-                    try self.appendNode(entry.index, .{ .local = id });
+                    try self.appendNode(entry.index, .{
+                        .local = param_index,
+                    });
                 },
 
                 .abstraction => |abstr| {
-                    const id = try locals.push(ParamRef.from(abstr.parameter));
-                    try self.appendNode(entry.index, .{ .abstraction = id });
+                    try params.insert(
+                        entry.index,
+                        ParamRef.from(abstr.parameter),
+                    );
+
+                    try self.appendNode(entry.index, .{
+                        .abstraction = entry.index,
+                    });
+
                     try queue.add(.{
                         .term = abstr.body,
                         .index = entry.index * 2 + 1,
@@ -196,43 +207,82 @@ fn expandGlobal(
     return error.MaxRecursion;
 }
 
-pub const LocalStore = struct {
+pub const ParamTree = struct {
     const Self = @This();
 
-    entries: ArrayList(ParamRef),
+    nodes: ArrayList(Node),
     allocator: Allocator,
 
+    const Node = union(enum) {
+        empty: void,
+        param: struct {
+            ref: ParamRef,
+            index: usize,
+        },
+    };
+
     pub fn init(allocator: Allocator) Self {
-        return .{
-            .entries = ArrayList(ParamRef).empty,
+        return Self{
+            .nodes = ArrayList(Node).empty,
             .allocator = allocator,
         };
     }
 
     pub fn deinit(self: *Self) void {
-        self.entries.deinit(self.allocator);
+        self.nodes.deinit(self.allocator);
     }
 
-    pub fn isEmpty(self: *const Self) bool {
-        return self.entries.items.len == 0;
+    pub fn clear(self: *Self) void {
+        self.nodes.clearRetainingCapacity();
     }
 
-    pub fn push(self: *Self, param: ParamRef) Allocator.Error!usize {
-        const id = self.entries.items.len;
-        try self.entries.append(self.allocator, param);
-        return id;
+    pub fn insert(
+        self: *Self,
+        index: usize,
+        param: ParamRef,
+    ) Allocator.Error!void {
+        if (index >= self.nodes.items.len) {
+            try self.nodes.appendNTimes(
+                self.allocator,
+                .{ .empty = {} },
+                index - self.nodes.items.len + 1,
+            );
+        }
+
+        assert(self.nodes.items.len >= index + 1);
+        assert(std.meta.activeTag(self.nodes.items[index]) == .empty);
+
+        self.nodes.items[index] = .{
+            .param = .{
+                .ref = param,
+                .index = index,
+            },
+        };
     }
 
-    pub fn pop(self: *Self) void {
-        _ = self.entries.pop();
-    }
+    pub fn getAncestorIndex(
+        self: *const Self,
+        child: usize,
+        target: ParamRef,
+    ) ?usize {
+        var parent = child;
+        while (parent != 0) {
+            parent = (parent - 1) / 2;
 
-    pub fn get(self: *Self, param: ParamRef) ?LocalId {
-        for (self.entries.items, 0..) |entry, i| {
-            if (entry.equals(param)) {
-                return i;
+            // Application nodes between a local and its abstraction are not
+            // added to tree
+            if (parent >= self.nodes.items.len) {
+                continue;
+            }
+
+            switch (self.nodes.items[parent]) {
+                .empty => {},
+                .param => |*param| if (param.ref.equals(target)) {
+                    return parent;
+                },
             }
         }
+
         return null;
     }
 };
