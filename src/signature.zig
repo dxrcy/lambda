@@ -24,7 +24,7 @@ pub fn generateTermSignature(
     term: *const Term,
     allocator: Allocator,
     decls: []const Decl,
-) Allocator.Error!?Signature {
+) Allocator.Error!?u64 {
     // TODO: Reuse local store
     // TODO: Don't use same allocator
     var params = ParamTree.init(allocator);
@@ -42,10 +42,17 @@ pub fn generateTermSignature(
             else => |other_err| return other_err,
         };
 
-    return sig;
+    var hasher = std.hash.Wyhash.init(0);
+    for (sig.nodes.items) |node| {
+        std.hash.autoHash(&hasher, node);
+    }
+
+    sig.deinit();
+
+    return hasher.final();
 }
 
-// TODO: Hash signature data?
+// TODO: Rename
 pub const Signature = struct {
     const Self = @This();
 

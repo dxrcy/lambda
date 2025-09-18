@@ -83,8 +83,6 @@ pub fn main() !u8 {
     }
 
     var decls = ArrayList(Decl).empty;
-    // `signature`s of items deinitialized later, in case we exit before they
-    // are initialized
     defer decls.deinit(allocator);
 
     var queries = ArrayList(Query).empty;
@@ -178,11 +176,6 @@ pub fn main() !u8 {
             decls.items,
         );
     }
-    defer for (decls.items) |*decl| {
-        if (decl.signature) |*sig| {
-            sig.deinit();
-        }
-    };
 
     // debug.printDeclarations(decls.items, &text);
 
@@ -264,12 +257,12 @@ pub fn main() !u8 {
                         result,
                         allocator,
                         decls.items,
-                    )) |*sig| {
+                    )) |sig| {
                         for (decls.items, 0..) |decl, i| {
                             const decl_sig = decl.signature orelse
                                 continue;
 
-                            if (sig.equals(&decl_sig) and
+                            if (sig == decl_sig and
                                 !isDeclIndex(i, query.term) and
                                 !isDeclIndex(i, result))
                             {
@@ -304,7 +297,7 @@ pub fn main() !u8 {
                     &reporter,
                 ) orelse continue;
 
-                var sig_opt = try signature.generateTermSignature(
+                const sig_opt = try signature.generateTermSignature(
                     result,
                     allocator,
                     decls.items,
@@ -323,9 +316,9 @@ pub fn main() !u8 {
                 output.print("\n", .{});
 
                 output.print("* signature.... ", .{});
-                if (sig_opt) |*sig| {
-                    defer sig.deinit();
-                    debug.printSignature(sig);
+                if (sig_opt) |sig| {
+                    output.print("* hash......... ", .{});
+                    output.print("0x{x:08}\n", .{sig});
                 } else {
                     output.print("#[IMPOSSIBLE]#", .{});
                 }
