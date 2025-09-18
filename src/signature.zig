@@ -53,6 +53,10 @@ pub const Signer = struct {
         self.queue.clearRetainingCapacity();
     }
 
+    /// Term should already be **greedily** reduced! This function performs no
+    /// reduction.
+    /// Unreduced or lazily-reduced terms may not produce the same signature
+    /// their reduced form does, due to beta-reduction of inner terms.
     /// Returns `null` if iteration limit was reached.
     pub fn sign(
         self: *Self,
