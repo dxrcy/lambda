@@ -9,7 +9,6 @@ const Query = model.Query;
 const Term = model.Term;
 
 const output = @import("output.zig");
-const Signature = @import("signature.zig").Signature;
 
 const MAX_RECURSION = 256;
 
@@ -37,19 +36,12 @@ pub fn printQueries(queries: []const Query) void {
     }
 }
 
-pub fn printSignature(signature: *const Signature) void {
-    for (signature.nodes.items, 0..) |item, i| {
-        if (i > 0) {
-            output.print("-", .{});
-        }
-        switch (item) {
-            .abstraction => |id| output.print("A{x}", .{id}),
-            .application => output.print("P", .{}),
-            .local => |id| output.print("L{x}", .{id}),
-            .empty => |length| output.print("N{x}", .{length}),
-        }
+pub fn printSignature(signature: ?u64) void {
+    if (signature) |sig| {
+        output.print("0x{x:08}", .{sig});
+    } else {
+        output.print(WARNING_CUTOFF, .{});
     }
-    output.print("\n", .{});
 }
 
 pub fn printTermInline(

@@ -292,7 +292,7 @@ pub fn main() !u8 {
                     &reporter,
                 ) orelse continue;
 
-                const sig_opt = try signer.sign(result, decls.items);
+                const sig = try signer.sign(result, decls.items);
 
                 output.print("* term......... ", .{});
                 debug.printTermInline(term, decls.items, &text);
@@ -307,11 +307,7 @@ pub fn main() !u8 {
                 output.print("\n", .{});
 
                 output.print("* signature.... ", .{});
-                if (sig_opt) |sig| {
-                    output.print("0x{x:08}", .{sig});
-                } else {
-                    output.print("#[IMPOSSIBLE]#", .{});
-                }
+                debug.printSignature(sig);
                 output.print("\n", .{});
 
                 output.print("\n", .{});
