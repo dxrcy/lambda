@@ -82,8 +82,6 @@ pub const Signer = struct {
             .index = 0,
         });
 
-        // FIXME: Use index as queue priority to ensure correct order
-
         var i: usize = 0;
         while (self.queue.removeOrNull()) |entry| : (i += 1) {
             if (i >= MAX_TRAVERSAL_ITERATION) {
@@ -147,7 +145,7 @@ pub const Signer = struct {
     }
 
     fn hashNode(self: *Self, hasher: anytype, index: usize, node: Node) !void {
-        // TODO: assert index > prev_index
+        assert(index >= self.prev_index);
         assert(std.meta.activeTag(node) != .empty);
 
         if (index > self.prev_index + 1) {
@@ -266,7 +264,7 @@ const NodeQueue = struct {
 
     pub const Queue = std.PriorityQueue(Item, void, compare);
 
-    fn compare(_: void, _: Item, _: Item) std.math.Order {
-        return std.math.Order.eq;
+    fn compare(_: void, a: Item, b: Item) std.math.Order {
+        return std.math.order(a.index, b.index);
     }
 };
