@@ -1,6 +1,8 @@
 T := \x. \y. x
 F := \x. \y. y
 
+I := \x. x
+
 & := \p. \q. p q p
 | := \p. \q. p p q
 ~ := \p. p F T
