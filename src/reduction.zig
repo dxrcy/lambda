@@ -109,6 +109,9 @@ fn reduceTermInner(
             );
         },
         .abstraction => |abstr| {
+            if (mode == .lazy) {
+                return term;
+            }
             // TODO: `reduceTermInner` should return `null` if nothing changed
             const body = try reduceTermInner(
                 abstr.body,
@@ -139,6 +142,9 @@ fn reduceTermInner(
             decls,
             term_allocator,
         ) orelse {
+            if (mode == .lazy) {
+                return term;
+            }
             // TODO: `reduceTermInner` should return `null` if nothing changed
             const argument = try reduceTermInner(
                 appl.argument,
