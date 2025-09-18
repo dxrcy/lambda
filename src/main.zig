@@ -281,6 +281,8 @@ pub fn main() !u8 {
                     continue;
                 }
 
+                _ = try signer.sign(term, decls.items);
+
                 const expanded = reduction.expandGlobalOnce(term, decls.items);
 
                 // Reduce *expanded* term. This is different to queries

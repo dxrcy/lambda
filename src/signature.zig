@@ -80,6 +80,7 @@ pub const Signer = struct {
         try self.queue.add(.{
             .term = term,
             .index = 0,
+            .parent = null,
         });
 
         var i: usize = 0;
@@ -89,6 +90,39 @@ pub const Signer = struct {
             }
 
             const expanded = try expandGlobal(entry.term, decls);
+
+            if (entry.parent) |parent| {
+                switch (parent.node) {
+                    .local, .empty => unreachable,
+                    .abstraction => std.debug.print("A", .{}),
+                    .application => std.debug.print("P", .{}),
+                }
+                std.debug.print("{}", .{parent.index});
+                std.debug.print(" -> ", .{});
+                switch (expanded.value) {
+                    .unresolved, .global, .group => unreachable,
+                    .local => std.debug.print("L", .{}),
+                    .abstraction => std.debug.print("A", .{}),
+                    .application => std.debug.print("P", .{}),
+                }
+                std.debug.print("{}", .{entry.index});
+                std.debug.print("\n", .{});
+
+                switch (expanded.value) {
+                    .local => |param| {
+                        const param_index = self.params.getAncestorIndex(
+                            entry.index,
+                            param,
+                        ) orelse unreachable;
+                        std.debug.print(
+                            "L{} -> A{}\n",
+                            .{ entry.index, param_index },
+                        );
+                    },
+                    else => {},
+                }
+            }
+
             switch (expanded.value) {
                 .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
                 .global => std.debug.panic("global should have been expanded already", .{}),
@@ -117,9 +151,15 @@ pub const Signer = struct {
                         .abstraction = entry.index,
                     });
 
+                    const parent = NodeQueue.Item.Parent{
+                        .node = .{ .abstraction = entry.index },
+                        .index = entry.index,
+                    };
+
                     try self.queue.add(.{
                         .term = abstr.body,
                         .index = entry.index * 2 + 1,
+                        .parent = parent,
                     });
                 },
 
@@ -130,14 +170,21 @@ pub const Signer = struct {
                         .{ .application = {} },
                     );
 
+                    const parent = NodeQueue.Item.Parent{
+                        .node = .{ .application = {} },
+                        .index = entry.index,
+                    };
+
                     try self.queue.add(.{
                         .term = appl.function,
                         .index = entry.index * 2 + 1,
+                        .parent = parent,
                     });
 
                     try self.queue.add(.{
                         .term = appl.argument,
                         .index = entry.index * 2 + 2,
+                        .parent = parent,
                     });
                 },
             }
@@ -260,6 +307,12 @@ const NodeQueue = struct {
     pub const Item = struct {
         term: *const Term,
         index: usize,
+        parent: ?Parent,
+
+        const Parent = struct {
+            node: Signer.Node,
+            index: usize,
+        };
     };
 
     pub const Queue = std.PriorityQueue(Item, void, compare);
