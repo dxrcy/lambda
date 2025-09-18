@@ -266,12 +266,12 @@ pub fn main() !u8 {
                         &reporter,
                     ) orelse continue;
 
-                    if (try signer.sign(reduced_greedy, decls.items)) |sig| {
+                    if (try signer.sign(reduced_greedy, decls.items)) |signature| {
                         for (decls.items, 0..) |decl, i| {
-                            const decl_sig = decl.signature orelse
+                            const decl_signature = decl.signature orelse
                                 continue;
 
-                            if (sig == decl_sig and
+                            if (signature == decl_signature and
                                 !isDeclIndex(i, query.term) and
                                 !isDeclIndex(i, reduced_lazy))
                             {
@@ -315,8 +315,7 @@ pub fn main() !u8 {
                     &reporter,
                 ) orelse continue;
 
-                // TODO: Rename to `signature` (and elsewhere)
-                const sig = try signer.sign(reduced_greedy, decls.items);
+                const signature = try signer.sign(reduced_greedy, decls.items);
 
                 output.print("* term.............. ", .{});
                 debug.printTermInline(term, decls.items, &text);
@@ -335,7 +334,7 @@ pub fn main() !u8 {
                 output.print("\n", .{});
 
                 output.print("* signature......... ", .{});
-                debug.printSignature(sig);
+                debug.printSignature(signature);
                 output.print("\n", .{});
 
                 output.print("\n", .{});

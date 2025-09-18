@@ -36,9 +36,9 @@ pub fn printQueries(queries: []const Query) void {
     }
 }
 
-pub fn printSignature(signature: ?u64) void {
-    if (signature) |sig| {
-        output.print("0x{x:08}", .{sig});
+pub fn printSignature(signature_opt: ?u64) void {
+    if (signature_opt) |signature| {
+        output.print("0x{x:08}", .{signature});
     } else {
         output.print(WARNING_CUTOFF, .{});
     }
