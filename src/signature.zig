@@ -30,9 +30,13 @@ pub fn generateTermSignature(
     var params = ParamTree.init(allocator);
     defer params.deinit();
 
+    // TODO: Reuse nodes queue
+    var queue = term_queue.Queue.init(allocator, {});
+    defer queue.deinit();
+
     var sig = Signature.init(allocator);
 
-    sig.appendTerm(term, decls, &params) catch |err|
+    sig.appendTerm(term, decls, &params, &queue) catch |err|
         switch (err) {
             error.MaxRecursion => return null,
             else => |other_err| return other_err,
@@ -98,10 +102,10 @@ pub const Signature = struct {
         term: *const Term,
         decls: []const Decl,
         params: *ParamTree,
+        queue: *term_queue.Queue,
     ) SignatureError!void {
-        // TODO: Caller passes in
-        var queue = term_queue.Queue.init(self.allocator, {});
-        defer queue.deinit();
+        params.clear();
+        queue.clearRetainingCapacity();
 
         try queue.add(.{
             .term = term,
