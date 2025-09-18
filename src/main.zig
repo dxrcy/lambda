@@ -156,6 +156,8 @@ pub fn main() !u8 {
     if (reporter.checkFatal()) |code|
         return code;
 
+    // TODO: Print shadowed variables with a suffix (like `~0`)
+
     var signer = Signer.init(allocator);
     defer signer.deinit();
 

@@ -118,7 +118,21 @@ fn reduceTermInner(
             depth + 1,
             decls,
             term_allocator,
-        ) orelse term,
+        ) orelse {
+            // TODO: `reduceTermInner` should return `null` if nothing changed
+            const argument = try reduceTermInner(
+                appl.argument,
+                depth + 1,
+                decls,
+                term_allocator,
+            );
+            return try Term.create(null, .{
+                .application = .{
+                    .function = appl.function,
+                    .argument = argument,
+                },
+            }, term_allocator);
+        },
         .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
     };
 }
@@ -156,9 +170,8 @@ fn reduceApplication(
     ) orelse function.body;
 
     switch (product.value) {
-        .global, .abstraction, .application => {},
+        .global, .local, .abstraction, .application => {},
         .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
-        .local => std.debug.panic("local binding should have been beta-reduced already", .{}),
         .group => std.debug.panic("group should have been flattened already", .{}),
     }
 
