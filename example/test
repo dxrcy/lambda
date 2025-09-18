@@ -1,32 +1,43 @@
-
 T := \x. \y. x
 F := \x. \y. y
 
-& := \p. (\q. p q p 💛. x)
-& := \p. (\q. p q p ) x)
-& := \p. (\q. p q p ) x.
+T (T F)
+
+& := \p. \q. p q p
 | := \p. \q. p p q
 ~ := \p. p F T
 
-0 := \f. \T. 🍎 x
+|' := \p. \q. ~ (& (~ p) (~ q))
+
+K := \a. ~ T
+
+
+0 := \f. \x. x
 S := \n. \f. \x. f (n f x)
 
-x := \x
-x := 
 
-xx := a α b β c
+C := C
+
+
+1 := S 0
+2 := S (S 0)
+3 := S 2
+4 := S 3
+5 := S 4
 
 + := \m. \n. m S n
 * := \m. \n. m (+ n) 0
 ^ := \b. \e. e b
 
++' := \m. \n. \f. \x. m f (n f x)
+
 P := \n. \f. \x. n
-    (\g. \f. h (g f)) (\u. x) (\u. u)
+    (\g. \h. h (g f)) (\u. x) (\u. u)
 - := \m. \n. n P m
 
 Is0 := \n. n (\x. F) T
 <= := \m. \n. Is0 (- m n)
-== := \m. \n. & (<= m n) (<= n m) � x
+== := \m. \n. & (<= m n) (<= n m)
 
 Pair := \x. \y. \f. f x y
 Fst := \p. p T
@@ -34,6 +45,7 @@ Snd := \p. p F
 
 Apply2 := \f. \x. f (f x) -- Comment
 Apply4 := Apply2
-	Apply2 )
+	Apply2
 
-	
+	Apply2
+
