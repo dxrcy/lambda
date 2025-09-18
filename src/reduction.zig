@@ -46,9 +46,12 @@ fn PointerMaybeConst(
     return @Type(output);
 }
 
+const Mode = enum { lazy, greedy };
+
 /// Returns `null` if recursion limit was reached.
 pub fn reduceTerm(
     term: anytype,
+    mode: Mode,
     decls: []const Decl,
     term_allocator: Allocator,
     text: *const TextStore,
@@ -56,6 +59,7 @@ pub fn reduceTerm(
 ) Allocator.Error!?PointerMaybeConst(@TypeOf(term), *Term, *Term) {
     return reduceTermInner(
         term,
+        mode,
         0,
         decls,
         term_allocator,
@@ -82,6 +86,7 @@ pub fn reduceTerm(
 
 fn reduceTermInner(
     term: anytype,
+    mode: Mode,
     depth: usize,
     decls: []const Decl,
     term_allocator: Allocator,
@@ -90,11 +95,24 @@ fn reduceTermInner(
         return error.DepthCutoff;
     }
     return switch (term.value) {
-        .local, .global => term,
+        .local => term,
+        .global => |global| {
+            if (mode == .lazy) {
+                return term;
+            }
+            return reduceTermInner(
+                decls[global].term,
+                mode,
+                depth + 1,
+                decls,
+                term_allocator,
+            );
+        },
         .abstraction => |abstr| {
             // TODO: `reduceTermInner` should return `null` if nothing changed
             const body = try reduceTermInner(
                 abstr.body,
+                mode,
                 depth + 1,
                 decls,
                 term_allocator,
@@ -109,12 +127,14 @@ fn reduceTermInner(
         // Flatten group
         .group => |inner| try reduceTermInner(
             inner,
+            mode,
             depth + 1,
             decls,
             term_allocator,
         ),
         .application => |*appl| try reduceApplication(
             appl,
+            mode,
             depth + 1,
             decls,
             term_allocator,
@@ -122,6 +142,7 @@ fn reduceTermInner(
             // TODO: `reduceTermInner` should return `null` if nothing changed
             const argument = try reduceTermInner(
                 appl.argument,
+                mode,
                 depth + 1,
                 decls,
                 term_allocator,
@@ -139,12 +160,14 @@ fn reduceTermInner(
 
 fn reduceApplication(
     appl: anytype,
+    mode: Mode,
     depth: usize,
     decls: []const Decl,
     term_allocator: Allocator,
 ) ReductionError!?PointerMaybeConst(@TypeOf(appl), *Term.Appl, *Term) {
     const function_term = try reduceTermInner(
         appl.function,
+        mode,
         depth + 1,
         decls,
         term_allocator,
@@ -157,6 +180,7 @@ fn reduceApplication(
 
     const function = try expandGlobal(
         function_term,
+        mode,
         depth,
         decls,
         term_allocator,
@@ -177,6 +201,7 @@ fn reduceApplication(
 
     return reduceTermInner(
         product,
+        mode,
         depth + 1,
         decls,
         term_allocator,
@@ -199,6 +224,7 @@ pub fn expandGlobalOnce(
 
 fn expandGlobal(
     initial_term: anytype,
+    mode: Mode,
     depth: usize,
     decls: []const Decl,
     term_allocator: Allocator,
@@ -207,6 +233,7 @@ fn expandGlobal(
     for (0..MAX_GLOBAL_EXPAND) |_| {
         const product = try reduceTermInner(
             term,
+            mode,
             depth + 1,
             decls,
             term_allocator,

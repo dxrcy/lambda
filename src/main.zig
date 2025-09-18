@@ -168,6 +168,7 @@ pub fn main() !u8 {
         // within the current iteration; signature does not refer to terms
         const reduced = try reduction.reduceTerm(
             decl.term,
+            .greedy,
             decls.items,
             term_allocator.allocator(),
             &text,
@@ -184,8 +185,9 @@ pub fn main() !u8 {
         for (queries.items) |*query| {
             const query_span = query.term.span.?;
 
-            const result = try reduction.reduceTerm(
+            const reduced = try reduction.reduceTerm(
                 query.term,
+                .lazy,
                 decls.items,
                 term_allocator.allocator(),
                 &text,
@@ -196,7 +198,7 @@ pub fn main() !u8 {
             debug.printSpanInline(query_span.in(&text));
             output.print("\n", .{});
             output.print("-> ", .{});
-            debug.printTermInline(result, decls.items, &text);
+            debug.printTermInline(reduced, decls.items, &text);
             output.print("\n", .{});
             output.print("\n", .{});
         }
@@ -242,8 +244,9 @@ pub fn main() !u8 {
                 }
 
                 {
-                    const result = try reduction.reduceTerm(
+                    const reduced_lazy = try reduction.reduceTerm(
                         query.term,
+                        .lazy,
                         decls.items,
                         term_allocator.allocator(),
                         &text,
@@ -251,17 +254,26 @@ pub fn main() !u8 {
                     ) orelse continue;
 
                     output.print("-> ", .{});
-                    debug.printTermInline(result, decls.items, &text);
+                    debug.printTermInline(reduced_lazy, decls.items, &text);
                     output.print("\n", .{});
 
-                    if (try signer.sign(result, decls.items)) |sig| {
+                    const reduced_greedy = try reduction.reduceTerm(
+                        query.term,
+                        .greedy,
+                        decls.items,
+                        term_allocator.allocator(),
+                        &text,
+                        &reporter,
+                    ) orelse continue;
+
+                    if (try signer.sign(reduced_greedy, decls.items)) |sig| {
                         for (decls.items, 0..) |decl, i| {
                             const decl_sig = decl.signature orelse
                                 continue;
 
                             if (sig == decl_sig and
                                 !isDeclIndex(i, query.term) and
-                                !isDeclIndex(i, result))
+                                !isDeclIndex(i, reduced_lazy))
                             {
                                 output.print("-> {s}\n", .{decl.name.in(&text)});
                             }
@@ -285,30 +297,44 @@ pub fn main() !u8 {
 
                 const expanded = reduction.expandGlobalOnce(term, decls.items);
 
-                // Reduce *expanded* term. This is different to queries
-                const result = try reduction.reduceTerm(
+                const reduced_lazy = try reduction.reduceTerm(
                     expanded,
+                    .lazy,
                     decls.items,
                     term_allocator.allocator(),
                     &text,
                     &reporter,
                 ) orelse continue;
 
-                const sig = try signer.sign(result, decls.items);
+                const reduced_greedy = try reduction.reduceTerm(
+                    expanded,
+                    .greedy,
+                    decls.items,
+                    term_allocator.allocator(),
+                    &text,
+                    &reporter,
+                ) orelse continue;
 
-                output.print("* term......... ", .{});
+                // TODO: Rename to `signature` (and elsewhere)
+                const sig = try signer.sign(reduced_greedy, decls.items);
+
+                output.print("* term.............. ", .{});
                 debug.printTermInline(term, decls.items, &text);
                 output.print("\n", .{});
 
-                output.print("* expanded..... ", .{});
+                output.print("* expanded.......... ", .{});
                 debug.printTermInline(expanded, decls.items, &text);
                 output.print("\n", .{});
 
-                output.print("* reduced...... ", .{});
-                debug.printTermInline(result, decls.items, &text);
+                output.print("* reduced lazy...... ", .{});
+                debug.printTermInline(reduced_lazy, decls.items, &text);
                 output.print("\n", .{});
 
-                output.print("* signature.... ", .{});
+                output.print("* reduced greedy.... ", .{});
+                debug.printTermInline(reduced_greedy, decls.items, &text);
+                output.print("\n", .{});
+
+                output.print("* signature......... ", .{});
                 debug.printSignature(sig);
                 output.print("\n", .{});
 
