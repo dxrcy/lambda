@@ -60,7 +60,7 @@ pub const Signer = struct {
         decls: []const Decl,
     ) Allocator.Error!?u64 {
         var hasher = Hasher.init(HASHER_SEED);
-        self.hashTermRecursive(&hasher, term, decls) catch |err|
+        self.hashTerm(&hasher, term, decls) catch |err|
             switch (err) {
                 error.DepthCutoff => return null,
                 else => |other_err| return other_err,
@@ -69,7 +69,7 @@ pub const Signer = struct {
     }
 
     /// Traverses terms by BFS.
-    fn hashTermRecursive(
+    fn hashTerm(
         self: *Self,
         hasher: anytype,
         term: *const Term,
