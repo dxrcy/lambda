@@ -19,6 +19,8 @@ S := \n. \f. \x. f (n f x)
 7 := S 6
 
 + := \m. \n. \f. \x. m f (n f x)
++' := \m. \n. m S n
+
 * := \m. \n. m (+ n) 0
 ^ := \b. \e. e b
 
@@ -31,8 +33,12 @@ Is0 := \n. n (\x. F) T
 == := \m. \n. & (<= m n) (<= n m)
 
 Pair := \x. \y. \f. f x y
-Fst := \p. p T
-Snd := \p. p F
+1st := \p. p T
+2nd := \p. p F
 
-Apply2 := \f. \x. f (f x)
+Theta := \x. Pair (2nd x) (S (2nd x))
+
+ApplyTwice := \f. \x. f (f x)
+
+Omega := (\x. x x) (\x. x x)
 
