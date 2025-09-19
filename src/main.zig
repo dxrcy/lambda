@@ -166,13 +166,13 @@ pub fn main() !u8 {
     for (decls.items) |*decl| {
         // TODO: Use temporary allocator for this, since terms are only used
         // within the current iteration; signature does not refer to terms
+
+        // Don't report recursion cutoff
         const reduced = try reduction.reduceTerm(
             decl.term,
             .greedy,
             decls.items,
             term_allocator.allocator(),
-            &text,
-            &reporter,
         ) orelse decl.term;
 
         // Sets to `null` on fail (iteration limit)
@@ -183,19 +183,26 @@ pub fn main() !u8 {
 
     {
         for (queries.items) |*query| {
-            const query_span = query.term.span.?;
+            const term_span = query.term.span.?;
 
             const reduced = try reduction.reduceTerm(
                 query.term,
                 .lazy,
                 decls.items,
                 term_allocator.allocator(),
-                &text,
-                &reporter,
-            ) orelse continue;
+            ) orelse {
+                reporter.report(
+                    "recursion limit reached when reducing query",
+                    "check for any reference cycles in declarations",
+                    .{},
+                    .{ .query = term_span },
+                    &text,
+                );
+                continue;
+            };
 
             output.print("?- ", .{});
-            debug.printSpanInline(query_span.in(&text));
+            debug.printSpanInline(term_span.in(&text));
             output.print("\n", .{});
             output.print("-> ", .{});
             debug.printTermInline(reduced, decls.items, &text);
@@ -231,6 +238,8 @@ pub fn main() !u8 {
                 output.print("unimplemented\n", .{});
             },
             .query => |query| {
+                const term_span = query.term.span.?;
+
                 try resolution.resolveAllSymbols(
                     query.term,
                     &locals,
@@ -249,21 +258,27 @@ pub fn main() !u8 {
                         .lazy,
                         decls.items,
                         term_allocator.allocator(),
-                        &text,
-                        &reporter,
-                    ) orelse continue;
+                    ) orelse {
+                        reporter.report(
+                            "recursion limit reached when reducing query",
+                            "check for any reference cycles in declarations",
+                            .{},
+                            .{ .query = term_span },
+                            &text,
+                        );
+                        continue;
+                    };
 
                     output.print("-> ", .{});
                     debug.printTermInline(reduced_lazy, decls.items, &text);
                     output.print("\n", .{});
 
+                    // Don't report recursion cutoff
                     const reduced_greedy = try reduction.reduceTerm(
                         query.term,
                         .greedy,
                         decls.items,
                         term_allocator.allocator(),
-                        &text,
-                        &reporter,
                     ) orelse continue;
 
                     if (try signer.sign(reduced_greedy, decls.items)) |signature| {
@@ -284,6 +299,8 @@ pub fn main() !u8 {
                 }
             },
             .inspect => |term| {
+                const term_span = term.span.?;
+
                 try resolution.resolveAllSymbols(
                     term,
                     &locals,
@@ -302,17 +319,23 @@ pub fn main() !u8 {
                     .lazy,
                     decls.items,
                     term_allocator.allocator(),
-                    &text,
-                    &reporter,
-                ) orelse continue;
+                ) orelse {
+                    reporter.report(
+                        "recursion limit reached when reducing query",
+                        "check for any reference cycles in declarations",
+                        .{},
+                        .{ .query = term_span },
+                        &text,
+                    );
+                    continue;
+                };
 
+                // Don't report recursion cutoff
                 const reduced_greedy = try reduction.reduceTerm(
                     expanded,
                     .greedy,
                     decls.items,
                     term_allocator.allocator(),
-                    &text,
-                    &reporter,
                 ) orelse continue;
 
                 const signature = try signer.sign(reduced_greedy, decls.items);

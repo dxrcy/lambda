@@ -13,7 +13,7 @@ const SourceSpan = TextStore.SourceSpan;
 const Reporter = @import("Reporter.zig");
 
 // TODO: Rename
-const MAX_REDUCTION_RECURSION = 2_000;
+const MAX_REDUCTION_RECURSION = 200;
 const MAX_GLOBAL_EXPAND = 200;
 
 const ReductionError = Allocator.Error || error{DepthCutoff};
@@ -54,8 +54,6 @@ pub fn reduceTerm(
     mode: Mode,
     decls: []const Decl,
     term_allocator: Allocator,
-    text: *const TextStore,
-    reporter: *Reporter,
 ) Allocator.Error!?PointerMaybeConst(@TypeOf(term), *Term, *Term) {
     return reduceTermInner(
         term,
@@ -63,25 +61,10 @@ pub fn reduceTerm(
         0,
         decls,
         term_allocator,
-    ) catch |err|
-        switch (err) {
-            error.DepthCutoff => {
-                // TODO: Handle this
-                const span = term.span orelse {
-                    std.debug.panic("unimplemented", .{});
-                };
-
-                reporter.report(
-                    "recursion limit reached when expanding term",
-                    "check for any reference cycles in declarations",
-                    .{},
-                    .{ .query = span },
-                    text,
-                );
-                return null;
-            },
-            else => |other_err| return other_err,
-        };
+    ) catch |err| switch (err) {
+        error.DepthCutoff => return null,
+        else => |other_err| return other_err,
+    };
 }
 
 fn reduceTermInner(
