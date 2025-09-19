@@ -17,7 +17,7 @@ pub fn kind(self: *const Self) Kind {
     return switch (self.codepoint) {
         ' ', '\t'...'\r' => .Whitespace,
         0x00...0x08, 0x0e...0x1f, 0x7f => .Control,
-        '\\', '.', ',', ';', '(', ')', '[', ']', '{', '}' => .Atomic,
+        '\\', '.', ',', ';', '(', ')', '[', ']', '{', '}', '%' => .Atomic,
         else => .Combining,
     };
 }

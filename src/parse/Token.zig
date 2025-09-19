@@ -30,7 +30,7 @@ pub const Kind = enum {
             .{ "\\", .Backslash },
             .{ ".", .Dot },
             .{ ":=", .Equals },
-            .{ ":", .Inspect },
+            .{ "%", .Inspect },
             .{ "(", .ParenLeft },
             .{ ")", .ParenRight },
         };
@@ -47,7 +47,7 @@ pub const Kind = enum {
             .Backslash => "`\\`",
             .Dot => "`.`",
             .Equals => "`:=`",
-            .Inspect => "`:`",
+            .Inspect => "`%`",
             .ParenLeft => "`(`",
             .ParenRight => "`)`",
             .Ident => "<identifier>",
