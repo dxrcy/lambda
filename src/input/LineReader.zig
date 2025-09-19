@@ -131,7 +131,12 @@ fn readNextSequence(self: *Self) StdinReader.Error!bool {
                 else => {},
             }
         },
-        else => {},
+        else => {
+            // TODO: Support unicode characters
+            if (byte > 0x7f) {
+                self.view.insert('#');
+            }
+        },
     }
 
     return false;
