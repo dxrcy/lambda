@@ -196,7 +196,7 @@ fn tryTermGreedy(
 
         // TODO: Handle `null` span (panic)... and likewise elsewhere
         parent = try term_store.create(
-            left.asReference().span.?.join(right.asReference().span.?),
+            left.asConst().span.?.join(right.asConst().span.?),
             .{ .application = .{
                 .function = parent,
                 .argument = right,
@@ -244,7 +244,7 @@ fn tryTermSingle(
                 (return null) orelse return SomeNull(TermCow);
 
             return try term_store.create(
-                left.span.join(right.asReference().span.?),
+                left.span.join(right.asConst().span.?),
                 .{ .abstraction = .{
                     .parameter = parameter,
                     .body = right,

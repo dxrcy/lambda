@@ -73,23 +73,47 @@ pub const TermCow = union(enum) {
     const Self = @This();
 
     owned: *Term,
-    reference: *const Term,
+    referenced: *const Term,
 
-    pub fn asReference(self: Self) *const Term {
+    /// Returns the underlying pointer of `self` (as `const`), regardless of
+    /// whether `self` is *owned* or *referenced*.
+    // TODO: Rename
+    pub fn asConst(self: Self) *const Term {
         return switch (self) {
             .owned => |owned| owned,
-            .reference => |reference| reference,
+            .referenced => |reference| reference,
         };
     }
 
+    /// Asserts that `self` is *owned*, and returns the underlying pointer.
     pub fn unwrapOwned(self: Self) *Term {
         return switch (self) {
             .owned => |owned| owned,
-            .reference => std.debug.panic(
+            .referenced => std.debug.panic(
                 "tried to unwrap `TermCow.reference` as `TermCow.owned`",
                 .{},
             ),
         };
+    }
+
+    /// Same as `unwrapOwned`, but also asserts that all descendants are
+    /// *owned*.
+    pub fn unwrapOwnedAll(self: Self) *Term {
+        const owned = self.unwrapOwned();
+        switch (owned.value) {
+            .unresolved, .local, .global => {},
+            .group => |inner| {
+                _ = inner.unwrapOwnedAll();
+            },
+            .abstraction => |abstr| {
+                _ = abstr.body.unwrapOwnedAll();
+            },
+            .application => |appl| {
+                _ = appl.function.unwrapOwnedAll();
+                _ = appl.argument.unwrapOwnedAll();
+            },
+        }
+        return owned;
     }
 };
 

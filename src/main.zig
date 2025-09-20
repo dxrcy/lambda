@@ -136,7 +136,7 @@ pub fn main() !u8 {
     resolution.checkDeclarationCollisions(decls.items, &text, &reporter);
     for (decls.items) |*entry| {
         try resolution.resolveAllSymbols(
-            entry.term.unwrapOwned(),
+            entry.term.unwrapOwnedAll(),
             &locals,
             decls.items,
             &text,
@@ -145,7 +145,7 @@ pub fn main() !u8 {
     }
     for (queries.items) |*query| {
         try resolution.resolveAllSymbols(
-            query.term.unwrapOwned(),
+            query.term.unwrapOwnedAll(),
             &locals,
             decls.items,
             &text,
