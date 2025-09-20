@@ -156,43 +156,30 @@ pub fn main() !u8 {
     if (reporter.checkFatal()) |code|
         return code;
 
+    // var signer = Signer.init(allocator);
+    // defer signer.deinit();
+    //
+    // // Reduce *all nested* globals (eg. `1 := S 0` is applied)
+    // // So reduced queries can match decl signature
+    // for (decls.items) |*decl| {
+    //     // Don't report recursion cutoff
+    //     const reduced = try reduction.reduceTerm(
+    //         decl.term,
+    //         .greedy,
+    //         decls.items,
+    //         // TODO: Use termporary allocator
+    //         &terms_persistent,
+    //     ) orelse decl.term;
+    //
+    //     // Sets to `null` on fail (iteration limit)
+    //     decl.signature = try signer.sign(reduced, decls.items);
+    // }
+
     debug.printDeclarations(decls.items, &text);
-
-    return 0;
-}
-
-fn dead() !void {
-    const decls = undefined;
-    const term_allocator = undefined;
-    const reporter = undefined;
-    const text = undefined;
-    const allocator = undefined;
-    const queries = undefined;
-    const terms_persistent = undefined;
-    const locals = undefined;
-
-    var signer = Signer.init(allocator);
-    defer signer.deinit();
-
-    // Reduce *all nested* globals (eg. `1 := S 0` is applied)
-    // So reduced queries can match decl signature
-    for (decls.items) |*decl| {
-        // Don't report recursion cutoff
-        const reduced = try reduction.reduceTerm(
-            decl.term,
-            .greedy,
-            decls.items,
-            // TODO: Use termporary allocator
-            &terms_persistent,
-        ) orelse decl.term;
-
-        // Sets to `null` on fail (iteration limit)
-        decl.signature = try signer.sign(reduced, decls.items);
-    }
 
     {
         for (queries.items) |*query| {
-            const term_span = query.term.span.?;
+            const term_span = query.term.asConst().span.?;
 
             const reduced = try reduction.reduceTerm(
                 query.term,
@@ -214,11 +201,22 @@ fn dead() !void {
             debug.printSpanInline(term_span.in(&text));
             output.print("\n", .{});
             output.print("-> ", .{});
-            debug.printTermInline(reduced, decls.items, &text);
+            debug.printTermInline(reduced.asConst(), decls.items, &text);
             output.print("\n", .{});
             output.print("\n", .{});
         }
     }
+
+    return 0;
+}
+
+fn dead() !void {
+    const decls = undefined;
+    const term_allocator = undefined;
+    const reporter = undefined;
+    const text = undefined;
+    const locals = undefined;
+    const signer = undefined;
 
     var repl = try Repl.new(&text);
 

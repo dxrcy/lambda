@@ -87,16 +87,16 @@ fn printTermInlineInner(
             output.print("{s}", .{decls[index].name.in(text)});
         },
         .group => |inner| {
-            printTermInlineInner(inner, true, decls, depth + 1, text);
+            printTermInlineInner(inner.asConst(), true, decls, depth + 1, text);
         },
         .abstraction => |abstr| {
             output.print("\\{s}. ", .{abstr.parameter.in(text)});
-            printTermInlineInner(abstr.body, true, decls, depth + 1, text);
+            printTermInlineInner(abstr.body.asConst(), true, decls, depth + 1, text);
         },
         .application => |appl| {
-            printTermInlineInner(appl.function, false, decls, depth + 1, text);
+            printTermInlineInner(appl.function.asConst(), false, decls, depth + 1, text);
             output.print(" ", .{});
-            printTermInlineInner(appl.argument, false, decls, depth + 1, text);
+            printTermInlineInner(appl.argument.asConst(), false, decls, depth + 1, text);
         },
     }
 

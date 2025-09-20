@@ -115,6 +115,50 @@ pub const TermCow = union(enum) {
         }
         return owned;
     }
+
+    fn copyReference(self: Self) Self {
+        const referenced = switch (self) {
+            .owned => |owned| owned,
+            .referenced => |reference| reference,
+        };
+        return Self{ .referenced = referenced };
+    }
+
+    /// Returns *owned* version of `self`.
+    /// Iff `self` is *referenced*, return **shallow**-copy of `self` allocated
+    /// in `store`.
+    /// Note that this function **does not** deep-copy children. All children
+    /// are *referenced* per `TermCow.copyReference`.
+    pub fn toOwned(self: Self, store: *TermStore) Allocator.Error!Self {
+        const referenced = switch (self) {
+            .owned => return self,
+            .referenced => |referenced| referenced,
+        };
+
+        const value = switch (referenced.value) {
+            .unresolved => Term.Kind{ .unresolved = {} },
+            .local => |param| Term.Kind{ .local = param },
+            .global => |global| Term.Kind{ .global = global },
+            .group => |inner| Term.Kind{
+                // TODO: Is this good?
+                .group = inner.copyReference(),
+            },
+            .abstraction => |abstr| Term.Kind{
+                .abstraction = .{
+                    .parameter = abstr.parameter,
+                    .body = abstr.body.copyReference(),
+                },
+            },
+            .application => |appl| Term.Kind{
+                .application = .{
+                    .function = appl.function.copyReference(),
+                    .argument = appl.argument.copyReference(),
+                },
+            },
+        };
+
+        return store.create(referenced.span, value);
+    }
 };
 
 /// Not very type-safe, since this type is used in many different contexts,

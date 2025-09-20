@@ -4,7 +4,9 @@ const assert = std.debug.assert;
 
 const model = @import("model.zig");
 const Decl = model.Decl;
+const ParamRef = model.ParamRef;
 const Term = model.Term;
+const TermCow = model.TermCow;
 const TermStore = model.TermStore;
 
 const TextStore = @import("text/TextStore.zig");
@@ -12,328 +14,251 @@ const SourceSpan = TextStore.SourceSpan;
 
 const Reporter = @import("Reporter.zig");
 
-// TODO: Rename
 const MAX_REDUCTION_RECURSION = 200;
-const MAX_GLOBAL_EXPAND = 200;
+const MAX_EXPAND_ITERATION = 200;
 
 const ReductionError = Allocator.Error || error{DepthCutoff};
-
-/// Requires that `Param`, `Input`, and `Output` are all pointers.
-/// Requires that `Input` and `Output` are non-`const` (for consistency).
-/// Requires that `Param` points to the same type that `Input` does (although
-/// `Param` may be `const`).
-/// Returns a pointer equivalent to `Output`, but with the `const`-ness of `Param`
-fn PointerMaybeConst(
-    comptime Param: type,
-    comptime Input: type,
-    comptime Output: type,
-) type {
-    const param = @typeInfo(Param);
-    var input = @typeInfo(Input);
-    var output = @typeInfo(Output);
-
-    if (input.pointer.is_const or output.pointer.is_const) {
-        @compileError("Input and output pointers must be non-const");
-    }
-
-    input.pointer.is_const = param.pointer.is_const;
-    output.pointer.is_const = param.pointer.is_const;
-
-    if (@Type(param) != @Type(input)) {
-        @compileError("Input pointer does not match parameter pointer");
-    }
-
-    return @Type(output);
-}
 
 const Mode = enum { lazy, greedy };
 
 /// Returns `null` if recursion limit was reached.
 pub fn reduceTerm(
-    term: anytype,
+    term: TermCow,
     mode: Mode,
     decls: []const Decl,
     term_store: *TermStore,
-) Allocator.Error!?PointerMaybeConst(@TypeOf(term), *Term, *Term) {
-    return reduceTermInner(
-        term,
-        mode,
-        0,
-        decls,
-        term_store,
-    ) catch |err| switch (err) {
+) Allocator.Error!?TermCow {
+    const reducer = Reducer{
+        .mode = mode,
+        .decls = decls,
+        .term_store = term_store,
+    };
+    return reducer.reduceTerm(term, 0) catch |err| switch (err) {
         error.DepthCutoff => return null,
         else => |other_err| return other_err,
     };
 }
 
-fn reduceTermInner(
-    term: anytype,
+const Reducer = struct {
+    const Self = @This();
+
     mode: Mode,
-    depth: usize,
     decls: []const Decl,
     term_store: *TermStore,
-) ReductionError!PointerMaybeConst(@TypeOf(term), *Term, *Term) {
-    if (depth >= MAX_REDUCTION_RECURSION) {
-        return error.DepthCutoff;
-    }
-    return switch (term.value) {
-        .local => term,
-        .global => |global| {
-            if (mode == .lazy) {
-                return term;
-            }
-            return reduceTermInner(
-                decls[global].term,
-                mode,
-                depth + 1,
-                decls,
-                term_store,
-            );
-        },
-        .abstraction => |abstr| {
-            if (mode == .lazy) {
-                return term;
-            }
-            // TODO: `reduceTermInner` should return `null` if nothing changed
-            const body = try reduceTermInner(
-                abstr.body,
-                mode,
-                depth + 1,
-                decls,
-                term_store,
-            );
-            return try term_store.create(null, .{
-                .abstraction = .{
-                    .parameter = abstr.parameter,
-                    .body = body,
-                },
-            });
-        },
-        // Flatten group
-        .group => |inner| try reduceTermInner(
-            inner,
-            mode,
-            depth + 1,
-            decls,
-            term_store,
-        ),
-        .application => |*appl| try reduceApplication(
-            appl,
-            mode,
-            depth + 1,
-            decls,
-            term_store,
-        ) orelse {
-            if (mode == .lazy) {
-                return term;
-            }
-            // TODO: `reduceTermInner` should return `null` if nothing changed
-            const argument = try reduceTermInner(
-                appl.argument,
-                mode,
-                depth + 1,
-                decls,
-                term_store,
-            );
-            return try term_store.create(null, .{
-                .application = .{
-                    .function = appl.function,
-                    .argument = argument,
-                },
-            });
-        },
-        .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
-    };
-}
 
-fn reduceApplication(
-    appl: anytype,
-    mode: Mode,
-    depth: usize,
-    decls: []const Decl,
-    term_store: *TermStore,
-) ReductionError!?PointerMaybeConst(@TypeOf(appl), *Term.Appl, *Term) {
-    const function_term = try reduceTermInner(
-        appl.function,
-        mode,
-        depth + 1,
-        decls,
-        term_store,
-    );
+    // `depth` should only be incremented in a recursive `reduceTerm` call; NOT
+    // when calling other functions in this container.
+    fn reduceTerm(
+        self: *const Self,
+        term: TermCow,
+        depth: usize,
+    ) ReductionError!TermCow {
+        if (depth >= MAX_REDUCTION_RECURSION) {
+            return error.DepthCutoff;
+        }
 
-    switch (function_term.value) {
-        .global, .abstraction => {},
-        else => return null,
-    }
+        switch (term.asConst().value) {
+            // Unreduced local binding cannot be reduced any further
+            .local => return term,
 
-    const function = try expandGlobal(
-        function_term,
-        mode,
-        depth,
-        decls,
-        term_store,
-    );
+            .global => |global| {
+                if (self.mode == .lazy) {
+                    return term;
+                }
+                // Expand global
+                return self.reduceTerm(self.decls[global].term, depth + 1);
+            },
 
-    const product = try betaReduce(
-        function.body,
-        function.parameter,
-        appl.argument,
-        term_store,
-    ) orelse function.body;
+            .group => |inner| {
+                // Flatten group
+                return self.reduceTerm(inner, depth + 1);
+            },
 
-    switch (product.value) {
-        .global, .local, .abstraction, .application => {},
-        .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
-        .group => std.debug.panic("group should have been flattened already", .{}),
-    }
+            .abstraction => |abstr| {
+                if (self.mode == .lazy) {
+                    return term;
+                }
+                // TODO:
+                // Try to reduce body of abstraction
+                _ = abstr;
+                unreachable;
+            },
 
-    return reduceTermInner(
-        product,
-        mode,
-        depth + 1,
-        decls,
-        term_store,
-    );
-}
+            .application => |appl| {
+                // Try to reduce application directly
+                return try self.reduceApplication(&appl, depth) orelse {
+                    if (self.mode == .lazy) {
+                        return term;
+                    }
+                    // TODO:
+                    // Try to reduce function and/or body of application
+                    unreachable;
+                };
+            },
 
-pub fn expandGlobalOnce(
-    term: *const Term,
-    decls: []const Decl,
-) *const Term {
-    return switch (term.value) {
-        .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
-        .local => std.debug.panic("local binding should have been beta-reduced already", .{}),
-        .global => |global| decls[global].term,
-        // Flatten group
-        .group => |inner| inner,
-        .abstraction, .application => term,
-    };
-}
-
-fn expandGlobal(
-    initial_term: anytype,
-    mode: Mode,
-    depth: usize,
-    decls: []const Decl,
-    term_store: *TermStore,
-) ReductionError!PointerMaybeConst(@TypeOf(initial_term), *Term, *Term.Abstr) {
-    var term = initial_term;
-    for (0..MAX_GLOBAL_EXPAND) |_| {
-        const product = try reduceTermInner(
-            term,
-            mode,
-            depth + 1,
-            decls,
-            term_store,
-        );
-        term = switch (product.value) {
             .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
-            .local => std.debug.panic("local binding should have been beta-reduced already", .{}),
-            .application => std.debug.panic("application should have been resolved already", .{}),
-            .global => |global| decls[global].term,
-            .group => |inner| inner,
-            .abstraction => |*abstr| {
-                return abstr;
-            },
-        };
+        }
     }
-    return error.DepthCutoff;
-}
 
-/// Returns `null` if no descendant term was substituted; no need to deep-copy.
-fn betaReduce(
-    term: *Term,
-    abstr_param: SourceSpan,
-    applied_argument: *Term,
-    term_store: *TermStore,
-) Allocator.Error!?*Term {
-    switch (term.value) {
-        .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
-        .global => return null,
-        .local => |param| {
-            if (param.offset == abstr_param.free.offset //
-            and param.source.equals(abstr_param.source)) {
-                return try deepCopyTerm(applied_argument, term_store);
+    /// Returns `null` if function is an unreduced local binding.
+    fn reduceApplication(
+        self: *const Self,
+        appl: *const Term.Appl,
+        depth: usize,
+    ) ReductionError!?TermCow {
+        const function_term = try self.reduceTerm(appl.function, depth + 1);
+
+        // Cannot reduce application, if function is an unreduced local binding
+        // Also don't reduce global if it wasn't expanded
+        const function_abstr = switch (function_term.asConst().value) {
+            .abstraction => |abstr| abstr,
+            .local => return null,
+            .global => if (self.mode == .lazy) {
+                return null;
             } else {
+                std.debug.panic("global binding should have been expanded already", .{});
+            },
+            .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
+            .group => std.debug.panic("group should have been flattened already", .{}),
+            .application => std.debug.panic("application should have been resolved already", .{}),
+        };
+
+        const applied = try self.betaReduce(
+            ParamRef.from(function_abstr.parameter),
+            function_abstr.body,
+            appl.argument,
+        ) orelse function_abstr.body;
+
+        switch (applied.asConst().value) {
+            .global, .local, .abstraction, .application => {},
+            .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
+            .group => std.debug.panic("group should have been flattened already", .{}),
+        }
+
+        return try self.reduceTerm(applied, depth + 1);
+    }
+
+    /// Returns `null` if no beta-reduction occurred.
+    // TODO: Add depth parameter
+    fn betaReduce(
+        self: *const Self,
+        abstr_param: ParamRef,
+        abstr_body: TermCow,
+        appl_argument: TermCow,
+    ) Allocator.Error!?TermCow {
+        switch (abstr_body.asConst().value) {
+            .global => if (self.mode == .lazy) {
                 return null;
-            }
-        },
-        .group => |inner| {
-            // Flatten group
-            return try betaReduce(
-                inner,
-                abstr_param,
-                applied_argument,
-                term_store,
-            );
-        },
-        .abstraction => |abstr| {
-            const body = try betaReduce(
-                abstr.body,
-                abstr_param,
-                applied_argument,
-                term_store,
-            ) orelse {
-                return null;
-            };
-            return try term_store.create(null, .{
+            } else {
+                std.debug.panic("global binding should have been expanded already", .{});
+            },
+
+            .local => |param| {
+                // If local binding matches parameter, perform beta-reduction
+                if (param.equals(abstr_param)) {
+                    return try self.deepCopyTerm(appl_argument);
+                } else {
+                    return null;
+                }
+            },
+
+            .group => |inner| {
+                // Flatten group
+                return self.betaReduce(
+                    abstr_param,
+                    inner,
+                    appl_argument,
+                );
+            },
+
+            .abstraction => |abstr| {
+                // Do nothing if body was NOT beta-reduced.
+                const reduced_body = try self.betaReduce(
+                    abstr_param,
+                    abstr.body,
+                    appl_argument,
+                ) orelse {
+                    return null;
+                };
+
+                const owned_body = try abstr_body.toOwned(self.term_store);
+                owned_body.unwrapOwned().* = Term{
+                    .span = null,
+                    .value = .{
+                        .abstraction = .{
+                            .parameter = abstr.parameter,
+                            .body = reduced_body,
+                        },
+                    },
+                };
+                return owned_body;
+            },
+
+            .application => |appl| {
+                // Do nothing if function AND argument were NOT beta-reduced.
+                const reduced_function = try self.betaReduce(
+                    abstr_param,
+                    appl.function,
+                    appl_argument,
+                );
+                const reduced_argument = try self.betaReduce(
+                    abstr_param,
+                    appl.argument,
+                    appl_argument,
+                );
+
+                if (reduced_function == null and reduced_argument == null) {
+                    return null;
+                }
+
+                const owned_body = try abstr_body.toOwned(self.term_store);
+                owned_body.unwrapOwned().* = Term{
+                    .span = null,
+                    .value = .{
+                        .application = .{
+                            .function = reduced_function orelse appl.function,
+                            .argument = reduced_argument orelse appl.argument,
+                        },
+                    },
+                };
+                return owned_body;
+            },
+
+            .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
+        }
+    }
+
+    fn deepCopyTerm(self: *const Self, term: TermCow) Allocator.Error!TermCow {
+        // PERF: We can probably avoid redundant copies of terms whos
+        // descendants are all referenced, since any later modification to a
+        // referenced descendant will require copying it to make it owned.
+        // And possibly other unnecessary cases are present.
+
+        const copy_value: Term.Kind = switch (term.asConst().value) {
+            .global, .local => return term,
+
+            .group => |inner| {
+                // Flatten group
+                return try self.deepCopyTerm(inner);
+            },
+
+            .abstraction => |abstr| .{
                 .abstraction = .{
                     .parameter = abstr.parameter,
-                    .body = body,
+                    .body = try self.deepCopyTerm(abstr.body),
                 },
-            });
-        },
-        .application => |appl| {
-            const function = try betaReduce(
-                appl.function,
-                abstr_param,
-                applied_argument,
-                term_store,
-            );
-            const argument = try betaReduce(
-                appl.argument,
-                abstr_param,
-                applied_argument,
-                term_store,
-            );
-            if (function == null and argument == null) {
-                return null;
-            }
-            return try term_store.create(null, .{
-                .application = .{
-                    .function = function orelse appl.function,
-                    .argument = argument orelse appl.argument,
-                },
-            });
-        },
-    }
-}
+            },
 
-/// *Deep-copy* term by allocating and copying children.
-/// Does not copy non-parent terms (`global` and `local`), since they should be
-/// not be mutated by the caller.
-// TODO: Move to `TermCow` ?
-fn deepCopyTerm(term: *Term, term_store: *TermStore) Allocator.Error!*Term {
-    const copy_value: Term.Kind = switch (term.value) {
-        .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
-        .global, .local => return term,
-        .group => |inner| {
-            // Flatten group
-            return try deepCopyTerm(inner, term_store);
-        },
-        .abstraction => |abstr| .{
-            .abstraction = .{
-                .parameter = abstr.parameter,
-                .body = try deepCopyTerm(abstr.body, term_store),
+            .application => |appl| .{
+                .application = .{
+                    .function = try self.deepCopyTerm(appl.function),
+                    .argument = try self.deepCopyTerm(appl.argument),
+                },
             },
-        },
-        .application => |appl| .{
-            .application = .{
-                .function = try deepCopyTerm(appl.function, term_store),
-                .argument = try deepCopyTerm(appl.argument, term_store),
-            },
-        },
-    };
-    return try term_store.create(term.span, copy_value);
-}
+
+            .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
+        };
+
+        return try self.term_store.create(term.asConst().span, copy_value);
+    }
+};
