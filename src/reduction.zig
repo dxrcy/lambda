@@ -3,9 +3,9 @@ const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
 const model = @import("model.zig");
-const AbstrId = model.AbstrId;
 const Decl = model.Decl;
 const Term = model.Term;
+const TermStore = model.TermStore;
 
 const TextStore = @import("text/TextStore.zig");
 const SourceSpan = TextStore.SourceSpan;
@@ -53,14 +53,14 @@ pub fn reduceTerm(
     term: anytype,
     mode: Mode,
     decls: []const Decl,
-    term_allocator: Allocator,
+    term_store: *TermStore,
 ) Allocator.Error!?PointerMaybeConst(@TypeOf(term), *Term, *Term) {
     return reduceTermInner(
         term,
         mode,
         0,
         decls,
-        term_allocator,
+        term_store,
     ) catch |err| switch (err) {
         error.DepthCutoff => return null,
         else => |other_err| return other_err,
@@ -72,7 +72,7 @@ fn reduceTermInner(
     mode: Mode,
     depth: usize,
     decls: []const Decl,
-    term_allocator: Allocator,
+    term_store: *TermStore,
 ) ReductionError!PointerMaybeConst(@TypeOf(term), *Term, *Term) {
     if (depth >= MAX_REDUCTION_RECURSION) {
         return error.DepthCutoff;
@@ -88,7 +88,7 @@ fn reduceTermInner(
                 mode,
                 depth + 1,
                 decls,
-                term_allocator,
+                term_store,
             );
         },
         .abstraction => |abstr| {
@@ -101,14 +101,14 @@ fn reduceTermInner(
                 mode,
                 depth + 1,
                 decls,
-                term_allocator,
+                term_store,
             );
-            return try Term.create(null, .{
+            return try term_store.create(null, .{
                 .abstraction = .{
                     .parameter = abstr.parameter,
                     .body = body,
                 },
-            }, term_allocator);
+            });
         },
         // Flatten group
         .group => |inner| try reduceTermInner(
@@ -116,14 +116,14 @@ fn reduceTermInner(
             mode,
             depth + 1,
             decls,
-            term_allocator,
+            term_store,
         ),
         .application => |*appl| try reduceApplication(
             appl,
             mode,
             depth + 1,
             decls,
-            term_allocator,
+            term_store,
         ) orelse {
             if (mode == .lazy) {
                 return term;
@@ -134,14 +134,14 @@ fn reduceTermInner(
                 mode,
                 depth + 1,
                 decls,
-                term_allocator,
+                term_store,
             );
-            return try Term.create(null, .{
+            return try term_store.create(null, .{
                 .application = .{
                     .function = appl.function,
                     .argument = argument,
                 },
-            }, term_allocator);
+            });
         },
         .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
     };
@@ -152,14 +152,14 @@ fn reduceApplication(
     mode: Mode,
     depth: usize,
     decls: []const Decl,
-    term_allocator: Allocator,
+    term_store: *TermStore,
 ) ReductionError!?PointerMaybeConst(@TypeOf(appl), *Term.Appl, *Term) {
     const function_term = try reduceTermInner(
         appl.function,
         mode,
         depth + 1,
         decls,
-        term_allocator,
+        term_store,
     );
 
     switch (function_term.value) {
@@ -172,14 +172,14 @@ fn reduceApplication(
         mode,
         depth,
         decls,
-        term_allocator,
+        term_store,
     );
 
     const product = try betaReduce(
         function.body,
         function.parameter,
         appl.argument,
-        term_allocator,
+        term_store,
     ) orelse function.body;
 
     switch (product.value) {
@@ -193,7 +193,7 @@ fn reduceApplication(
         mode,
         depth + 1,
         decls,
-        term_allocator,
+        term_store,
     );
 }
 
@@ -216,7 +216,7 @@ fn expandGlobal(
     mode: Mode,
     depth: usize,
     decls: []const Decl,
-    term_allocator: Allocator,
+    term_store: *TermStore,
 ) ReductionError!PointerMaybeConst(@TypeOf(initial_term), *Term, *Term.Abstr) {
     var term = initial_term;
     for (0..MAX_GLOBAL_EXPAND) |_| {
@@ -225,7 +225,7 @@ fn expandGlobal(
             mode,
             depth + 1,
             decls,
-            term_allocator,
+            term_store,
         );
         term = switch (product.value) {
             .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
@@ -246,7 +246,7 @@ fn betaReduce(
     term: *Term,
     abstr_param: SourceSpan,
     applied_argument: *Term,
-    term_allocator: Allocator,
+    term_store: *TermStore,
 ) Allocator.Error!?*Term {
     switch (term.value) {
         .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
@@ -254,7 +254,7 @@ fn betaReduce(
         .local => |param| {
             if (param.offset == abstr_param.free.offset //
             and param.source.equals(abstr_param.source)) {
-                return try deepCopyTerm(applied_argument, term_allocator);
+                return try deepCopyTerm(applied_argument, term_store);
             } else {
                 return null;
             }
@@ -265,7 +265,7 @@ fn betaReduce(
                 inner,
                 abstr_param,
                 applied_argument,
-                term_allocator,
+                term_store,
             );
         },
         .abstraction => |abstr| {
@@ -273,39 +273,39 @@ fn betaReduce(
                 abstr.body,
                 abstr_param,
                 applied_argument,
-                term_allocator,
+                term_store,
             ) orelse {
                 return null;
             };
-            return try Term.create(null, .{
+            return try term_store.create(null, .{
                 .abstraction = .{
                     .parameter = abstr.parameter,
                     .body = body,
                 },
-            }, term_allocator);
+            });
         },
         .application => |appl| {
             const function = try betaReduce(
                 appl.function,
                 abstr_param,
                 applied_argument,
-                term_allocator,
+                term_store,
             );
             const argument = try betaReduce(
                 appl.argument,
                 abstr_param,
                 applied_argument,
-                term_allocator,
+                term_store,
             );
             if (function == null and argument == null) {
                 return null;
             }
-            return try Term.create(null, .{
+            return try term_store.create(null, .{
                 .application = .{
                     .function = function orelse appl.function,
                     .argument = argument orelse appl.argument,
                 },
-            }, term_allocator);
+            });
         },
     }
 }
@@ -313,26 +313,26 @@ fn betaReduce(
 /// *Deep-copy* term by allocating and copying children.
 /// Does not copy non-parent terms (`global` and `local`), since they should be
 /// not be mutated by the caller.
-fn deepCopyTerm(term: *Term, allocator: Allocator) Allocator.Error!*Term {
+fn deepCopyTerm(term: *Term, term_store: *TermStore) Allocator.Error!*Term {
     const copy_value: Term.Kind = switch (term.value) {
         .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
         .global, .local => return term,
         .group => |inner| {
             // Flatten group
-            return try deepCopyTerm(inner, allocator);
+            return try deepCopyTerm(inner, term_store);
         },
         .abstraction => |abstr| .{
             .abstraction = .{
                 .parameter = abstr.parameter,
-                .body = try deepCopyTerm(abstr.body, allocator),
+                .body = try deepCopyTerm(abstr.body, term_store),
             },
         },
         .application => |appl| .{
             .application = .{
-                .function = try deepCopyTerm(appl.function, allocator),
-                .argument = try deepCopyTerm(appl.argument, allocator),
+                .function = try deepCopyTerm(appl.function, term_store),
+                .argument = try deepCopyTerm(appl.argument, term_store),
             },
         },
     };
-    return try Term.create(term.span, copy_value, allocator);
+    return try term_store.create(term.span, copy_value);
 }

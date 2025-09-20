@@ -42,3 +42,5 @@ ApplyTwice := \f. \x. f (f x)
 
 Omega := (\x. x x) (\x. x x)
 
+| T F
+

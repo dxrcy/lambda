@@ -39,6 +39,34 @@ pub const ParamRef = struct {
     }
 };
 
+pub const TermStore = struct {
+    const Self = @This();
+
+    const ArenaAllocator = std.heap.ArenaAllocator;
+
+    allocator: ArenaAllocator,
+
+    pub fn init(child_allocator: Allocator) Self {
+        return Self{
+            .allocator = ArenaAllocator.init(child_allocator),
+        };
+    }
+
+    pub fn deinit(self: *Self) void {
+        self.allocator.deinit();
+    }
+
+    pub fn create(
+        self: *Self,
+        span: ?SourceSpan,
+        value: Term.Kind,
+    ) Allocator.Error!*Term {
+        const ptr = try self.allocator.allocator().create(Term);
+        ptr.* = .{ .span = span, .value = value };
+        return ptr;
+    }
+};
+
 /// Not very type-safe, since this type is used in many different contexts,
 /// each with their own assumptions about what `Kind` is valid or if `span` may
 /// be `null`.

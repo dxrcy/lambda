@@ -88,8 +88,8 @@ pub fn main() !u8 {
     var queries = ArrayList(Query).empty;
     defer queries.deinit(allocator);
 
-    var term_allocator = std.heap.ArenaAllocator.init(gpa.allocator());
-    defer term_allocator.deinit();
+    var terms_persistent = model.TermStore.init(gpa.allocator());
+    defer terms_persistent.deinit();
 
     // TODO: Separate term storage into
     // - terms in declarations
@@ -108,7 +108,7 @@ pub fn main() !u8 {
         var statements = Statements.new(file_source, &text);
         while (statements.next()) |span| {
             var parser = Parser.new(span, &text, &reporter);
-            const stmt = try parser.tryStatement(term_allocator.allocator()) orelse {
+            const stmt = try parser.tryStatement(&terms_persistent) orelse {
                 continue;
             };
             switch (stmt) {
@@ -156,30 +156,24 @@ pub fn main() !u8 {
     if (reporter.checkFatal()) |code|
         return code;
 
-    // TODO: Print shadowed variables with a suffix (like `~0`)
-
     var signer = Signer.init(allocator);
     defer signer.deinit();
 
     // Reduce *all nested* globals (eg. `1 := S 0` is applied)
     // So reduced queries can match decl signature
     for (decls.items) |*decl| {
-        // TODO: Use temporary allocator for this, since terms are only used
-        // within the current iteration; signature does not refer to terms
-
         // Don't report recursion cutoff
         const reduced = try reduction.reduceTerm(
             decl.term,
             .greedy,
             decls.items,
-            term_allocator.allocator(),
+            // TODO: Use termporary allocator
+            &terms_persistent,
         ) orelse decl.term;
 
         // Sets to `null` on fail (iteration limit)
         decl.signature = try signer.sign(reduced, decls.items);
     }
-
-    // debug.printDeclarations(decls.items, &text);
 
     {
         for (queries.items) |*query| {
@@ -189,7 +183,7 @@ pub fn main() !u8 {
                 query.term,
                 .lazy,
                 decls.items,
-                term_allocator.allocator(),
+                &terms_persistent,
             ) orelse {
                 reporter.report(
                     "recursion limit reached when reducing query",
@@ -210,6 +204,17 @@ pub fn main() !u8 {
             output.print("\n", .{});
         }
     }
+
+    return 0;
+}
+
+fn dead() !void {
+    const decls = undefined;
+    const term_allocator = undefined;
+    const reporter = undefined;
+    const text = undefined;
+    const locals = undefined;
+    const signer = undefined;
 
     var repl = try Repl.new(&text);
 

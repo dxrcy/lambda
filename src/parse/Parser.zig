@@ -15,6 +15,7 @@ const model = @import("../model.zig");
 const Decl = model.Decl;
 const Query = model.Query;
 const Term = model.Term;
+const TermStore = model.TermStore;
 
 const TokenBuf = @import("TokenBuf.zig");
 const Tokenizer = @import("Tokenizer.zig");
@@ -67,25 +68,25 @@ pub const Statement = union(enum) {
 
 pub fn tryStatement(
     self: *Self,
-    term_allocator: Allocator,
+    term_store: *TermStore,
 ) Allocator.Error!?Statement {
     if (!self.peekIsAnyToken()) {
         return null;
     }
 
     if (self.peekIsInspect()) {
-        const term = try self.expectInspect(term_allocator) orelse
+        const term = try self.expectInspect(term_store) orelse
             return null;
         return .{ .inspect = term };
     }
 
     if (self.peekIsDeclaration()) {
-        const decl = try self.expectDeclaration(term_allocator) orelse
+        const decl = try self.expectDeclaration(term_store) orelse
             return null;
         return .{ .declaration = decl };
     }
 
-    const query = try self.expectQuery(term_allocator) orelse
+    const query = try self.expectQuery(term_store) orelse
         return null;
     return .{ .query = query };
 }
@@ -111,20 +112,23 @@ fn peekIsDeclaration(self: *Self) bool {
 
 /// Assumes next token is present; caller must ensure this.
 /// Assumes first token is `.Inspect`; caller must ensure this.
-fn expectInspect(self: *Self, term_allocator: Allocator) Allocator.Error!?*Term {
+fn expectInspect(self: *Self, term_store: *TermStore) Allocator.Error!?*Term {
     assert(self.expectTokenKind(.Inspect) != null);
-    return try self.expectStatementTerm(term_allocator);
+    return try self.expectStatementTerm(term_store);
 }
 
 /// Assumes next token is present; caller must ensure this.
 /// Assumes second token is `.Equals`; caller must ensure this.
-fn expectDeclaration(self: *Self, term_allocator: Allocator) Allocator.Error!?Decl {
+fn expectDeclaration(
+    self: *Self,
+    term_store: *TermStore,
+) Allocator.Error!?Decl {
     const name = self.expectIdent() orelse
         return null;
 
     assert(self.expectTokenKind(.Equals) != null);
 
-    const term = try self.expectStatementTerm(term_allocator) orelse
+    const term = try self.expectStatementTerm(term_store) orelse
         return null;
 
     return Decl{
@@ -135,17 +139,17 @@ fn expectDeclaration(self: *Self, term_allocator: Allocator) Allocator.Error!?De
 }
 
 /// Assumes next token is present; caller must ensure this.
-fn expectQuery(self: *Self, term_allocator: Allocator) Allocator.Error!?Query {
-    const term = try self.expectStatementTerm(term_allocator) orelse
+fn expectQuery(self: *Self, term_store: *TermStore) Allocator.Error!?Query {
+    const term = try self.expectStatementTerm(term_store) orelse
         return null;
     return Query{ .term = term };
 }
 
 fn expectStatementTerm(
     self: *Self,
-    term_allocator: Allocator,
+    term_store: *TermStore,
 ) Allocator.Error!?*Term {
-    const term = try self.tryTermGreedy(false, term_allocator) orelse
+    const term = try self.tryTermGreedy(false, term_store) orelse
         (return null) orelse return null;
     // Any trailing characters should have already been handled (including
     // unmatched right paren)
@@ -156,9 +160,9 @@ fn expectStatementTerm(
 fn tryTermGreedy(
     self: *Self,
     comptime in_group: bool,
-    term_allocator: Allocator,
+    term_store: *TermStore,
 ) Allocator.Error!??*Term {
-    const left = try self.tryTermSingle(false, in_group, term_allocator) orelse
+    const left = try self.tryTermSingle(false, in_group, term_store) orelse
         (return null) orelse return SomeNull(*Term);
 
     // Keep taking following terms until [end of group or statement]
@@ -181,20 +185,19 @@ fn tryTermGreedy(
             break;
         }
 
-        const right = try self.tryTermSingle(true, in_group, term_allocator) orelse
+        const right = try self.tryTermSingle(true, in_group, term_store) orelse
             (return null) orelse
             {
                 break;
             };
 
         // TODO: Handle `null` span (panic)... and likewise elsewhere
-        parent = try Term.create(
+        parent = try term_store.create(
             left.span.?.join(right.span.?),
             .{ .application = .{
                 .function = parent,
                 .argument = right,
             } },
-            term_allocator,
         );
     }
     return parent;
@@ -204,7 +207,7 @@ fn tryTermSingle(
     self: *Self,
     comptime allow_end: bool,
     comptime in_group: bool,
-    term_allocator: Allocator,
+    term_store: *TermStore,
 ) Allocator.Error!??*Term {
     const left = self.nextToken() orelse (return null) orelse {
         if (!allow_end) {
@@ -221,10 +224,9 @@ fn tryTermSingle(
 
     switch (left.kind) {
         .Ident => {
-            return try Term.create(
+            return try term_store.create(
                 left.span,
                 .{ .unresolved = {} },
-                term_allocator,
             );
         },
 
@@ -235,30 +237,28 @@ fn tryTermSingle(
             _ = self.expectTokenKind(.Dot) orelse
                 (return null) orelse return SomeNull(*Term);
 
-            const right = try self.tryTermGreedy(in_group, term_allocator) orelse
+            const right = try self.tryTermGreedy(in_group, term_store) orelse
                 (return null) orelse return SomeNull(*Term);
 
-            return try Term.create(
+            return try term_store.create(
                 left.span.join(right.span.?),
                 .{ .abstraction = .{
                     .parameter = parameter,
                     .body = right,
                 } },
-                term_allocator,
             );
         },
 
         .ParenLeft => {
-            const inner = try self.tryTermGreedy(true, term_allocator) orelse
+            const inner = try self.tryTermGreedy(true, term_store) orelse
                 (return null) orelse return SomeNull(*Term);
 
             const right_paren = self.expectTokenKind(.ParenRight) orelse
                 (return null) orelse return SomeNull(*Term);
 
-            return try Term.create(
+            return try term_store.create(
                 left.span.join(right_paren),
                 .{ .group = inner },
-                term_allocator,
             );
         },
 
