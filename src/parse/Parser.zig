@@ -14,7 +14,7 @@ const Reporter = @import("../Reporter.zig");
 const model = @import("../model.zig");
 const Decl = model.Decl;
 const Query = model.Query;
-const Term = model.Term;
+const TermCow = model.TermCow;
 const TermStore = model.TermStore;
 
 const TokenBuf = @import("TokenBuf.zig");
@@ -63,7 +63,7 @@ fn getStatement(self: *const Self) SourceSpan {
 pub const Statement = union(enum) {
     declaration: Decl,
     query: Query,
-    inspect: *Term,
+    inspect: TermCow,
 };
 
 pub fn tryStatement(
@@ -112,7 +112,10 @@ fn peekIsDeclaration(self: *Self) bool {
 
 /// Assumes next token is present; caller must ensure this.
 /// Assumes first token is `.Inspect`; caller must ensure this.
-fn expectInspect(self: *Self, term_store: *TermStore) Allocator.Error!?*Term {
+fn expectInspect(
+    self: *Self,
+    term_store: *TermStore,
+) Allocator.Error!?TermCow {
     assert(self.expectTokenKind(.Inspect) != null);
     return try self.expectStatementTerm(term_store);
 }
@@ -148,7 +151,7 @@ fn expectQuery(self: *Self, term_store: *TermStore) Allocator.Error!?Query {
 fn expectStatementTerm(
     self: *Self,
     term_store: *TermStore,
-) Allocator.Error!?*Term {
+) Allocator.Error!?TermCow {
     const term = try self.tryTermGreedy(false, term_store) orelse
         (return null) orelse return null;
     // Any trailing characters should have already been handled (including
@@ -161,9 +164,9 @@ fn tryTermGreedy(
     self: *Self,
     comptime in_group: bool,
     term_store: *TermStore,
-) Allocator.Error!??*Term {
+) Allocator.Error!??TermCow {
     const left = try self.tryTermSingle(false, in_group, term_store) orelse
-        (return null) orelse return SomeNull(*Term);
+        (return null) orelse return SomeNull(TermCow);
 
     // Keep taking following terms until [end of group or statement]
     var parent = left;
@@ -193,7 +196,7 @@ fn tryTermGreedy(
 
         // TODO: Handle `null` span (panic)... and likewise elsewhere
         parent = try term_store.create(
-            left.span.?.join(right.span.?),
+            left.asReference().span.?.join(right.asReference().span.?),
             .{ .application = .{
                 .function = parent,
                 .argument = right,
@@ -208,7 +211,7 @@ fn tryTermSingle(
     comptime allow_end: bool,
     comptime in_group: bool,
     term_store: *TermStore,
-) Allocator.Error!??*Term {
+) Allocator.Error!??TermCow {
     const left = self.nextToken() orelse (return null) orelse {
         if (!allow_end) {
             self.reporter.report(
@@ -219,7 +222,7 @@ fn tryTermSingle(
                 self.text,
             );
         }
-        return SomeNull(*Term);
+        return SomeNull(TermCow);
     };
 
     switch (left.kind) {
@@ -232,16 +235,16 @@ fn tryTermSingle(
 
         .Backslash => {
             const parameter = self.expectTokenKind(.Ident) orelse
-                (return null) orelse return SomeNull(*Term);
+                (return null) orelse return SomeNull(TermCow);
 
             _ = self.expectTokenKind(.Dot) orelse
-                (return null) orelse return SomeNull(*Term);
+                (return null) orelse return SomeNull(TermCow);
 
             const right = try self.tryTermGreedy(in_group, term_store) orelse
-                (return null) orelse return SomeNull(*Term);
+                (return null) orelse return SomeNull(TermCow);
 
             return try term_store.create(
-                left.span.join(right.span.?),
+                left.span.join(right.asReference().span.?),
                 .{ .abstraction = .{
                     .parameter = parameter,
                     .body = right,
@@ -251,10 +254,10 @@ fn tryTermSingle(
 
         .ParenLeft => {
             const inner = try self.tryTermGreedy(true, term_store) orelse
-                (return null) orelse return SomeNull(*Term);
+                (return null) orelse return SomeNull(TermCow);
 
             const right_paren = self.expectTokenKind(.ParenRight) orelse
-                (return null) orelse return SomeNull(*Term);
+                (return null) orelse return SomeNull(TermCow);
 
             return try term_store.create(
                 left.span.join(right_paren),

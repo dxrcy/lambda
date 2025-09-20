@@ -313,6 +313,7 @@ fn betaReduce(
 /// *Deep-copy* term by allocating and copying children.
 /// Does not copy non-parent terms (`global` and `local`), since they should be
 /// not be mutated by the caller.
+// TODO: Move to `TermCow` ?
 fn deepCopyTerm(term: *Term, term_store: *TermStore) Allocator.Error!*Term {
     const copy_value: Term.Kind = switch (term.value) {
         .unresolved => std.debug.panic("symbol should have been resolved already", .{}),

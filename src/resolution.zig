@@ -43,6 +43,7 @@ pub fn checkDeclarationCollisions(
     }
 }
 
+/// Assumes all descendants of `term` are *owned*.
 pub fn resolveAllSymbols(
     term: *Term,
     locals: *LocalStore,
@@ -78,7 +79,13 @@ fn resolveSymbolsInner(
             }
         },
         .group => |inner| {
-            try resolveSymbolsInner(inner, locals, declarations, text, reporter);
+            try resolveSymbolsInner(
+                inner.unwrapOwned(),
+                locals,
+                declarations,
+                text,
+                reporter,
+            );
         },
         .abstraction => |abstr| {
             const value = abstr.parameter.in(text);
@@ -107,12 +114,30 @@ fn resolveSymbolsInner(
                 );
             }
             try locals.push(abstr.parameter, value);
-            try resolveSymbolsInner(abstr.body, locals, declarations, text, reporter);
+            try resolveSymbolsInner(
+                abstr.body.unwrapOwned(),
+                locals,
+                declarations,
+                text,
+                reporter,
+            );
             locals.pop();
         },
         .application => |appl| {
-            try resolveSymbolsInner(appl.function, locals, declarations, text, reporter);
-            try resolveSymbolsInner(appl.argument, locals, declarations, text, reporter);
+            try resolveSymbolsInner(
+                appl.function.unwrapOwned(),
+                locals,
+                declarations,
+                text,
+                reporter,
+            );
+            try resolveSymbolsInner(
+                appl.argument.unwrapOwned(),
+                locals,
+                declarations,
+                text,
+                reporter,
+            );
         },
         // No symbols in this branch should be resolved yet
         .local => unreachable,

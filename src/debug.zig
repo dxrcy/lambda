@@ -23,7 +23,7 @@ pub fn printDeclarations(
 ) void {
     for (declarations, 0..) |*decl, i| {
         output.print("\n[{}] {s}\n", .{ i, decl.name.in(text) });
-        printTermDetailedInner(decl.term, 0, "", text);
+        printTermDetailedInner(decl.term.asReference(), 0, "", text);
         output.print("\n", .{});
     }
 }
@@ -31,7 +31,7 @@ pub fn printDeclarations(
 pub fn printQueries(queries: []const Query) void {
     for (queries, 0..) |*query, i| {
         output.print("\n<{}>\n", .{i});
-        printTermDetailedInner(query.term, 0, "");
+        printTermDetailedInner(query.term.asReference(), 0, "");
         output.print("\n", .{});
     }
 }
@@ -138,20 +138,20 @@ fn printTermDetailedInner(
         .group => |inner| {
             printLabel(depth, prefix, "group");
             printSpanValue(term.span, false, text);
-            printTermDetailedInner(inner, depth + 1, "", text);
+            printTermDetailedInner(inner.asReference(), depth + 1, "", text);
         },
         .abstraction => |abstr| {
             printLabel(depth, prefix, "abstraction");
             printSpanValue(term.span, false, text);
             printLabel(depth + 1, "parameter", "");
             printSpanValue(abstr.parameter, true, text);
-            printTermDetailedInner(abstr.body, depth + 1, "body", text);
+            printTermDetailedInner(abstr.body.asReference(), depth + 1, "body", text);
         },
         .application => |appl| {
             printLabel(depth, prefix, "application");
             printSpanValue(term.span, false, text);
-            printTermDetailedInner(appl.function, depth + 1, "function", text);
-            printTermDetailedInner(appl.argument, depth + 1, "argument", text);
+            printTermDetailedInner(appl.function.asReference(), depth + 1, "function", text);
+            printTermDetailedInner(appl.argument.asReference(), depth + 1, "argument", text);
         },
     }
 }

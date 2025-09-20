@@ -136,7 +136,7 @@ pub fn main() !u8 {
     resolution.checkDeclarationCollisions(decls.items, &text, &reporter);
     for (decls.items) |*entry| {
         try resolution.resolveAllSymbols(
-            entry.term,
+            entry.term.unwrapOwned(),
             &locals,
             decls.items,
             &text,
@@ -145,7 +145,7 @@ pub fn main() !u8 {
     }
     for (queries.items) |*query| {
         try resolution.resolveAllSymbols(
-            query.term,
+            query.term.unwrapOwned(),
             &locals,
             decls.items,
             &text,
@@ -155,6 +155,21 @@ pub fn main() !u8 {
 
     if (reporter.checkFatal()) |code|
         return code;
+
+    debug.printDeclarations(decls.items, &text);
+
+    return 0;
+}
+
+fn dead() !void {
+    const decls = undefined;
+    const term_allocator = undefined;
+    const reporter = undefined;
+    const text = undefined;
+    const allocator = undefined;
+    const queries = undefined;
+    const terms_persistent = undefined;
+    const locals = undefined;
 
     var signer = Signer.init(allocator);
     defer signer.deinit();
@@ -204,17 +219,6 @@ pub fn main() !u8 {
             output.print("\n", .{});
         }
     }
-
-    return 0;
-}
-
-fn dead() !void {
-    const decls = undefined;
-    const term_allocator = undefined;
-    const reporter = undefined;
-    const text = undefined;
-    const locals = undefined;
-    const signer = undefined;
 
     var repl = try Repl.new(&text);
 

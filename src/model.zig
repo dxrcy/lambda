@@ -9,13 +9,13 @@ pub const DeclIndex = usize;
 
 pub const Decl = struct {
     name: SourceSpan,
-    term: *Term,
+    term: TermCow,
     signature: ?u64,
 };
 
-// TODO: Remove, and simply use `*Term`
+// TODO: Remove, and simply use `TermCow`
 pub const Query = struct {
-    term: *Term,
+    term: TermCow,
 };
 
 /// Like a `SourceSpan` without a `length`.
@@ -60,10 +60,36 @@ pub const TermStore = struct {
         self: *Self,
         span: ?SourceSpan,
         value: Term.Kind,
-    ) Allocator.Error!*Term {
-        const ptr = try self.allocator.allocator().create(Term);
-        ptr.* = .{ .span = span, .value = value };
-        return ptr;
+    ) Allocator.Error!TermCow {
+        const owned = try self.allocator.allocator().create(Term);
+        owned.* = .{ .span = span, .value = value };
+        return TermCow{ .owned = owned };
+    }
+};
+
+/// Copy-on-write reference to a `Term`.
+/// Do not use this type behind a pointer, this is useless.
+pub const TermCow = union(enum) {
+    const Self = @This();
+
+    owned: *Term,
+    reference: *const Term,
+
+    pub fn asReference(self: Self) *const Term {
+        return switch (self) {
+            .owned => |owned| owned,
+            .reference => |reference| reference,
+        };
+    }
+
+    pub fn unwrapOwned(self: Self) *Term {
+        return switch (self) {
+            .owned => |owned| owned,
+            .reference => std.debug.panic(
+                "tried to unwrap `TermCow.reference` as `TermCow.owned`",
+                .{},
+            ),
+        };
     }
 };
 
@@ -85,7 +111,7 @@ pub const Term = struct {
         unresolved: void,
         local: ParamRef,
         global: DeclIndex,
-        group: *Term,
+        group: TermCow,
         abstraction: Abstr,
         application: Appl,
     };
@@ -94,12 +120,12 @@ pub const Term = struct {
         /// Used for resolution and reduction.
         /// Referred to by `ParamRef`.
         parameter: SourceSpan,
-        body: *Term,
+        body: TermCow,
     };
 
     pub const Appl = struct {
-        function: *Term,
-        argument: *Term,
+        function: TermCow,
+        argument: TermCow,
     };
 
     /// Allocate and initialize a `Term`.
