@@ -108,11 +108,12 @@ const Reducer = struct {
     ) ReductionError!?TermCow {
         const function_term = try self.reduceTerm(appl.function, depth + 1);
 
-        // Cannot reduce application, if function is an unreduced local binding
+        // Cannot reduce application, if function depends on an unreduced local
+        // binding
         // Also don't reduce global if it wasn't expanded
         const function_abstr = switch (function_term.asConst().value) {
             .abstraction => |abstr| abstr,
-            .local => return null,
+            .local, .application => return null,
             .global => if (self.mode == .lazy) {
                 return null;
             } else {
@@ -120,7 +121,6 @@ const Reducer = struct {
             },
             .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
             .group => std.debug.panic("group should have been flattened already", .{}),
-            .application => std.debug.panic("application should have been resolved already", .{}),
         };
 
         const applied = try self.betaReduce(
