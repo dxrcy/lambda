@@ -46,16 +46,20 @@ const Reducer = struct {
     decls: []const Decl,
     term_store: *TermStore,
 
-    // `depth` should only be incremented in a recursive `reduceTerm` call; NOT
-    // when calling other functions in this container.
+    /// Depth should only be incremented when calling `reduceTerm` or
+    /// `betaReduce`
+    fn checkDepthLimit(depth: usize) error{DepthCutoff}!void {
+        if (depth >= MAX_REDUCTION_RECURSION) {
+            return error.DepthCutoff;
+        }
+    }
+
     fn reduceTerm(
         self: *const Self,
         term: TermCow,
         depth: usize,
     ) ReductionError!TermCow {
-        if (depth >= MAX_REDUCTION_RECURSION) {
-            return error.DepthCutoff;
-        }
+        try checkDepthLimit(depth);
 
         switch (term.asConst().value) {
             // Unreduced local binding cannot be reduced any further
@@ -127,6 +131,7 @@ const Reducer = struct {
             ParamRef.from(function_abstr.parameter),
             function_abstr.body,
             appl.argument,
+            depth + 1,
         ) orelse function_abstr.body;
 
         switch (applied.asConst().value) {
@@ -145,7 +150,10 @@ const Reducer = struct {
         abstr_param: ParamRef,
         abstr_body: TermCow,
         appl_argument: TermCow,
-    ) Allocator.Error!?TermCow {
+        depth: usize,
+    ) ReductionError!?TermCow {
+        try checkDepthLimit(depth);
+
         switch (abstr_body.asConst().value) {
             .global => if (self.mode == .lazy) {
                 return null;
@@ -168,6 +176,7 @@ const Reducer = struct {
                     abstr_param,
                     inner,
                     appl_argument,
+                    depth + 1,
                 );
             },
 
@@ -177,6 +186,7 @@ const Reducer = struct {
                     abstr_param,
                     abstr.body,
                     appl_argument,
+                    depth + 1,
                 ) orelse {
                     return null;
                 };
@@ -200,11 +210,13 @@ const Reducer = struct {
                     abstr_param,
                     appl.function,
                     appl_argument,
+                    depth + 1,
                 );
                 const reduced_argument = try self.betaReduce(
                     abstr_param,
                     appl.argument,
                     appl_argument,
+                    depth + 1,
                 );
 
                 if (reduced_function == null and reduced_argument == null) {
