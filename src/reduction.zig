@@ -33,7 +33,7 @@ pub fn reduceTerm(
         .decls = decls,
         .term_store = term_store,
     };
-    return reducer.reduceTerm(term, 0) catch |err| switch (err) {
+    return reducer.reduceTerm(term, false, 0) catch |err| switch (err) {
         error.DepthCutoff => return null,
         else => |other_err| return other_err,
     };
@@ -57,6 +57,7 @@ const Reducer = struct {
     fn reduceTerm(
         self: *const Self,
         term: TermCow,
+        must_expand_global: bool,
         depth: usize,
     ) ReductionError!TermCow {
         try checkDepthLimit(depth);
@@ -66,16 +67,20 @@ const Reducer = struct {
             .local => return term,
 
             .global => |global| {
-                if (self.mode == .lazy) {
+                if (self.mode == .lazy and !must_expand_global) {
                     return term;
                 }
-                // Expand global
-                return self.reduceTerm(self.decls[global].term, depth + 1);
+                // Expand globals until expands to something else
+                return self.reduceTerm(
+                    self.decls[global].term,
+                    must_expand_global,
+                    depth + 1,
+                );
             },
 
             .group => |inner| {
                 // Flatten group
-                return self.reduceTerm(inner, depth + 1);
+                return self.reduceTerm(inner, must_expand_global, depth + 1);
             },
 
             .abstraction => |abstr| {
@@ -104,16 +109,18 @@ const Reducer = struct {
         }
     }
 
-    /// Returns `null` if function is an unreduced local binding.
+    /// Returns `null` if function depends on an unreduced local binding.
     fn reduceApplication(
         self: *const Self,
         appl: *const Term.Appl,
         depth: usize,
     ) ReductionError!?TermCow {
-        const function_term = try self.reduceTerm(appl.function, depth + 1);
+        // Always expand global if it is an application function
+        const function_term = try self.reduceTerm(appl.function, true, depth + 1);
 
         // Cannot reduce application, if function depends on an unreduced local
-        // binding
+        // binding (ie. is a local binding, or another application which cannot
+        // be reduced for the same reason)
         // Also don't reduce global if it wasn't expanded
         const function_abstr = switch (function_term.asConst().value) {
             .abstraction => |abstr| abstr,
@@ -140,7 +147,7 @@ const Reducer = struct {
             .group => std.debug.panic("group should have been flattened already", .{}),
         }
 
-        return try self.reduceTerm(applied, depth + 1);
+        return try self.reduceTerm(applied, false, depth + 1);
     }
 
     /// Returns `null` if no beta-reduction occurred.
