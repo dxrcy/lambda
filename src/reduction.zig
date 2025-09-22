@@ -70,9 +70,10 @@ const Reducer = struct {
                 if (self.mode == .lazy and !must_expand_global) {
                     return term;
                 }
-                // Expand globals until expands to something else
+                // Expand globals recursively until expands to something else,
+                // then reduce that term
                 return self.reduceTerm(
-                    self.decls[global].term,
+                    self.decls[global].term.copyReference(),
                     must_expand_global,
                     depth + 1,
                 );
@@ -133,6 +134,8 @@ const Reducer = struct {
             .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
             .group => std.debug.panic("group should have been flattened already", .{}),
         };
+
+        // std.debug.print("{}\n", .{function_term});
 
         const applied = try self.betaReduce(
             ParamRef.from(function_abstr.parameter),
@@ -235,8 +238,8 @@ const Reducer = struct {
                     .span = null,
                     .value = .{
                         .application = .{
-                            .function = reduced_function orelse appl.function,
-                            .argument = reduced_argument orelse appl.argument,
+                            .function = reduced_function orelse appl.function.copyReference(),
+                            .argument = reduced_argument orelse appl.argument.copyReference(),
                         },
                     },
                 };
