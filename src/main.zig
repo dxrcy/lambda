@@ -156,6 +156,10 @@ pub fn main() !u8 {
     if (reporter.checkFatal()) |code|
         return code;
 
+    for (decls.items) |*decl| {
+        decl.term.freezeAll();
+    }
+
     // var signer = Signer.init(allocator);
     // defer signer.deinit();
     //

@@ -56,6 +56,7 @@ pub const TermStore = struct {
         self.allocator.deinit();
     }
 
+    /// Allocates and returns *owned* `TermCow`, with given `span` and `value`.
     pub fn create(
         self: *Self,
         span: ?SourceSpan,
@@ -85,14 +86,19 @@ pub const TermCow = union(enum) {
         };
     }
 
-    /// Asserts that `self` is *owned*, and returns the underlying pointer.
-    pub fn unwrapOwned(self: Self) *Term {
+    /// Returns the underlying pointer of `self`, iff `self` is *owned*.
+    // TODO: Rename
+    pub fn getOwned(self: Self) ?*Term {
         return switch (self) {
             .owned => |owned| owned,
-            .referenced => std.debug.panic(
-                "tried to unwrap `TermCow.reference` as `TermCow.owned`",
-                .{},
-            ),
+            .referenced => null,
+        };
+    }
+
+    /// Asserts that `self` is *owned*, and returns the underlying pointer.
+    pub fn unwrapOwned(self: Self) *Term {
+        return self.getOwned() orelse {
+            std.debug.panic("tried to unwrap `TermCow.reference` as `TermCow.owned`", .{});
         };
     }
 
@@ -116,12 +122,36 @@ pub const TermCow = union(enum) {
         return owned;
     }
 
-    fn copyReference(self: Self) Self {
-        const referenced = switch (self) {
-            .owned => |owned| owned,
-            .referenced => |reference| reference,
+    /// Set `self`, and all descendants, to be *referenced*.
+    /// No-op if `self` is already *referenced*.
+    // TODO: Rename
+    pub fn freezeAll(self: *Self) void {
+        const owned = self.getOwned() orelse
+            return;
+
+        self.* = Self{ .referenced = self.asConst() };
+
+        switch (owned.value) {
+            .unresolved, .local, .global => {},
+            .group => |*inner| {
+                inner.freezeAll();
+            },
+            .abstraction => |*abstr| {
+                abstr.body.freezeAll();
+            },
+            .application => |*appl| {
+                appl.function.freezeAll();
+                appl.argument.freezeAll();
+            },
+        }
+    }
+
+    /// Return `TermCow` referencing `self`.
+    pub fn copyReference(self: Self) Self {
+        return switch (self) {
+            .owned => |owned| Self{ .referenced = owned },
+            .referenced => self,
         };
-        return Self{ .referenced = referenced };
     }
 
     /// Returns *owned* version of `self`.
