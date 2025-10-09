@@ -336,7 +336,16 @@ pub fn main() !u8 {
                     .greedy,
                     decls.items,
                     term_allocator.allocator(),
-                ) orelse continue;
+                ) orelse {
+                    reporter.report(
+                        "recursion limit reached when reducing query",
+                        "check for any reference cycles in declarations",
+                        .{},
+                        .{ .query = term_span },
+                        &text,
+                    );
+                    continue;
+                };
 
                 const signature = try signer.sign(reduced_greedy, decls.items);
 
