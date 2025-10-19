@@ -59,7 +59,7 @@ const Reducer = struct {
         term: TermCow,
         must_expand_global: bool,
         depth: usize,
-    ) ReductionError!TermCow {
+    ) ReductionError!?TermCow {
         try checkDepthLimit(depth);
 
         switch (term.asConst().value) {
@@ -77,7 +77,11 @@ const Reducer = struct {
                     expanded,
                     must_expand_global,
                     depth + 1,
-                ) orelse expanded; // Note we don't return `null` in here
+                ) orelse {
+                    // We still want the expansion, even if no reduction
+                    // occurred
+                    return expanded;
+                };
             },
 
             .group => |inner| {
