@@ -94,10 +94,23 @@ const Reducer = struct {
                     return term;
                 }
 
-                // TODO:
-                // Try to reduce body of abstraction
-                _ = abstr;
-                unreachable;
+                // Do nothing if body was NOT reduced.
+                const reduced_body: TermCow = try self.reduceTerm(
+                    abstr.body,
+                    must_expand_global,
+                    depth + 1,
+                ) orelse {
+                    return null;
+                };
+
+                return try self.term_store.createOrReuse(
+                    term,
+                    null,
+                    .{ .abstraction = .{
+                        .parameter = abstr.parameter,
+                        .body = reduced_body,
+                    } },
+                );
             },
 
             .application => |appl| {
@@ -110,9 +123,30 @@ const Reducer = struct {
                     return term;
                 }
 
-                // TODO:
-                // Try to reduce function and/or body of application
-                unreachable;
+                // Do nothing if function AND argument were NOT reduced.
+                const reduced_function: ?TermCow = try self.reduceTerm(
+                    appl.function,
+                    must_expand_global,
+                    depth + 1,
+                );
+                const reduced_argument: ?TermCow = try self.reduceTerm(
+                    appl.argument,
+                    must_expand_global,
+                    depth + 1,
+                );
+
+                if (reduced_function == null and reduced_argument == null) {
+                    return null;
+                }
+
+                return try self.term_store.createOrReuse(
+                    term,
+                    null,
+                    .{ .application = .{
+                        .function = reduced_function orelse appl.function.copyReference(),
+                        .argument = reduced_argument orelse appl.argument.copyReference(),
+                    } },
+                );
             },
 
             .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
