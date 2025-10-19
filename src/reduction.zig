@@ -72,11 +72,12 @@ const Reducer = struct {
                 }
                 // Expand globals recursively until expands to something else,
                 // then reduce that term
-                return self.reduceTerm(
-                    self.decls[global].term.copyReference(),
+                const expanded = self.decls[global].term.copyReference();
+                return try self.reduceTerm(
+                    expanded,
                     must_expand_global,
                     depth + 1,
-                );
+                ) orelse expanded; // Note we don't return `null` in here
             },
 
             .group => |inner| {
@@ -117,13 +118,17 @@ const Reducer = struct {
         depth: usize,
     ) ReductionError!?TermCow {
         // Always expand global if it is an application function
-        const function_term = try self.reduceTerm(appl.function, true, depth + 1);
+        const function_term: TermCow = try self.reduceTerm(
+            appl.function,
+            true,
+            depth + 1,
+        ) orelse appl.function;
 
         // Cannot reduce application, if function depends on an unreduced local
         // binding (ie. is a local binding, or another application which cannot
         // be reduced for the same reason)
         // Also don't reduce global if it wasn't expanded
-        const function_abstr = switch (function_term.asConst().value) {
+        const function_abstr: Term.Abstr = switch (function_term.asConst().value) {
             .abstraction => |abstr| abstr,
             .local, .application => return null,
             .global => if (self.mode == .lazy) {
@@ -135,9 +140,7 @@ const Reducer = struct {
             .group => std.debug.panic("group should have been flattened already", .{}),
         };
 
-        // std.debug.print("{}\n", .{function_term});
-
-        const applied = try self.betaReduce(
+        const applied: TermCow = try self.betaReduce(
             ParamRef.from(function_abstr.parameter),
             function_abstr.body,
             appl.argument,
@@ -150,7 +153,13 @@ const Reducer = struct {
             .group => std.debug.panic("group should have been flattened already", .{}),
         }
 
-        return try self.reduceTerm(applied, false, depth + 1);
+        const reduced: TermCow = try self.reduceTerm(
+            applied,
+            false,
+            depth + 1,
+        ) orelse applied;
+
+        return reduced;
     }
 
     /// Returns `null` if no beta-reduction occurred.
@@ -192,7 +201,7 @@ const Reducer = struct {
 
             .abstraction => |abstr| {
                 // Do nothing if body was NOT beta-reduced.
-                const reduced_body = try self.betaReduce(
+                const reduced_body: TermCow = try self.betaReduce(
                     abstr_param,
                     abstr.body,
                     appl_argument,
@@ -213,13 +222,13 @@ const Reducer = struct {
 
             .application => |appl| {
                 // Do nothing if function AND argument were NOT beta-reduced.
-                const reduced_function = try self.betaReduce(
+                const reduced_function: ?TermCow = try self.betaReduce(
                     abstr_param,
                     appl.function,
                     appl_argument,
                     depth + 1,
                 );
-                const reduced_argument = try self.betaReduce(
+                const reduced_argument: ?TermCow = try self.betaReduce(
                     abstr_param,
                     appl.argument,
                     appl_argument,
