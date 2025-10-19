@@ -122,7 +122,7 @@ pub const Signer = struct {
                     });
 
                     try self.queue.add(.{
-                        .term = abstr.body,
+                        .term = abstr.body.asConst(),
                         .index = entry.index * 2 + 1,
                     });
                 },
@@ -135,12 +135,12 @@ pub const Signer = struct {
                     );
 
                     try self.queue.add(.{
-                        .term = appl.function,
+                        .term = appl.function.asConst(),
                         .index = entry.index * 2 + 1,
                     });
 
                     try self.queue.add(.{
-                        .term = appl.argument,
+                        .term = appl.argument.asConst(),
                         .index = entry.index * 2 + 2,
                     });
                 },
@@ -169,9 +169,9 @@ fn expandGlobal(
     for (0..MAX_EXPAND_ITERATION) |_| {
         term = switch (term.value) {
             .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
-            .global => |global| decls[global].term,
+            .global => |global| decls[global].term.asConst(),
             // Flatten group
-            .group => |inner| inner,
+            .group => |inner| inner.asConst(),
             .local, .application, .abstraction => {
                 return term;
             },

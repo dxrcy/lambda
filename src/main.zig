@@ -160,24 +160,24 @@ pub fn main() !u8 {
         decl.term.freezeAll();
     }
 
-    // var signer = Signer.init(allocator);
-    // defer signer.deinit();
-    //
-    // // Reduce *all nested* globals (eg. `1 := S 0` is applied)
-    // // So reduced queries can match decl signature
-    // for (decls.items) |*decl| {
-    //     // Don't report recursion cutoff
-    //     const reduced = try reduction.reduceTerm(
-    //         decl.term,
-    //         .greedy,
-    //         decls.items,
-    //         // TODO: Use termporary allocator
-    //         &terms_persistent,
-    //     ) orelse decl.term;
-    //
-    //     // Sets to `null` on fail (iteration limit)
-    //     decl.signature = try signer.sign(reduced, decls.items);
-    // }
+    var signer = Signer.init(allocator);
+    defer signer.deinit();
+
+    // Reduce *all nested* globals (eg. `1 := S 0` is applied)
+    // So reduced queries can match decl signature
+    for (decls.items) |*decl| {
+        // Don't report recursion cutoff
+        const reduced = try reduction.reduceTerm(
+            decl.term,
+            .greedy,
+            decls.items,
+            // TODO: Use temporary allocator
+            &terms_persistent,
+        ) orelse decl.term;
+
+        // Sets to `null` on fail (iteration limit)
+        decl.signature = try signer.sign(reduced.asConst(), decls.items);
+    }
 
     debug.printDeclarations(decls.items, &text);
 
