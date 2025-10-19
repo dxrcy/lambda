@@ -93,6 +93,7 @@ const Reducer = struct {
                 if (self.mode == .lazy) {
                     return term;
                 }
+
                 // TODO:
                 // Try to reduce body of abstraction
                 _ = abstr;
@@ -101,14 +102,17 @@ const Reducer = struct {
 
             .application => |appl| {
                 // Try to reduce application directly
-                return try self.reduceApplication(&appl, depth) orelse {
-                    if (self.mode == .lazy) {
-                        return term;
-                    }
-                    // TODO:
-                    // Try to reduce function and/or body of application
-                    unreachable;
-                };
+                if (try self.reduceApplication(&appl, depth)) |reduced| {
+                    return reduced;
+                }
+
+                if (self.mode == .lazy) {
+                    return term;
+                }
+
+                // TODO:
+                // Try to reduce function and/or body of application
+                unreachable;
             },
 
             .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
