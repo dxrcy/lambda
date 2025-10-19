@@ -211,17 +211,6 @@ pub fn main() !u8 {
         }
     }
 
-    return 0;
-}
-
-fn dead() !void {
-    const decls = undefined;
-    const term_allocator = undefined;
-    const reporter = undefined;
-    const text = undefined;
-    const locals = undefined;
-    const signer = undefined;
-
     var repl = try Repl.new(&text);
 
     while (try repl.readLine()) |line| {
@@ -241,7 +230,7 @@ fn dead() !void {
 
         var parser = Parser.new(line, &text, &reporter);
 
-        const stmt = try parser.tryStatement(term_allocator.allocator()) orelse {
+        const stmt = try parser.tryStatement(&terms_persistent) orelse {
             continue;
         };
         switch (stmt) {
@@ -249,10 +238,10 @@ fn dead() !void {
                 output.print("unimplemented\n", .{});
             },
             .query => |query| {
-                const term_span = query.term.span.?;
+                const term_span = query.term.asConst().span.?;
 
                 try resolution.resolveAllSymbols(
-                    query.term,
+                    query.term.unwrapOwnedAll(),
                     &locals,
                     decls.items,
                     &text,
@@ -268,7 +257,7 @@ fn dead() !void {
                         query.term,
                         .lazy,
                         decls.items,
-                        term_allocator.allocator(),
+                        &terms_persistent,
                     ) orelse {
                         reporter.report(
                             "recursion limit reached when reducing query",
@@ -281,7 +270,7 @@ fn dead() !void {
                     };
 
                     output.print("-> ", .{});
-                    debug.printTermInline(reduced_lazy, decls.items, &text);
+                    debug.printTermInline(reduced_lazy.asConst(), decls.items, &text);
                     output.print("\n", .{});
 
                     // Don't report recursion cutoff
@@ -289,17 +278,17 @@ fn dead() !void {
                         query.term,
                         .greedy,
                         decls.items,
-                        term_allocator.allocator(),
+                        &terms_persistent,
                     ) orelse continue;
 
-                    if (try signer.sign(reduced_greedy, decls.items)) |signature| {
+                    if (try signer.sign(reduced_greedy.asConst(), decls.items)) |signature| {
                         for (decls.items, 0..) |decl, i| {
                             const decl_signature = decl.signature orelse
                                 continue;
 
                             if (signature == decl_signature and
-                                !isDeclIndex(i, query.term) and
-                                !isDeclIndex(i, reduced_lazy))
+                                !isDeclIndex(i, query.term.asConst()) and
+                                !isDeclIndex(i, reduced_lazy.asConst()))
                             {
                                 output.print("-> {s}\n", .{decl.name.in(&text)});
                             }
@@ -310,10 +299,10 @@ fn dead() !void {
                 }
             },
             .inspect => |term| {
-                const term_span = term.span.?;
+                const term_span = term.asConst().span.?;
 
                 try resolution.resolveAllSymbols(
-                    term,
+                    term.unwrapOwnedAll(),
                     &locals,
                     decls.items,
                     &text,
@@ -323,13 +312,15 @@ fn dead() !void {
                     continue;
                 }
 
-                const expanded = reduction.expandGlobalOnce(term, decls.items);
+                // TODO:
+                // const expanded = reduction.expandGlobalOnce(term, decls.items);
+                const expanded = term;
 
                 const reduced_lazy = try reduction.reduceTerm(
                     expanded,
                     .lazy,
                     decls.items,
-                    term_allocator.allocator(),
+                    &terms_persistent,
                 ) orelse {
                     reporter.report(
                         "recursion limit reached when reducing query",
@@ -346,25 +337,25 @@ fn dead() !void {
                     expanded,
                     .greedy,
                     decls.items,
-                    term_allocator.allocator(),
+                    &terms_persistent,
                 ) orelse continue;
 
-                const signature = try signer.sign(reduced_greedy, decls.items);
+                const signature = try signer.sign(reduced_greedy.asConst(), decls.items);
 
                 output.print("* term.............. ", .{});
-                debug.printTermInline(term, decls.items, &text);
+                debug.printTermInline(term.asConst(), decls.items, &text);
                 output.print("\n", .{});
 
                 output.print("* expanded.......... ", .{});
-                debug.printTermInline(expanded, decls.items, &text);
+                debug.printTermInline(expanded.asConst(), decls.items, &text);
                 output.print("\n", .{});
 
                 output.print("* reduced lazy...... ", .{});
-                debug.printTermInline(reduced_lazy, decls.items, &text);
+                debug.printTermInline(reduced_lazy.asConst(), decls.items, &text);
                 output.print("\n", .{});
 
                 output.print("* reduced greedy.... ", .{});
-                debug.printTermInline(reduced_greedy, decls.items, &text);
+                debug.printTermInline(reduced_greedy.asConst(), decls.items, &text);
                 output.print("\n", .{});
 
                 output.print("* signature......... ", .{});

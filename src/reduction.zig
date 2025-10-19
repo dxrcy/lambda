@@ -205,7 +205,6 @@ const Reducer = struct {
     }
 
     /// Returns `null` if no beta-reduction occurred.
-    // TODO: Add depth parameter
     fn betaReduce(
         self: *const Self,
         abstr_param: ParamRef,
