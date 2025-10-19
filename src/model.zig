@@ -66,6 +66,22 @@ pub const TermStore = struct {
         owned.* = .{ .span = span, .value = value };
         return TermCow{ .owned = owned };
     }
+
+    /// If `reusable` is *owned*, then reassign and return, otherwise allocate
+    /// and return new *owned* `TermCow` with given `span` and `value`.
+    pub fn createOrReuse(
+        self: *Self,
+        reusable: TermCow,
+        span: ?SourceSpan,
+        value: Term.Kind,
+    ) Allocator.Error!TermCow {
+        const owned = switch (reusable) {
+            .owned => |owned| owned,
+            .referenced => try self.allocator.allocator().create(Term),
+        };
+        owned.* = .{ .span = span, .value = value };
+        return TermCow{ .owned = owned };
+    }
 };
 
 /// Copy-on-write reference to a `Term`.
@@ -159,7 +175,8 @@ pub const TermCow = union(enum) {
     /// in `store`.
     /// Note that this function **does not** deep-copy children. All children
     /// are *referenced* per `TermCow.copyReference`.
-    pub fn toOwned(self: Self, store: *TermStore) Allocator.Error!Self {
+    // TODO: Remove if not used
+    pub fn _toOwned(self: Self, store: *TermStore) Allocator.Error!Self {
         const referenced = switch (self) {
             .owned => return self,
             .referenced => |referenced| referenced,

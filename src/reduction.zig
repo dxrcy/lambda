@@ -201,17 +201,14 @@ const Reducer = struct {
                     return null;
                 };
 
-                const owned_body = try abstr_body.toOwned(self.term_store);
-                owned_body.unwrapOwned().* = Term{
-                    .span = null,
-                    .value = .{
-                        .abstraction = .{
-                            .parameter = abstr.parameter,
-                            .body = reduced_body,
-                        },
-                    },
-                };
-                return owned_body;
+                return try self.term_store.createOrReuse(
+                    abstr_body,
+                    null,
+                    .{ .abstraction = .{
+                        .parameter = abstr.parameter,
+                        .body = reduced_body,
+                    } },
+                );
             },
 
             .application => |appl| {
@@ -233,17 +230,14 @@ const Reducer = struct {
                     return null;
                 }
 
-                const owned_body = try abstr_body.toOwned(self.term_store);
-                owned_body.unwrapOwned().* = Term{
-                    .span = null,
-                    .value = .{
-                        .application = .{
-                            .function = reduced_function orelse appl.function.copyReference(),
-                            .argument = reduced_argument orelse appl.argument.copyReference(),
-                        },
-                    },
-                };
-                return owned_body;
+                return try self.term_store.createOrReuse(
+                    abstr_body,
+                    null,
+                    .{ .application = .{
+                        .function = reduced_function orelse appl.function.copyReference(),
+                        .argument = reduced_argument orelse appl.argument.copyReference(),
+                    } },
+                );
             },
 
             .unresolved => std.debug.panic("symbol should have been resolved already", .{}),
