@@ -1,4 +1,4 @@
-# Lambda Calculus Parser
+# βcalc -- Lambda Calculus Evaluator
 
 Parse, reduce, and unify lambda calculus statements.
 
